@@ -252,10 +252,109 @@ flowchart LR
 - [ ] Limpeza de uploads antigos na Files API
 - [ ] Publicação na Chrome Web Store — **enviada para análise em 21/07/2026** (aguardando revisão)
 
-## 🤝 Contribuindo
+## 🤝 Contribuindo — mesmo sem saber programar
 
-Issues e PRs são bem-vindos! Para bugs, inclua o tribunal/versão do PJe e a mensagem de
-erro do painel (F12 → Console também ajuda).
+> **Este repositório foi feito para ser editado com IA.** Na raiz existe um arquivo
+> [`CLAUDE.md`](CLAUDE.md) com a arquitetura, as decisões e as armadilhas do projeto —
+> o Claude Code lê esse arquivo **sozinho** ao abrir a pasta. É por isso que um
+> servidor, assessor ou advogado sem formação em programação consegue fazer um ajuste
+> real aqui: você descreve o comportamento que quer **em português**, a IA escreve o
+> código respeitando as regras do projeto, você testa no seu Chrome e manda o PR.
+
+Sentiu falta de alguma coisa? Uma categoria de peça do seu tribunal que não é
+reconhecida, um texto confuso, um atalho que faria sentido no seu dia a dia? **Faça você
+mesmo e me mande** — eu avalio e, estando bom, entra na próxima versão para todo mundo.
+
+### 1. Faça um fork (sua cópia do projeto)
+
+No topo desta página, clique em **Fork** → **Create fork**. Você acabou de criar
+`github.com/SEU-USUARIO/pje-ia`, uma cópia sua onde pode mexer à vontade sem afetar o
+original. Precisa de uma conta no GitHub (gratuita).
+
+### 2. Abra o projeto no Claude Code
+
+Há dois caminhos. Ambos exigem um plano pago da Anthropic — **Pro, Max, Team ou
+Enterprise** (o plano gratuito do Claude.ai não inclui o Claude Code).
+
+**Caminho A — sem instalar nada (mais fácil):**
+[claude.ai/code](https://claude.ai/code) roda na nuvem (em pré-lançamento para Pro, Max e
+Team). Conecte sua conta do GitHub, escolha o seu fork do `pje-ia`, descreva o que quer —
+ele cria a branch e **abre o pull request sozinho**. Só não dá para testar a extensão no
+navegador por ali: é o caminho para textos, ajustes pequenos e documentação.
+
+**Caminho B — no seu computador (permite testar de verdade):**
+
+1. Instale o [Git](https://git-scm.com/downloads/win) (no macOS já vem).
+2. Instale o [**app do Claude**](https://claude.com/download) (Windows e macOS), que traz
+   o Claude Code com interface gráfica — sem terminal, com revisão visual das alterações.
+   (Quem prefere terminal: `irm https://claude.ai/install.ps1 | iex` no PowerShell e
+   depois `claude` dentro da pasta do projeto.)
+3. Baixe o seu fork para o computador (isso é o *clone*), de um destes jeitos:
+   - **Pelo app:** aba **Code** → **Local** → **Select folder**, escolha uma pasta vazia
+     (ex.: `Documentos\pje-ia`) e mande na primeira mensagem:
+     `Clone https://github.com/SEU-USUARIO/pje-ia.git aqui`.
+   - **Pelo terminal**, e depois abra essa pasta no app:
+
+     ```bash
+     git clone https://github.com/SEU-USUARIO/pje-ia.git
+     cd pje-ia
+     ```
+
+### 3. Peça a mudança em português
+
+Escreva o que você quer como explicaria a um colega. Não precisa dizer *como* fazer nem
+saber em que arquivo mexer:
+
+- *"No meu tribunal as peças de execução fiscal se chamam 'CDA' e 'Certidão de Dívida Ativa'. Faça a lista reconhecer isso como categoria de prova."*
+- *"A fonte do chat é pequena para quem tem dificuldade de enxergar. Adicione um controle de tamanho do texto no cabeçalho."*
+- *"Quando eu marco mais de 20 peças, quero um aviso de que a resposta vai demorar."*
+- *"O botão 'Gerar .docx' devia lembrar a última instrução que usei."*
+
+O Claude Code vai ler o `CLAUDE.md`, encontrar os arquivos certos, propor o código e
+**esperar sua aprovação** antes de alterar qualquer coisa (modo Manual, o padrão).
+
+### 4. Teste no seu Chrome antes de mandar
+
+Este é o passo que faz a diferença entre um PR aceito e um PR devolvido — e é fácil:
+
+1. Abra `chrome://extensions` e ative o **Modo do desenvolvedor**.
+2. **Carregar sem compactação** → selecione a pasta do repositório (a que tem o `manifest.json`).
+3. Abra os autos de um processo no PJe, use a extensão e confira se sua mudança funciona
+   **e se nada mais quebrou** (painel, seleção de peças, envio, mapa mental).
+4. Mexeu de novo? Clique em **↺ Atualizar** em `chrome://extensions` e **recarregue a aba do PJe**.
+
+Se algo der errado, aperte **F12** no PJe, copie o erro do Console e cole no Claude Code —
+ele corrige. Peça também: *"valide a sintaxe com `node --check src/*.js`"* (o projeto não
+tem build; é assim que se confere).
+
+> ⚠️ **Nunca coloque no PR a sua chave de API, número de processo, nome de parte ou
+> qualquer trecho de autos.** Prints são bem-vindos — desde que borrados.
+
+### 5. Abra o pull request
+
+Peça ao Claude Code: *"faça o commit e abra um pull request explicando a mudança"*. Ou,
+pelo site: a página do seu fork mostra **Contribute → Open pull request**.
+
+**O que ajuda a aprovar rápido:**
+
+- **Uma coisa por PR.** Duas melhorias sem relação = dois PRs.
+- **Diga o problema, não só a solução:** "no TJXX a peça Y aparece sem cor porque…".
+- **Um print ou GIF** do antes e depois.
+- **Diga onde testou:** tribunal, tela do PJe e modelo usado (Haiku, Gemini…).
+- Não mexa em `vendor/` (bibliotecas de terceiros, mantidas intactas de propósito).
+
+Eu leio todos os PRs. Se algo não estiver certo, comento explicando o motivo — e você
+pode colar meu comentário no Claude Code para ele ajustar.
+
+**Voltando depois?** O projeto anda rápido. Antes de começar uma nova contribuição,
+atualize seu fork: na página dele, **Sync fork** → **Update branch** (e, no computador,
+`git pull`). Assim você parte da versão mais recente e evita conflitos.
+
+### Só quer relatar um problema?
+
+Não precisa de nada disso: abra uma
+**[issue](https://github.com/marcosmarf27/pje-ia/issues/new)** contando o que aconteceu,
+em qual tribunal, e cole a mensagem de erro do painel (o Console do F12 também ajuda).
 
 ## 📄 Licença
 
