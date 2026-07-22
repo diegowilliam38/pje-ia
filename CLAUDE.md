@@ -107,7 +107,9 @@ quebrar:
   ≤ 50 MB/1000 págs., 258 tokens/pág. Upload é resumable + poll de `state:ACTIVE`.
 - **Sem citações por página no Gemini** (`citacoesNativas:false`): o system prompt
   alternativo (`SYSTEM_PROMPT_CIT_TEXTUAL` em content.js) manda citar peça e folha no
-  próprio texto; `panel.setModoCitacoes("textual")` mostra a nota `.cite-note`.
+  próprio texto; `panel.setModoCitacoes("textual")` mostra o `ⓘ` (`.cite-note`)
+  ao lado do selo do modelo — a nota é sobre o modelo ativo, e como parágrafo
+  fixo no rodapé ela custava duas linhas em toda conversa.
   Annotations `url_citation` da busca viram citações web normais
   (`web_search_result_location`).
 - **Sem .docx no Gemini** (`docx:false`): o code execution do Gemini não devolve
@@ -199,8 +201,8 @@ quebrar:
 
 - **Fonte de verdade da seleção de peças**: os checkboxes de `.doclist` em `panel.js`.
   Chips da barra de contexto, contador `x/y no contexto` (pill no cabeçalho da lista,
-  em duas linhas: título+pill+«, depois "Marque o que a IA deve ler:"+chips
-  principais/todas), popup `@` e mensagens são
+  em duas linhas: título+pill+«, depois a busca + o segmented control
+  `principais|todas`), popup `@` e mensagens são
   *projeções* desse estado — nunca guarde seleção em outro lugar.
 - **Download do PJe é stateful**: o endpoint REST só libera peças já "abertas" na sessão
   JSF. Em 404 **ou corpo vazio com HTTP 200**, `pje.js` simula o clique na timeline (A4J)
@@ -341,13 +343,33 @@ quebrar:
   destacada (`.docrow:not(.cat-outro)`) — mesmo contrato do "todas": respeita o
   filtro e o estado dele é recalculado em `syncSelection`. Esc
   limpa; `setDocs` re-aplica o filtro após re-renderizar a lista.
-- **Orientações no estado vazio** (`showEmptyHint`): box `.guia` explica que NÃO é
-  um agente autônomo (seleciona peças → envia solicitação), o limite de contexto
-  (200 mil tokens no modelo padrão Haiku 4.5; modelos de 1M na configuração —
-  medidor no rodapé) e cita o TecJustiça MCP (https://mcp.tecjustica.com/) e a
-  demonstração com o PJe-CE (https://pjece.tecjustica.com/) como alternativa para
-  autos volumosos com gerenciamento automático de contexto. Manter os DOIS links
-  ao editar o hint.
+- **Orientações no estado vazio** (`showEmptyHint`) — **progressive disclosure em
+  quatro camadas**, nesta ordem: (1) três passos (`.passos`: marcar → pedir →
+  conferir a origem), em coluna única e em 3 colunas SÓ no `.expanded` (na janela
+  livre larga sobram ~420px de chat, e três cartões ali ficam com duas palavras
+  por linha); (2) chips de exemplo (`EXEMPLOS`) que **preenchem** o campo — nunca
+  enviam: sem peça marcada o envio falharia e a primeira experiência do usuário
+  seria um erro; (3) `<details class="guia">` FECHADO por padrão (estado em
+  `chrome.storage.local.guiaAberta`, restaurado depois de `showEmptyHint` existir
+  — mesma armadilha do `docsOcultas`) com três parágrafos: não é agente autônomo,
+  a lista pode vir incompleta, o contexto é limitado; (4) botão "Guia completo,
+  modelos e preços →" abrindo `src/help.html` (por isso ele está em
+  `web_accessible_resources`). **A referência que envelhece — tabela de modelos,
+  preços, fluxo recomendado, dicas de cache — vive SÓ no `help.html`**: o painel
+  aponta, não recita. Era duplicata integral e a origem da parede de ~380
+  palavras. Manter os DOIS links (TecJustiça MCP https://mcp.tecjustica.com/ e a
+  demonstração PJe-CE https://pjece.tecjustica.com/) dentro do `<details>`.
+- **Aviso da timeline incompleta**: em repouso é só o ícone `⚠️` (`.tip-i`) —
+  o aviso de duas linhas era permanente e competia com a própria lista. O
+  `.tip-txt` **continua sempre no DOM com o texto padrão** (é ele que o
+  hover/`:focus` no ícone revela, via `:has()`): esvaziá-lo faria o hover
+  mostrar nada. O ícone é `role="note" tabindex="0"` com `aria-label` — sem
+  isso o aviso sumiria para quem navega por teclado, já que conteúdo em
+  `display:none` não é anunciado. `setTimelineTip` liga `.carregando` quando há
+  progresso e, na mensagem FINAL (que chega com `carregando:false` e nunca mais
+  é reescrita pelo content.js), agenda a volta ao repouso em 12 s — sem esse
+  prazo o resultado ficaria fixo pelo resto da sessão, devolvendo à coluna as
+  duas linhas que esta rodada tirou.
 
 ## Modos de layout, preview no hover e "ver na timeline" (panel.js/pje.js)
 
@@ -379,16 +401,20 @@ quebrar:
   sincronamente — mesma armadilha do `docsOcultas`). O arrasto ignora
   `closest("button")` (os botões do header continuam clicáveis) e o
   `setPointerCapture` fica em try/catch.
-- **Ocultar a lista de peças** (SÓ nos modos expandido/tela cheia via CSS), com
-  TRÊS affordances sincronizadas por `setDocsOcultas` — o botão do header
+- **Ocultar a lista de peças** — disponível em TODOS os modos, com TRÊS
+  affordances sincronizadas por `setDocsOcultas` — o botão do header
   sozinho passava despercebido (ícone parecido com o do modo lateral):
   (a) botão `.docsvis` no header, cujo ícone TROCA com o estado (chevron ←
   dentro do retângulo = recolher; → = exibir; `SVG.docshide`/`SVG.docsshow`);
   (b) botão `.docs-fold` («) no cabeçalho da própria coluna de peças;
-  (c) aba vertical `.docs-rail` ("Peças do processo" + badge `x/y`, alimentada
-  em `syncSelection`) que fica NO LUGAR da coluna recolhida e a reabre — a
+  (c) `.docs-rail` ("Peças do processo" + badge `x/y`, alimentada
+  em `syncSelection`) que fica NO LUGAR da lista recolhida e a reabre — a
   lista nunca some sem deixar rastro. Alterna `docs-collapsed` no `.wrap` →
-  `.wrap.expanded.docs-collapsed .docs {display:none}` — mais espaço para o chat.
+  `.wrap.docs-collapsed .docs {display:none}` — mais espaço para o chat. A rail
+  é **horizontal** (faixa no topo) onde a lista era faixa (flutuante, lateral,
+  livre estreito) e **vertical** onde era coluna (`.expanded`, `.livre-wide`):
+  duas regras no CSS sobre o MESMO elemento. É no flutuante que recolher mais
+  rende — ~180px devolvidos ao chat.
   É puramente VISUAL: os checkboxes seguem no DOM (fonte de verdade da seleção),
   então chips, popup `@`, contador e envio funcionam com a lista oculta. Persiste
   em `chrome.storage.local.docsOcultas`, restaurada num `get` próprio DEPOIS de
@@ -660,6 +686,25 @@ expandido.
   (`.wrap`) e espelhadas em `ui.css` (`:root`, popup/opções/ajuda — HTMLs têm
   referências inline a `var(--pje-2)`). Cores semânticas preservadas: categorias
   `--cat-*`, verde de sucesso, laranja da `.alertbar`/gauge crítico.
+- **Escala tipográfica em variáveis** (`--fs-nano|micro|meta|ui|body|lg|lead`, no
+  mesmo bloco `.wrap`): sete degraus inteiros no lugar dos 13 tamanhos com
+  meios-pixels que existiam antes — variação de tamanho sem intenção é o que faz
+  a interface "parecer poluída" mesmo com cada elemento correto. `--fs-nano` (10px)
+  é só para numerais e teclas (`.d-id`, `kbd`, sobrescrito da citação). Ritmo
+  vertical em `--sp-1..4`. **Não reintroduzir literais de `font-size`** em px no
+  painel; `em` relativos (markdown das mensagens) continuam corretos.
+- **Rodapé em duas linhas** (`.toolbar` + `.metarow`): a faixa de ferramentas
+  perdeu o rótulo `.ctxlab` (os botões se autodescrevem; em 484px ele custava
+  ~22% da linha) e recebeu à direita a `.metarow` com medidor, custo, selo do
+  modelo e o `ⓘ` — antes eram três blocos empilhados. `.tools` usa
+  `flex: 0 1 auto`: com `flex:1;min-width:0` os botões encolhiam abaixo do
+  conteúdo e viravam uma coluna de quatro linhas quando a `.metarow` disputava
+  espaço. Medidor e custo escrevem **duas versões no DOM** (`.g-full`/`.g-short`,
+  escolhidas pelo CSS conforme `.expanded`) — nenhum dado acionável vira só
+  tooltip, e a linha não estoura no painel estreito. Os atalhos de teclado
+  (`.hint-key`) aparecem com o campo em foco ou enquanto a conversa está vazia
+  (classe `.novato` no `.ft`, posta por `showEmptyHint`), com revelação
+  `grid-template-rows: 0fr→1fr` (anima sem reservar espaço morto).
 - Modelos da API: manter os IDs do `popup.html`/`options.html` alinhados aos aliases
   atuais da Anthropic (`claude-haiku-4-5` é o default em `background.js` — rápido e
   barato; todas as features funcionam nele, inclusive a skill docx com

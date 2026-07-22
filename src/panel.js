@@ -239,6 +239,30 @@ var PjePanel = (function () {
       .replace(/[̀-ͯ]/g, "");
   }
 
+  // Aviso da lista possivelmente incompleta. Fora do painel ele é UM ÍCONE ⚠️
+  // com este texto no title (o aviso ocupava duas linhas fixas na coluna); o
+  // texto só volta a ser visível durante o carregamento, quando vira progresso.
+  const TIP_PADRAO_ATTR =
+    "O PJe só carrega as peças conforme a linha do tempo é rolada — esta lista " +
+    "pode estar incompleta. Clique em “Carregar todas as peças” para rolar a " +
+    "linha do tempo até o fim.";
+  const TIP_PADRAO = "⚠️ " + TIP_PADRAO_ATTR;
+
+  // Tooltip do medidor: no painel estreito o texto visível é a forma curta, e
+  // a frase completa é acrescentada AQUI pelo setContexto — o dado nunca some.
+  const GAUGE_TITLE =
+    "Quanto do limite do modelo esta conversa já ocupa (tokens e páginas de " +
+    "PDF). Ao encher, desmarque peças (libera espaço na hora) ou clique em ⟲ " +
+    "para começar uma nova conversa.";
+
+  // Exemplos do estado vazio: clicar PREENCHE o campo (não envia — sem peça
+  // marcada o envio falharia). Ensinam o gesto sem gastar um parágrafo.
+  const EXEMPLOS = [
+    "Resuma a petição inicial e a contestação",
+    "Monte a linha do tempo dos atos do processo",
+    "Quais as teses da defesa e as provas que as sustentam?",
+  ];
+
   // Formata um valor em dólares para exibição (vírgula decimal pt-BR).
   function fmtUsd(v) {
     if (v == null || !isFinite(v)) return "?";
@@ -319,8 +343,9 @@ var PjePanel = (function () {
                 <span class="count"></span>
                 <button type="button" class="docs-fold" title="Ocultar a lista de peças (mais espaço para o chat)" aria-label="Ocultar a lista de peças">${SVG.fold}</button>
               </div>
-              <div class="dh-row dh-tools">
-                <span class="dh-hint">Marque o que a IA deve ler:</span>
+              <div class="docsearch">
+                <input type="search" class="doc-q" placeholder="Buscar peça… (ex.: contestação)" aria-label="Buscar peça pelo nome">
+                <span class="doc-q-n" hidden></span>
                 <span class="sel-opts">
                   <label class="all" title="Marca só as peças destacadas por categoria — decisões, audiências, petições e provas (as coloridas na lista): normalmente as mais relevantes para a análise do processo."><input type="checkbox" class="chk-main"> principais</label>
                   <label class="all" title="Marca todas as peças da lista (respeita a busca ativa)"><input type="checkbox" class="chk-all"> todas</label>
@@ -333,13 +358,10 @@ var PjePanel = (function () {
               <span><i class="l-dot cat-peticao"></i>petições</span>
               <span><i class="l-dot cat-prova"></i>provas</span>
             </div>
-            <div class="docsearch">
-              <input type="search" class="doc-q" placeholder="Buscar peça… (ex.: contestação)" aria-label="Buscar peça pelo nome">
-              <span class="doc-q-n" hidden></span>
-            </div>
             <div class="doclist"></div>
             <div class="docs-tip">
-              <span class="tip-txt">⚠️ O PJe só carrega as peças conforme a linha do tempo é rolada — esta lista pode estar incompleta.</span>
+              <span class="tip-i" role="note" tabindex="0" title="${TIP_PADRAO_ATTR}" aria-label="${TIP_PADRAO_ATTR}">⚠️</span>
+              <span class="tip-txt"></span>
               <button type="button" class="tip-load" title="Rola a linha do tempo do processo automaticamente até o fim para carregar todas as peças na lista">⟳ Carregar todas as peças</button>
             </div>
           </div>
@@ -368,22 +390,24 @@ var PjePanel = (function () {
               </div>
               <div class="status" aria-live="polite"></div>
               <div class="alertbar" role="alert" hidden></div>
-              <div class="gauge" hidden title="Quanto do limite do modelo esta conversa já ocupa (tokens e páginas de PDF). Ao encher, desmarque peças (libera espaço na hora) ou clique em ⟲ para começar uma nova conversa.">
-                <div class="gauge-bar"><div class="gauge-fill"></div></div>
-                <span class="gauge-txt"></span>
-              </div>
-              <div class="custo" hidden>
-                <span class="custo-txt"></span>
-              </div>
               <div class="ctxbar" hidden></div>
               <div class="toolbar">
-                <span class="ctxlab">Ferramentas</span>
                 <div class="tools">
                   <button class="tgl-search" aria-pressed="false" title="Liga/desliga a busca de jurisprudência e legislação em fontes oficiais (STF, STJ, Planalto…). Com a busca ligada, escreva a pergunta e use o botão Enviar normalmente.">🔍 Jurisprudência</button>
                   <button class="btn-docx" title="Liga o modo documento: a instrução aparece no campo (edite à vontade) e o botão Enviar vira “Gerar” — clique nele (ou Enter) para gerar o Word (.docx) com base nas peças marcadas.">📄 Gerar .docx</button>
                   <button class="btn-mapa" title="Liga o modo mapa mental: a instrução aparece no campo (edite à vontade) e o botão Enviar vira “Gerar mapa” — a resposta abre num mapa mental interativo, em nova aba.">🧠 Mapa mental</button>
                   <button class="btn-plib" title="Seus prompts salvos: crie instruções reutilizáveis (título + texto) e insira-as na conversa digitando “/” no início do campo de mensagem. Sincronizam entre navegadores logados na mesma conta Google.">✦ Prompts</button>
+                </div>
+                <div class="metarow">
+                  <div class="gauge" hidden title="${GAUGE_TITLE}">
+                    <div class="gauge-bar"><div class="gauge-fill"></div></div>
+                    <span class="gauge-txt"><span class="g-full"></span><span class="g-short"></span></span>
+                  </div>
+                  <div class="custo" hidden>
+                    <span class="custo-txt"><span class="g-full"></span><span class="g-short"></span></span>
+                  </div>
                   <button class="modelo-badge" hidden title="Modelo de IA em uso nesta conversa — clique para trocar nas opções da extensão"></button>
+                  <span class="cite-note" hidden tabindex="0" role="note" title="Modelos Gemini: as citações de página aparecem no próprio texto da resposta (ex.: “conforme a Contestação, fl. 12”), sem os marcadores [n] automáticos dos modelos Claude." aria-label="Neste modelo as citações de página aparecem no próprio texto da resposta, sem os marcadores numerados dos modelos Claude.">ⓘ</span>
                 </div>
               </div>
               <div class="docxbar" hidden>
@@ -399,8 +423,7 @@ var PjePanel = (function () {
                 <textarea class="in" rows="1" placeholder="Pergunte sobre as peças… (@ cita uma peça)"></textarea>
                 <button class="send">Enviar</button>
               </div>
-              <div class="hint-key"><b>@</b> cita peças &nbsp;·&nbsp; <b>/</b> insere um prompt salvo &nbsp;·&nbsp; <b>Enter</b> envia &nbsp;·&nbsp; <b>Shift+Enter</b> quebra linha &nbsp;·&nbsp; <b>📄 .docx</b> e <b>🧠 mapa mental</b>: clique no botão, revise a instrução e clique em <b>Gerar</b></div>
-              <div class="cite-note" hidden>ℹ️ Modelos Gemini: as citações de página aparecem no próprio texto da resposta (ex.: “conforme a Contestação, fl. 12”), sem os marcadores [n] automáticos dos modelos Claude.</div>
+              <div class="hint-key"><div class="hk-in"><b>@</b> cita peças &nbsp;·&nbsp; <b>/</b> insere um prompt salvo &nbsp;·&nbsp; <b>Enter</b> envia &nbsp;·&nbsp; <b>Shift+Enter</b> quebra linha</div></div>
             </div>
           </div>
         </div>
@@ -441,6 +464,7 @@ var PjePanel = (function () {
     const railNEl = $(".rail-n"); // badge da aba vertical (lista recolhida)
     const docQ = $(".doc-q");
     const docQN = $(".doc-q-n");
+    const tipBox = $(".docs-tip");
     const tipTxt = $(".tip-txt");
     const tipLoad = $(".tip-load");
     const msgs = $(".msgs");
@@ -448,9 +472,14 @@ var PjePanel = (function () {
     const statusEl = $(".status");
     const gaugeEl = $(".gauge");
     const gaugeFill = $(".gauge-fill");
-    const gaugeTxt = $(".gauge-txt");
+    // Medidor e custo escrevem DUAS versões do mesmo dado: a frase completa
+    // (modos largos) e a forma curta (flutuante/lateral, onde a linha de meta
+    // é estreita). Quem escolhe é o CSS — nenhuma informação vira só tooltip.
+    const gaugeFull = $(".gauge-txt .g-full");
+    const gaugeShort = $(".gauge-txt .g-short");
     const custoEl = $(".custo");
-    const custoTxt = $(".custo-txt");
+    const custoFull = $(".custo-txt .g-full");
+    const custoShort = $(".custo-txt .g-short");
     const citeNote = $(".cite-note");
     const modeloBadge = $(".modelo-badge");
     const alertEl = $(".alertbar");
@@ -465,63 +494,108 @@ var PjePanel = (function () {
 
     let allDocs = []; // [{id, titulo}] espelho da lista lateral
 
+    // -------------------------------------------------------------------------
+    // Estado vazio em camadas (progressive disclosure): três passos + exemplos
+    // clicáveis sempre visíveis; o texto explicativo mora num <details> fechado
+    // por padrão (estado lembrado); a referência completa (tabela de modelos,
+    // preços, fluxo, dicas de cache) vive só no help.html — o painel APONTA
+    // para ela em vez de recitá-la, que era a origem da parede de texto.
+    // -------------------------------------------------------------------------
     let hintEl = null;
+    let guiaAberta = false;
     function showEmptyHint() {
       if (hintEl || msgs.querySelector(".msg")) return;
       hintEl = document.createElement("div");
       hintEl.className = "hint-empty";
       hintEl.innerHTML =
         '<span class="big">Como posso ajudar?</span>' +
-        'Marque as peças na lista — pela <b>busca</b>, pelo atalho <b>principais</b> ' +
-        '(peças destacadas por categoria) ou digitando <b>@</b> no campo — e pergunte: ' +
-        '<em>"Resuma a inicial e a réplica"</em>, <em>"Monte a linha do tempo dos atos"</em>. ' +
-        'Nas ferramentas abaixo: <b>🔍 Jurisprudência</b> pesquisa em fontes oficiais e ' +
-        '<b>📄 Gerar .docx</b> entrega um relatório em Word (modelos Claude); o selo ao ' +
-        'lado mostra o <b>modelo ativo</b>.' +
-        '<div class="guia">' +
-        "<p><b>Como funciona:</b> este assistente <b>não é um agente autônomo</b> " +
-        "(como o Claude Code) — ele não navega no processo sozinho. Você seleciona " +
-        "as peças, envia a solicitação, e a resposta usa somente os documentos marcados. " +
-        "Entre uma pergunta e outra, dá para marcar e desmarcar peças à vontade.</p>" +
-        "<p><b>⚠️ A lista de peças pode vir incompleta:</b> o PJe só carrega os " +
-        "documentos conforme a linha do tempo é rolada. Antes de procurar uma peça " +
-        "antiga, clique em <b>⟳ Carregar todas as peças</b> (abaixo da lista) — a " +
-        "extensão rola a linha do tempo por você. O atalho <b>principais</b>, no topo " +
-        "da lista, marca de uma vez as peças destacadas por categoria (decisões, " +
-        "audiências, petições e provas).</p>" +
-        "<p><b>Contexto limitado:</b> a conversa inteira (peças + perguntas + respostas) " +
-        "precisa caber na janela do modelo — até <b>200 mil tokens</b> no modelo padrão " +
-        "(Haiku 4.5, rápido e barato). Para autos volumosos, escolha um modelo com janela " +
-        "de <b>1 milhão de tokens</b> (Sonnet 5 ou os modelos Gemini do Google) na " +
-        "configuração da extensão. " +
-        "O medidor acima do campo mostra o quanto já foi usado; se não couber, " +
-        "analise por partes, desmarcando peças para liberar espaço.</p>" +
-        "<p><b>Modelos disponíveis</b> (troque nas opções — o selo na barra de " +
-        "ferramentas mostra o ativo): <b>Claude Haiku 4.5</b>, o padrão — rápido e " +
-        "barato, com todos os recursos; <b>Claude Sonnet 5</b> — autos volumosos " +
-        "(1M tokens, 600 págs.); <b>Claude Opus 4.8</b> e <b>Fable 5</b> — máxima " +
-        "qualidade, mais caros e lentos; <b>Gemini 3.6 Flash</b> — 1M tokens e até " +
-        "1000 págs. com ótimo custo; <b>Gemini 3.5 Flash-Lite</b> — o mais barato e " +
-        "veloz de todos. Tabela completa de preços na página de ajuda da extensão.</p>" +
-        "<p><b>Dica de uso:</b> comece marcando só as peças relevantes; <b>adicionar</b> " +
-        "peças no meio da conversa é barato (entram uma única vez, aproveitando o cache). " +
-        "Para <b>remover</b> várias peças ou mudar de assunto, prefira ⟲ Nova conversa.</p>" +
+        '<div class="passos">' +
+        '<div class="passo"><span class="pn">1</span><b>Marque as peças</b>' +
+        "<span>na lista ao lado — busca, atalho <b>principais</b> ou <b>@</b> no campo</span></div>" +
+        '<div class="passo"><span class="pn">2</span><b>Peça o que precisa</b>' +
+        "<span>resumo, linha do tempo, minuta — só o que foi marcado é lido</span></div>" +
+        '<div class="passo"><span class="pn">3</span><b>Confira a origem</b>' +
+        "<span>cada afirmação vem com a peça, o <i>id</i> e a folha</span></div>" +
+        "</div>" +
+        '<div class="exemplos">' +
+        EXEMPLOS.map(
+          (t) =>
+            '<button type="button" class="ex" title="Coloca este texto no campo de mensagem para você editar">' +
+            escapeHtml(t) +
+            "</button>"
+        ).join("") +
+        "</div>" +
+        '<details class="guia"' +
+        (guiaAberta ? " open" : "") +
+        "><summary>Como funciona, limites e alternativas</summary>" +
+        "<p><b>Não é um agente autônomo</b> (como o Claude Code): ele não navega no " +
+        "processo sozinho. Você marca as peças, envia a solicitação e a resposta usa " +
+        "somente os documentos marcados — dá para marcar e desmarcar entre uma " +
+        "pergunta e outra.</p>" +
+        "<p><b>A lista pode vir incompleta:</b> o PJe só carrega as peças conforme a " +
+        "linha do tempo é rolada. Antes de procurar uma peça antiga, use " +
+        "<b>⟳ Carregar todas as peças</b>, abaixo da lista.</p>" +
+        "<p><b>O contexto é limitado:</b> peças, perguntas e respostas precisam caber " +
+        "na janela do modelo. O medidor ao lado das ferramentas mostra o quanto já foi " +
+        "usado; se encher, desmarque peças (libera espaço na hora) ou comece uma " +
+        "conversa nova.</p>" +
         '<p>💡 Para autos muito grandes, conheça o <a href="https://mcp.tecjustica.com/" ' +
-        'target="_blank" rel="noopener">TecJustiça MCP</a> — servidor MCP em que o contexto ' +
-        "do processo é gerenciado automaticamente pelo código — e a demonstração com o PJe " +
-        'do Ceará em <a href="https://pjece.tecjustica.com/" target="_blank" ' +
-        'rel="noopener">pjece.tecjustica.com</a>: a análise de processos grandes fica bem ' +
-        "mais tranquila.</p>" +
-        "</div>";
+        'target="_blank" rel="noopener">TecJustiça MCP</a>, em que o contexto do processo ' +
+        "é gerenciado automaticamente pelo código, e a demonstração com o PJe do Ceará em " +
+        '<a href="https://pjece.tecjustica.com/" target="_blank" rel="noopener">' +
+        "pjece.tecjustica.com</a>.</p>" +
+        "</details>" +
+        '<button type="button" class="hint-help">Guia completo, modelos e preços →</button>';
+      // exemplos: PREENCHEM o campo (não enviam — sem peça marcada o envio
+      // falharia e a primeira experiência seria um erro)
+      hintEl.querySelectorAll(".ex").forEach((b) => {
+        b.addEventListener("click", () => {
+          if (inEl.disabled) return; // resposta em curso: o campo está travado
+          inEl.value = b.textContent; // as aspas são ::before/::after, não entram
+          autoresize();
+          inEl.focus();
+        });
+      });
+      const det = hintEl.querySelector(".guia");
+      det.addEventListener("toggle", () => {
+        guiaAberta = det.open;
+        try {
+          chrome.storage.local.set({ guiaAberta: det.open });
+        } catch {
+          /* contexto da extensão invalidado — segue sem persistir */
+        }
+      });
+      hintEl.querySelector(".hint-help").addEventListener("click", () => {
+        try {
+          window.open(chrome.runtime.getURL("src/help.html"), "_blank", "noopener");
+        } catch {
+          /* fora da extensão (harness de teste) */
+        }
+      });
       msgs.appendChild(hintEl);
+      ft.classList.add("novato"); // atalhos de teclado visíveis para quem chega agora
     }
     function clearEmptyHint() {
+      ft.classList.remove("novato");
       if (hintEl) {
         hintEl.remove();
         hintEl = null;
       }
     }
     showEmptyHint();
+    // Restauração do <details> DEPOIS de showEmptyHint existir e rodar (o stub
+    // de teste chama o callback de forma síncrona — mesma armadilha documentada
+    // do docsOcultas): se o usuário deixou a guia aberta, ela reabre.
+    try {
+      chrome.storage.local.get(["guiaAberta"], (v) => {
+        if (!v || !v.guiaAberta) return;
+        guiaAberta = true;
+        const det = hintEl && hintEl.querySelector(".guia");
+        if (det) det.open = true;
+      });
+    } catch {
+      /* sem storage (harness de teste): guia fechada */
+    }
 
     function open() {
       wrap.classList.add("open");
@@ -1058,16 +1132,33 @@ var PjePanel = (function () {
     // estado visual (texto da dica + botão travado) é controlado por
     // setTimelineTip — o content script é quem sabe o progresso real.
     // -------------------------------------------------------------------------
-    const TIP_PADRAO =
-      "⚠️ O PJe só carrega as peças conforme a linha do tempo é rolada — esta lista pode estar incompleta.";
     let carregarTLCb = null;
     tipLoad.addEventListener("click", () => carregarTLCb && carregarTLCb());
+    // Em repouso o aviso é só o ícone ⚠️ (o texto vive no title dele) — ocupava
+    // duas linhas fixas da coluna. Com PROGRESSO ou carregando, o texto volta a
+    // ser visível: é feedback de uma ação em curso, não um aviso de fundo.
+    // A mensagem FINAL ("linha do tempo completa: 38 peças") tem prazo: sem ele
+    // o content.js a deixa fixa pelo resto da sessão (o último setTimelineTip
+    // vem com carregando:false e nunca mais é chamado), devolvendo à coluna as
+    // duas linhas que esta rodada tirou.
+    // O aviso padrão fica SEMPRE no .tip-txt (escondido por CSS em repouso): é
+    // ele que o hover/foco no ⚠️ revela. Só o progresso o substitui.
+    let tipTimer = null;
+    function repousoTip() {
+      tipTxt.textContent = TIP_PADRAO;
+      tipBox.classList.remove("carregando");
+    }
     function setTimelineTip(estado) {
       const { texto = null, carregando = false } = estado || {};
-      tipTxt.textContent = texto || TIP_PADRAO;
+      clearTimeout(tipTimer);
       tipLoad.disabled = carregando;
       tipLoad.textContent = carregando ? "Carregando…" : "⟳ Carregar todas as peças";
+      if (!texto && !carregando) return repousoTip();
+      tipTxt.textContent = texto || TIP_PADRAO;
+      tipBox.classList.add("carregando");
+      if (!carregando) tipTimer = setTimeout(repousoTip, 12000);
     }
+    repousoTip();
 
     // -------------------------------------------------------------------------
     // "Ver na timeline": botão por peça (delegado — as rows são recriadas a
@@ -2433,14 +2524,21 @@ var PjePanel = (function () {
         gaugeFill.style.width = Math.round(pct * 100) + "%";
         gaugeEl.classList.toggle("warn", pct >= 0.7 && pct < 0.9);
         gaugeEl.classList.toggle("crit", pct >= 0.9);
-        gaugeTxt.textContent =
-          "Conversa: " + (info.pecas || 0) + " peça(s), ~" +
+        // as peças ainda sem download entram nas DUAS versões: fingir precisão
+        // seria pior do que a frase ficar um pouco mais longa
+        const pend = info.pendentes ? " · " + info.pendentes + " sem medir" : "";
+        gaugeFull.textContent =
+          (info.pecas || 0) + " peças · ~" +
           Math.round(info.tokens / 1000) + " mil tokens (" +
           Math.round(pctTok * 100) + "%)" +
           (info.maxPaginas
-            ? " • " + (info.paginas || 0) + "/" + info.maxPaginas + " págs. de PDF"
+            ? " · " + (info.paginas || 0) + "/" + info.maxPaginas + " págs."
             : "") +
-          (info.pendentes ? " • " + info.pendentes + " peça(s) sem medir" : "");
+          pend;
+        // forma curta (painel estreito): o percentual é o dado acionável
+        gaugeShort.textContent =
+          Math.round(pct * 100) + "% · " + (info.pecas || 0) + " peças" + pend;
+        gaugeEl.title = GAUGE_TITLE + " — " + gaugeFull.textContent;
         gaugeEl.hidden = false;
       },
       // Custo estimado da conversa (US$, calculado pelo worker a partir do
@@ -2448,12 +2546,15 @@ var PjePanel = (function () {
       setCusto(info) {
         if (!info) {
           custoEl.hidden = true;
-          custoTxt.textContent = "";
+          custoFull.textContent = "";
+          custoShort.textContent = "";
           return;
         }
-        custoTxt.textContent =
-          "Custo estimado: ~" + fmtUsd(info.turnoUsd) + " nesta resposta • ~" +
+        custoFull.textContent =
+          "~" + fmtUsd(info.turnoUsd) + " nesta resposta · ~" +
           fmtUsd(info.conversaUsd) + " na conversa";
+        // curta: o acumulado da conversa é o número que importa no dia a dia
+        custoShort.textContent = "~" + fmtUsd(info.conversaUsd);
         const prov = info.provedorNome || "Anthropic";
         const u = info.usage;
         custoEl.title = u
