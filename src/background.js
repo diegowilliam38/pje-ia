@@ -469,8 +469,14 @@ chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== "claude") return;
 
   port.onMessage.addListener((msg) => {
-    // "ping" (e qualquer tipo desconhecido) só serve de keepalive: o próprio
-    // recebimento da mensagem reseta o timer de ociosidade do worker.
+    // "ping": heartbeat do content script. Além de resetar o timer de
+    // ociosidade do worker (o próprio recebimento já faz isso), RESPONDEMOS com
+    // "pong" — é a prova de vida que o watchdog do content usa para distinguir
+    // "worker vivo porém quieto" (turno longo) de "worker zumbi" (porta aberta,
+    // mas o worker não executa mais). Worker morto não responde → o content
+    // reconecta e reenvia o turno (stateless).
+    if (msg && msg.type === "ping") return postar(port, { type: "pong" });
+    // qualquer outro tipo desconhecido só serve de keepalive
     if (!msg || msg.type !== "chat") return;
 
     const parar = manterVivo();

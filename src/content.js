@@ -753,6 +753,8 @@
           return reject(new Error(MSG_CTX_PERDIDO));
         }
         let finished = false;
+        let recuperando = false; // recuperação (watchdog OU onDisconnect) já disparada
+        let cao = null; // timer do watchdog
         // Ping periódico: receber mensagem pela porta reseta o timer de
         // ociosidade do service worker (MV3 mata o worker após ~30 s sem
         // eventos — fatal em turnos longos, que ficam muito tempo em silêncio).
@@ -763,7 +765,53 @@
             clearInterval(ping);
           }
         }, 15000);
+        function limpar() {
+          clearInterval(ping);
+          clearTimeout(cao);
+        }
+        // Centraliza a reconexão: chamada pelo onDisconnect (o worker fechou a
+        // porta) E pelo watchdog (porta aberta, worker zumbi). Como
+        // port.disconnect() do NOSSO lado não dispara nosso onDisconnect, o
+        // watchdog precisa chamar isto direto. `recuperando` evita disparo duplo.
+        function recuperar(motivo) {
+          if (finished || recuperando) return;
+          recuperando = true;
+          limpar();
+          // worker morto no meio do turno: reenvia do zero (payload intacto)
+          if (reenvios < MAX_REENVIOS && extensaoViva()) {
+            reenvios++;
+            console.debug(
+              "[PJe IA] serviço " +
+                (motivo === "watchdog" ? "sem resposta (watchdog)" : "caiu") +
+                " no meio do turno — reenviando (" + reenvios + "/" + MAX_REENVIOS + ")"
+            );
+            if (handlers.onReinicio) handlers.onReinicio(reenvios);
+            setTimeout(abrir, 1200); // respiro para o worker renascer
+          } else {
+            reject(new Error("conexão com o serviço interrompida — tente de novo"));
+          }
+        }
+        // Watchdog do worker ZUMBI: o service worker MV3 pode parar de executar
+        // com a porta AINDA aberta — aí nem onMessage nem onDisconnect chegam e o
+        // turno ficaria preso para sempre ("processa, mas não navega"). O ping é
+        // respondido com "pong" pelo worker VIVO (inclusive no meio de um turno
+        // longo e silencioso); se passar WATCHDOG_MS sem NENHUMA mensagem (nem
+        // pong, nem delta) tratamos como morto e reconectamos. 40 s dá folga
+        // sobre o intervalo de ping de 15 s (2+ pongs perdidos) para não matar
+        // um worker vivo porém quieto.
+        const WATCHDOG_MS = 40000;
+        function rearmarCao() {
+          clearTimeout(cao);
+          cao = setTimeout(() => {
+            try {
+              port.disconnect();
+            } catch {}
+            recuperar("watchdog");
+          }, WATCHDOG_MS);
+        }
         port.onMessage.addListener((m) => {
+          rearmarCao(); // qualquer mensagem do worker = prova de vida
+          if (m.type === "pong") return; // heartbeat: já rearmou o watchdog
           if (m.type === "delta") handlers.onDelta(m.text);
           else if (m.type === "thinking") handlers.onThinking(m.text);
           else if (m.type === "citation") handlers.onCitation && handlers.onCitation(m.citation);
@@ -777,7 +825,7 @@
           else if (m.type === "retry") handlers.onRetry && handlers.onRetry();
           else if (m.type === "done") {
             finished = true;
-            clearInterval(ping);
+            limpar();
             port.disconnect();
             resolve({
               content: m.content || [],
@@ -788,27 +836,16 @@
             });
           } else if (m.type === "error") {
             finished = true;
-            clearInterval(ping);
+            limpar();
             port.disconnect();
             reject(new Error(m.error));
           }
         });
         port.onDisconnect.addListener(() => {
-          clearInterval(ping);
-          if (finished) return;
-          // worker morto no meio do turno: reenvia do zero (payload intacto)
-          if (reenvios < MAX_REENVIOS && extensaoViva()) {
-            reenvios++;
-            console.debug(
-              "[PJe IA] serviço caiu no meio do turno — reenviando (" +
-                reenvios + "/" + MAX_REENVIOS + ")"
-            );
-            if (handlers.onReinicio) handlers.onReinicio(reenvios);
-            setTimeout(abrir, 1200); // respiro para o worker renascer
-          } else {
-            reject(new Error("conexão com o serviço interrompida — tente de novo"));
-          }
+          if (finished) return limpar();
+          recuperar("disconnect");
         });
+        rearmarCao(); // arma o watchdog já na conexão
         port.postMessage({
           type: tipo || "chat",
           payload: Object.assign(
