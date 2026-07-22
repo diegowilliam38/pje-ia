@@ -169,9 +169,9 @@
           <li>Clique no ícone <strong>⚖️ PJe IA</strong> na barra do Chrome.</li>
           <li>Cole a chave no campo <strong>"Chave da API — Google (modelos Gemini)"</strong>, escolha um modelo Gemini e clique em <strong>Salvar</strong>.</li>
         </ul>
-        <p style="margin-top:10px"><em>Diferenças nos modelos Gemini: as citações de página aparecem no
-        próprio texto da resposta (sem os marcadores [n] clicáveis) e a geração de arquivo .docx
-        fica indisponível — esses dois recursos usam a API da Anthropic.</em></p>
+        <p style="margin-top:10px"><em>Única diferença nos modelos Gemini: as citações de página
+        aparecem no próprio texto da resposta (sem os marcadores [n] clicáveis). Todo o resto —
+        inclusive gerar minutas e o mapa mental — funciona igual.</em></p>
       </div>
 
       <h1 class="serif" id="modelos">Qual modelo escolher?</h1>
@@ -182,12 +182,12 @@
         turnos seguintes da mesma conversa.</p>
         <table>
           <tr><th>Modelo</th><th>Janela / PDF</th><th>Preço</th><th>Perfil</th></tr>
-          <tr><td><strong>Claude Haiku 4.5</strong> (padrão)</td><td>200 mil tokens / 100 págs.</td><td>1 / 5</td><td>Rápido e barato; todos os recursos (citações [n], .docx). Melhor ponto de partida.</td></tr>
-          <tr><td><strong>Claude Sonnet 5</strong></td><td>1M tokens / 600 págs.</td><td>3 / 15</td><td>Autos volumosos com todos os recursos; mais lento e caro que o Haiku.</td></tr>
+          <tr><td><strong>Claude Haiku 4.5</strong> (padrão)</td><td>200 mil tokens / 100 págs.</td><td>1 / 5</td><td>Rápido e barato; citações [n] clicáveis. Melhor ponto de partida.</td></tr>
+          <tr><td><strong>Claude Sonnet 5</strong></td><td>1M tokens / 600 págs.</td><td>3 / 15</td><td>Autos volumosos; mais lento e caro que o Haiku.</td></tr>
           <tr><td><strong>Claude Opus 4.8</strong></td><td>1M tokens / 600 págs.</td><td>5 / 25</td><td>Qualidade superior para análises delicadas.</td></tr>
           <tr><td><strong>Claude Fable 5</strong></td><td>1M tokens / 600 págs.</td><td>10 / 50</td><td>O mais capaz — e o mais caro e lento. Para casos excepcionais.</td></tr>
-          <tr><td><strong>Gemini 3.6 Flash</strong></td><td>1M tokens / 1000 págs.</td><td>1,50 / 7,50</td><td>Rápido, multimodal e com ótimo custo para autos grandes. Citações no texto; sem .docx.</td></tr>
-          <tr><td><strong>Gemini 3.5 Flash-Lite</strong></td><td>1M tokens / 1000 págs.</td><td>0,30 / 2,50</td><td>O mais barato e veloz de todos — ideal para triagens e resumos rápidos. Citações no texto; sem .docx.</td></tr>
+          <tr><td><strong>Gemini 3.6 Flash</strong></td><td>1M tokens / 1000 págs.</td><td>1,50 / 7,50</td><td>Rápido, multimodal e com ótimo custo para autos grandes. Citações no texto.</td></tr>
+          <tr><td><strong>Gemini 3.5 Flash-Lite</strong></td><td>1M tokens / 1000 págs.</td><td>0,30 / 2,50</td><td>O mais barato e veloz de todos — ideal para triagens e resumos rápidos. Citações no texto.</td></tr>
         </table>
         <p style="margin-top:10px"><em>Regra prática: Haiku para o dia a dia; Gemini 3.5
         Flash-Lite quando o custo importa mais; Sonnet 5 ou Gemini 3.6 Flash para autos
@@ -205,17 +205,18 @@
           vez as destacadas por categoria (decisões, audiências, petições, provas); a busca e o
           <strong>@</strong> ajudam a achar peças pelo nome.</li>
           <li>Pergunte. Ligue <strong>🔍 Jurisprudência</strong> se quiser fundamentação em
-          fontes oficiais; use <strong>📄 Gerar .docx</strong> (modelos Claude) para relatórios
-          em Word e <strong>🧠 Mapa mental</strong> (Claude e Gemini) para ver a estrutura do
-          feito — partes, fatos, pedidos, teses, provas, decisões e situação atual — num mapa
-          interativo que abre em nova aba, com a peça, o <em>id</em> e a folha de origem em
-          cada tópico.</li>
+          fontes oficiais; use <strong>✍️ Minutar</strong> para redigir um ato (despacho, decisão,
+          sentença…) que abre num <strong>editor de texto</strong>, em nova aba — de onde você
+          copia para o PJe, baixa em Word (.docx) ou imprime; e <strong>🧠 Mapa mental</strong>
+          para ver a estrutura do feito — partes, fatos, pedidos, teses, provas, decisões e
+          situação atual — num mapa interativo. Minutar e o mapa funcionam em <strong>qualquer
+          modelo</strong>, Claude ou Gemini, sempre com a peça, o <em>id</em> e a folha de origem.</li>
           <li>Siga a conversa: <strong>adicionar</strong> peças no meio é barato; para
           <strong>remover</strong> várias ou mudar de assunto, prefira ⟲ Nova conversa.</li>
           <li><strong>Personalize o assistente</strong>: nas opções, o campo
           <strong>"Instruções personalizadas"</strong> diz ao modelo quem você é e como quer as
           respostas (ex.: "Sou assessor de vara criminal; destaque prazos prescricionais") —
-          vale para os modelos Claude e Gemini, no chat e no .docx.</li>
+          vale para os modelos Claude e Gemini, no chat, nas minutas e no mapa.</li>
         </ol>
       </div>
 
@@ -234,10 +235,31 @@
         </ul>
       </div>
 
+      <h1 class="serif">Editar e entregar a minuta</h1>
+      <div class="card">
+        <p>O botão <strong>✍️ Minutar</strong> pede ao modelo o texto de um ato e o abre num
+        editor próprio, em nova aba, com a formatação forense já pronta (A4, margens 3/2 cm,
+        Times 12, entrelinha 1,5, parágrafos justificados). Toda resposta longa do chat também
+        traz um botão <strong>Abrir no editor</strong>, para o mesmo destino.</p>
+        <p>No editor você:</p>
+        <ul>
+          <li><strong>edita à vontade</strong> — negrito, títulos, listas, tabelas;</li>
+          <li><strong>⎘ Copia formatado</strong> para colar direto no editor de minutas do PJe,
+          preservando a formatação;</li>
+          <li><strong>⬇ Baixa em .docx</strong> (Word) ou <strong>🖨 Imprime / salva em PDF</strong>.</li>
+        </ul>
+        <p><em>A minuta é uma sugestão de trabalho, não um ato: revise o texto e confira cada
+        citação nos autos antes de usar. Onde faltar informação nas peças, o modelo deixa uma
+        marca <code>[COMPLETAR: …]</code> para você preencher.</em></p>
+      </div>
+
       <div class="warn-box">
         🔒 Suas chaves ficam só neste navegador (não são enviadas a lugar nenhum além das próprias APIs
         da Anthropic e do Google). As peças que você marcar são enviadas ao modelo escolhido para
-        análise — processos podem conter dados sigilosos, use com critério. Detalhes na
+        análise — processos podem conter dados sigilosos, use com critério.
+        <strong>As minutas geradas ficam guardadas neste computador</strong> (para você reabri-las
+        depois) e são apagadas automaticamente após 7 dias — use <strong>Descartar</strong>, no
+        editor, para removê-las antes. Detalhes na
         <a class="link" href="https://github.com/marcosmarf27/pje-ia/blob/main/PRIVACY.md" target="_blank" rel="noopener">política de privacidade</a>.
       </div>
     </div>

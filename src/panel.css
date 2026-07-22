@@ -1057,19 +1057,15 @@
   background: #e9f2f8; border-color: var(--pje); color: var(--text);
   font-weight: 600; box-shadow: inset 0 0 0 1px rgba(0, 120, 170, 0.35);
 }
-.btn-docx, .btn-plib, .btn-mapa {
+.btn-minuta, .btn-plib, .btn-mapa {
   border: 1px solid var(--line); background: #fff; color: var(--muted);
   border-radius: 999px; padding: 3px 11px; font-size: var(--fs-micro); cursor: pointer;
   transition: all 0.15s;
 }
-.btn-docx:hover, .btn-plib:hover, .btn-mapa:hover { border-color: var(--pje); color: var(--text); }
-.btn-docx.on, .btn-mapa.on {
+.btn-minuta:hover, .btn-plib:hover, .btn-mapa:hover { border-color: var(--pje); color: var(--text); }
+.btn-minuta.on, .btn-mapa.on {
   background: #e9f2f8; border-color: var(--pje); color: var(--text);
   font-weight: 600; box-shadow: inset 0 0 0 1px rgba(0, 120, 170, 0.35);
-}
-/* indisponível no modelo atual (Gemini): apagado, com o motivo no tooltip */
-.btn-docx.off, .btn-docx.off:hover {
-  opacity: 0.45; cursor: not-allowed; border-color: var(--line); color: var(--muted);
 }
 /* Selo do modelo ativo (fica à direita na barra de ferramentas) */
 .modelo-badge {
@@ -1080,25 +1076,26 @@
 }
 .modelo-badge:hover { border-color: var(--pje); color: var(--text); border-style: solid; }
 
-/* ---------- Modo documento (.docx) ----------
+/* ---------- Modo minuta / mapa ----------
    Faixa entre as ferramentas e o campo: explica que Enviar virou "Gerar". */
-.docxbar, .mapabar {
+.minutabar, .mapabar {
   display: flex; align-items: center; gap: 8px;
   background: #eaf4fa; border: 1px solid rgba(0, 120, 170, 0.35);
   border-left: 3px solid var(--pje);
   border-radius: 0 8px 8px 0; padding: 6px 10px; margin: 7px 0 5px;
   font-size: var(--fs-meta); color: #2b5568; animation: chip-in 0.18s ease-out;
 }
-.docxbar[hidden], .mapabar[hidden] { display: none; }
+.minutabar[hidden], .mapabar[hidden] { display: none; }
 .docxbar-t { flex: 1; min-width: 0; line-height: 1.4; }
 .docxbar-t b { color: var(--pje-2); }
-.docxbar-x, .mapabar-x {
+.minutabar-x, .mapabar-x {
   flex: none; border: none; background: transparent; color: var(--muted);
   cursor: pointer; font-size: var(--fs-ui); line-height: 1; padding: 3px 7px;
   border-radius: 6px;
 }
-.docxbar-x:hover, .mapabar-x:hover { background: #ddeaf2; color: var(--text); }
-/* o botão Enviar vira "📄 Gerar" — halo azul para marcar a mudança */
+.minutabar-x:hover, .mapabar-x:hover { background: #ddeaf2; color: var(--text); }
+/* o botão Enviar vira "✍️ Gerar minuta" / "🧠 Gerar mapa" — halo azul para
+   marcar a mudança (a classe .docx é histórica; vale para os dois modos) */
 .send.docx { box-shadow: 0 0 0 3px rgba(0, 120, 170, 0.28); }
 
 /* ---------- Card do mapa mental gerado (dentro da bolha do assistant) ----------
@@ -1131,6 +1128,24 @@
   border: 1px solid var(--line); border-radius: 8px;
   max-height: 260px; overflow: auto;
 }
+
+/* ---------- Oferta de editor ao fim de uma resposta de chat comum ----------
+   Fica FORA do .body da bolha (é irmã dele), para sobreviver a um
+   updateAssistant posterior. Em repouso é discreta: só vira botão cheio
+   quando a heurística reconhece um pedido de peça redigida. */
+.editor-act { margin-top: 8px; }
+.editor-act button {
+  border: 1px dashed var(--line); background: transparent; color: var(--muted);
+  border-radius: 8px; padding: 5px 11px; font-size: var(--fs-micro);
+  cursor: pointer; transition: all 0.15s;
+}
+.editor-act button:hover { border-style: solid; border-color: var(--pje); color: var(--pje-2); }
+.editor-act.destaque button {
+  border-style: solid; border-color: var(--pje-2); font-size: var(--fs-meta);
+  background: linear-gradient(180deg, var(--pje), var(--pje-2));
+  color: #fff; font-weight: 600; padding: 6px 12px;
+}
+.editor-act.destaque button:hover { filter: brightness(1.06); color: #fff; }
 
 /* ---------- Gerenciador de prompts salvos (modal no Shadow DOM) ---------- */
 .plib {

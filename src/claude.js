@@ -12,15 +12,12 @@
 //   {kind:"trunc"}               — resposta cortada por max_tokens
 //   {kind:"final", content, stopReason, containerId, usage} — fim do request
 
+// max_tokens é OBRIGATÓRIO na Anthropic; 32K é o teto de saída aceito por
+// todos os modelos Claude.
 export const MAX_TOKENS_CHAT = 32000;
-// 32000 (e não 16000): a geração de .docx escreve muito código nas iterações
-// de code execution — modelos menores (Haiku) truncavam por max_tokens no
-// meio, encerrando o turno sem arquivo. Todos os modelos aceitam 32K de saída.
-export const MAX_TOKENS_DOCUMENTO = 32000;
 
-// Betas usadas pela extensão (referência: docs da API, 2026).
+// Beta usada pela extensão (referência: docs da API, 2026).
 export const BETA_FILES = "files-api-2025-04-14";
-export const BETA_SKILLS = "skills-2025-10-02";
 
 const API = "https://api.anthropic.com/v1";
 
@@ -214,7 +211,7 @@ export async function uploadFile({ apiKey, filename, b64, mime }) {
   return j.id;
 }
 
-// Baixa um arquivo gerado (ex.: .docx criado pela skill) e devolve {b64, mime}.
+// Baixa um arquivo da Files API e devolve {b64, mime}.
 export async function downloadFile({ apiKey, fileId }) {
   const resp = await fetch(API + "/files/" + fileId + "/content", {
     headers: {

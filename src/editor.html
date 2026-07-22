@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Editor de minutas — PJe IA</title>
+    <link rel="stylesheet" href="ui.css" />
+    <link rel="stylesheet" href="../vendor/jodit.min.css" />
+    <link rel="stylesheet" href="editor.css" />
+  </head>
+  <body>
+    <header class="topo">
+      <img src="../icons/icon48.png" alt="" width="28" height="28" />
+      <div class="tit">
+        <input
+          id="titulo"
+          class="t serif"
+          type="text"
+          value="Minuta"
+          aria-label="Título do documento (usado no nome do arquivo)"
+          spellcheck="false"
+        />
+        <span class="s" id="subtitulo">carregando…</span>
+      </div>
+      <div class="acoes">
+        <span class="grupo drop-wrap" role="group" aria-label="Rascunhos">
+          <button id="rascunhos" class="ghost" title="Ver e abrir minutas guardadas neste computador">🗂 Rascunhos</button>
+          <div id="drop" class="drop" hidden role="menu" aria-label="Minutas guardadas"></div>
+        </span>
+        <span class="grupo" role="group" aria-label="Exportar">
+          <button id="copiar" title="Copiar com formatação para colar no editor de minutas do PJe">
+            ⎘ Copiar formatado
+          </button>
+          <button id="docx" title="Baixar o documento em Word (.docx)">⬇ .docx</button>
+          <button id="imprimir" title="Imprimir ou salvar em PDF">🖨 Imprimir</button>
+        </span>
+        <span class="grupo estado">
+          <span id="salvo" class="salvo" aria-live="polite"></span>
+          <button id="descartar" class="ghost" title="Apagar este rascunho do computador">
+            Descartar
+          </button>
+        </span>
+      </div>
+    </header>
+
+    <!-- O Jodit monta a barra de ferramentas AQUI (config `toolbar`), fora do
+         container do editor: assim ela ocupa a largura da janela e fica fixa,
+         em vez de espremer-se na largura da folha A4 e quebrar em duas filas. -->
+    <div id="barra" class="barra"></div>
+
+    <main class="mesa">
+      <div class="folha-wrap">
+        <textarea id="ed" aria-label="Texto da minuta"></textarea>
+      </div>
+      <div class="aviso" id="aviso" hidden></div>
+    </main>
+
+    <p class="rodape-nota">
+      Rascunho guardado neste computador para você reabrir depois — use
+      <b>Descartar</b> quando terminar. Confira o texto e as citações antes de usar:
+      a minuta é uma sugestão, não um ato.
+    </p>
+
+    <script src="../vendor/jodit.min.js"></script>
+    <script src="../vendor/docx.iife.js"></script>
+    <script src="minuta-md.js"></script>
+    <script src="editor-docx.js"></script>
+    <script src="editor.js"></script>
+  </body>
+</html>

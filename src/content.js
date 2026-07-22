@@ -18,7 +18,7 @@
   // A identificação da peça (nome + id) vive no trecho COMPARTILHADO porque é
   // requisito do produto nos dois provedores: o id é o número que abre o título
   // de cada peça e é por ele que o usuário reencontra a peça na timeline do PJe
-  // (mesma convenção do SUFIXO_MAPA e do sufixo do .docx).
+  // (mesma convenção do SUFIXO_MAPA e do SUFIXO_MINUTA).
   const PROMPT_INICIO = [
     "Você é um assistente jurídico que analisa autos de processos do PJe.",
     "Responda sempre em português do Brasil.",
@@ -75,7 +75,7 @@
   let customPrompt = "";
 
   // O system prompt do turno depende do modelo ATUAL (caps) e das instruções
-  // personalizadas — usado no envio (chat e .docx) E no count_tokens, para o
+  // personalizadas — usado no envio (chat, minuta e mapa) E no count_tokens, para o
   // pré-voo medir o mesmo request que vai de fato. Anthropic recebe como
   // `system`; Gemini como `system_instruction` (o worker repassa verbatim).
   // Contexto do caso que o modelo não tem como deduzir dos PDFs com segurança:
@@ -166,7 +166,7 @@
   let conversation = []; // [{role, content}]
   let custoConversaUsd = 0; // soma dos custos estimados dos turnos (US$)
 
-  // Registra o custo de um turno concluído (chat ou .docx) no medidor do
+  // Registra o custo de um turno concluído (chat, minuta ou mapa) no medidor do
   // rodapé. O worker calcula o valor pela tabela de preços do modelo; a API
   // devolve só as contagens de tokens (usage).
   function registrarCusto(fim) {
@@ -271,9 +271,9 @@
   let modelCaps = null;
   let modelInfo = null; // {model, effort} da última resposta de caps
 
-  // Reflete na UI o que o modelo atual suporta: selo do modelo ativo, geração
-  // de .docx (só Anthropic), nota de citações textuais (Gemini) e a guarda de
-  // troca de provedor no meio da conversa. Chamada sempre que modelCaps muda.
+  // Reflete na UI o que o modelo atual suporta: selo do modelo ativo, nota de
+  // citações textuais (Gemini) e a guarda de troca de provedor no meio da
+  // conversa. Chamada sempre que modelCaps muda.
   function aplicarCapsNaUI() {
     if (!modelCaps) return;
     panel.setModelo(
@@ -283,7 +283,6 @@
         comEffort: modelCaps.effort !== false,
       }
     );
-    panel.setDocxDisponivel(modelCaps.docx !== false);
     panel.setModoCitacoes(modelCaps.citacoesNativas === false ? "textual" : "nativa");
     const prov = modelCaps.provider || "anthropic";
     if (conversation.length && conversaProvider && prov !== conversaProvider) {
@@ -756,7 +755,7 @@
         let finished = false;
         // Ping periódico: receber mensagem pela porta reseta o timer de
         // ociosidade do service worker (MV3 mata o worker após ~30 s sem
-        // eventos — fatal na geração de .docx, que tem longos silêncios).
+        // eventos — fatal em turnos longos, que ficam muito tempo em silêncio).
         const ping = setInterval(() => {
           try {
             port.postMessage({ type: "ping" });
@@ -823,21 +822,8 @@
     });
   }
 
-  // Dispara o download de um arquivo no navegador (Blob + âncora; sem permissão
-  // extra de "downloads").
-  function baixarArquivo(filename, b64, mime) {
-    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-    const blob = new Blob([bytes], { type: mime || "application/octet-stream" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 30000);
-  }
-
-  // Idem para conteúdo já em texto (markdown do mapa mental) — sem passar por
-  // base64, que só existe no caminho dos arquivos vindos da API.
+  // Dispara o download de um texto no navegador (Blob + âncora; sem a permissão
+  // "downloads") — markdown do mapa mental e da minuta.
   function baixarTexto(filename, texto, mime) {
     const blob = new Blob([texto], { type: mime || "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -1338,6 +1324,31 @@
           st = "A resposta foi cortada: o limite de contexto do modelo foi atingido.";
         }
         panel.setStatus(st);
+
+        // Oferta de editor. Toda resposta longa pode ser editada como
+        // documento; quando o pedido foi claramente de uma peça redigida
+        // (pareceMinuta), a oferta vira botão em destaque. A heurística NÃO
+        // toca no request nem no system prompt — decide só a proeminência.
+        const mdResposta = acc.replace(/\uE000\d+\uE001/g, "").trim();
+        const destaque = pareceMinuta(text);
+        if (destaque || mdResposta.length >= 400) {
+          panel.adicionarAcaoEditor(assistantEl, {
+            destaque,
+            onAbrir: async (btn) => {
+              if (btn) btn.disabled = true;
+              try {
+                const url = await guardarMinuta(mdResposta, tituloDaMinuta(mdResposta));
+                window.open(url, "_blank", "noopener");
+              } catch (err) {
+                panel.setStatus(
+                  "Não foi possível abrir o editor: " + (err && err.message ? err.message : err)
+                );
+              } finally {
+                if (btn) btn.disabled = false;
+              }
+            },
+          });
+        }
       } else {
         // resposta vazia: não grava turno (evitaria content vazio no próximo request)
         panel.removeMessage(assistantEl);
@@ -1375,44 +1386,62 @@
   });
 
   // ---------------------------------------------------------------------------
-  // Geração de documento Word (.docx) via skill oficial "docx" da Anthropic:
-  // request próprio (code_execution + container com a skill), SEPARADO do chat
-  // e sem ferramentas web — dois ambientes de execução confundem o modelo.
-  // O arquivo gerado volta pela Files API e é baixado no navegador.
+  // Minuta: um turno de chat comum cuja resposta é o TEXTO de uma peça
+  // (despacho, decisão, sentença…) em markdown. Como o mapa mental, não usa
+  // tools, skills nem execução de código — por isso funciona em QUALQUER
+  // modelo, Claude ou Gemini. O markdown vira HTML aqui (com o renderMd do
+  // painel, que já escapa antes de formatar) e vai para chrome.storage.local,
+  // de onde src/editor.html o abre para edição, cópia e exportação.
   // ---------------------------------------------------------------------------
-  const INSTRUCAO_DOCX_PADRAO =
-    "Elabore um relatório completo do processo: identificação e partes, síntese dos fatos, " +
-    "linha do tempo dos atos processuais, pedidos, teses de cada parte, provas produzidas e " +
-    "situação atual do feito.";
+  const INSTRUCAO_MINUTA_PADRAO =
+    "Elabore a minuta do ato cabível neste momento do processo, com relatório, " +
+    "fundamentação e dispositivo, indicando a origem de cada afirmação.";
 
-  panel.onGerarDoc(async (text, selectedIds) => {
+  // Prescritivo pelo mesmo motivo do sufixo do mapa: modelos menores seguem
+  // instruções ao pé da letra, e aqui o produto é um texto que vai circular
+  // FORA da extensão — sem as regras de origem e de não-invenção, a minuta
+  // chega ao gabinete sem como ser conferida.
+  const SUFIXO_MINUTA =
+    " Responda APENAS com o texto da minuta em Markdown, sem preâmbulo, sem comentário" +
+    " final e sem blocos de código (sem cercas ```)." +
+    " ESTRUTURA: uma única linha começando com # (o nome do ato — SENTENÇA, DECISÃO," +
+    " DESPACHO, do que se tratar); depois as seções com ## (na sentença: I – Relatório," +
+    " II – Fundamentação, III – Dispositivo; no despacho, texto corrido, sem seções)." +
+    " PARÁGRAFOS: texto corrido em linguagem forense brasileira, impessoal e em terceira" +
+    " pessoa. SEPARE CADA PARÁGRAFO POR UMA LINHA EM BRANCO — dois parágrafos colados em" +
+    " linhas seguidas viram um só. Use **negrito** no dispositivo e no que for decisivo." +
+    " TABELAS: quando a informação for tabular (partes e qualificação, linha do tempo dos" +
+    " atos, valores, provas), APRESENTE-A EM TABELA Markdown — cabeçalho, a linha de" +
+    " separação com hifens (| --- | --- |) e uma coluna final \"Origem\". Use listas" +
+    " numeradas (1. 2. 3.) para enumerar pedidos, requisitos ou provas." +
+    " ORIGEM OBRIGATÓRIA: toda afirmação sobre os autos leva a referência entre parênteses," +
+    " no formato (Título da peça, id 123456, fl. 7) — o id é o número que abre o título de" +
+    " cada peça na lista abaixo e a folha é a do PDF daquela peça. Sem folha identificável," +
+    " use (Título da peça, id 123456)." +
+    " NUNCA invente nome de parte, número de processo, data, valor, dispositivo legal ou" +
+    " precedente: se algo necessário não constar das peças anexadas, escreva no lugar" +
+    " [COMPLETAR: o que falta], para quem for assinar preencher." +
+    " NÃO assine, não date e não crie cabeçalho de tribunal, vara ou comarca — isso o" +
+    " sistema do PJe já acrescenta.";
+
+  panel.onMinuta(async (text, selectedIds) => {
     if (busy) return;
-    // Defesa: o botão fica desabilitado nos modelos Gemini (setDocxDisponivel),
-    // mas o modelo pode ter sido trocado com o modo documento já armado.
-    if (modelCaps && modelCaps.docx === false) {
-      panel.setStatus(
-        "A geração de .docx não está disponível nos modelos Gemini — troque para um modelo Claude nas opções da extensão."
-      );
-      return;
-    }
     if (selectedIds.length === 0) {
-      panel.setStatus("Marque as peças que devem embasar o documento.");
+      panel.setStatus("Marque as peças que devem embasar a minuta.");
       return;
     }
     busy = true;
     panel.lockInput(true);
 
-    const usouPadrao = !(text && text.trim());
-    const instrucao = usouPadrao ? INSTRUCAO_DOCX_PADRAO : text.trim();
+    const instrucao = (text && text.trim()) || INSTRUCAO_MINUTA_PADRAO;
     panel.addMessage(
       "user",
-      "📄 Gerar documento (.docx): " + instrucao,
+      "📝 Gerar minuta: " + instrucao,
       selectedIds.map((id) => metaDe(id).titulo)
     );
     let assistantEl = null;
     let acc = "";
-    let ckptDoc = ""; // texto na UI no início do request físico corrente
-    let arquivo = null;
+    let ckptMinuta = ""; // texto na UI no início do request físico corrente
 
     try {
       await baixarSelecionadas(selectedIds);
@@ -1421,15 +1450,11 @@
       const blocos = montarBlocos(selectedIds);
       panel.endPrep();
 
-      panel.setStatus(
-        usouPadrao
-          ? "Nenhuma instrução digitada — gerando o relatório padrão do processo… (pode levar 1–2 minutos)"
-          : "Gerando o documento conforme a instrução digitada… (pode levar 1–2 minutos)"
-      );
+      panel.setStatus("Redigindo a minuta a partir das peças marcadas…", true);
       assistantEl = panel.addMessage("assistant", "");
 
-      // prepararEnvio(…, null): mantém todas as peças, só remove o campo
-      // interno __pecaId (a API rejeita campos extras nos blocos).
+      // Request ISOLADO, como o mapa mental: não entra em conversation nem em
+      // pecasNaConversa — gerar uma minuta não altera a conversa em andamento.
       const messages = prepararEnvio(
         [
           {
@@ -1438,30 +1463,13 @@
               ...blocos,
               {
                 type: "text",
-                // Prescritivo de propósito: modelos menores (Haiku) seguem
-                // instruções ao pé da letra — sem as regras explícitas, às
-                // vezes entregavam o .docx sem tabelas (desistiam no primeiro
-                // erro do python-docx ou "desenhavam" a tabela como texto).
+                // A lista de peças vai explícita no texto (além do title de
+                // cada bloco document) porque o id é OBRIGATÓRIO na origem de
+                // cada afirmação: é por ele que se reencontra a peça na
+                // timeline do PJe.
                 text:
                   instrucao +
-                  " Gere o resultado como um arquivo Word (.docx) bem formatado, usando a skill docx." +
-                  " Regras de formatação OBRIGATÓRIAS: use títulos e subtítulos hierárquicos;" +
-                  " apresente dados tabulares (partes, linha do tempo dos atos, prazos, valores," +
-                  " provas) em TABELAS NATIVAS do Word — nunca como texto corrido, markdown ou" +
-                  " colunas alinhadas com espaços; use listas com marcadores quando couber." +
-                  " Se algum passo do código falhar (ex.: criação de tabela), corrija o código e" +
-                  " execute novamente até funcionar — não entregue o documento sem as tabelas." +
-                  " Antes de encerrar, reabra o arquivo gerado com python-docx e confirme que as" +
-                  " tabelas estão presentes; se alguma faltar, refaça o documento." +
-                  // Mesma convenção do mapa mental: o documento circula FORA da
-                  // extensão, então sem a referência de origem ninguém consegue
-                  // conferir a afirmação nos autos.
-                  " ORIGEM OBRIGATÓRIA: toda afirmação sobre os autos leva a referência entre" +
-                  " parênteses, no formato (Título da peça, id 123456, fl. 7) — o id é o número" +
-                  " que abre o título de cada peça na lista abaixo e a folha é a do PDF daquela" +
-                  " peça. Sem folha identificável, use (Título da peça, id 123456). NUNCA invente" +
-                  " id, folha, data ou valor. Toda tabela termina com uma coluna \"Origem\"" +
-                  " contendo essa mesma referência." +
+                  SUFIXO_MINUTA +
                   " Peças anexadas, use exatamente estes ids: " +
                   selectedIds.map((id) => metaDe(id).titulo).join("; ") +
                   ".",
@@ -1472,79 +1480,61 @@
         null
       );
 
-      const fimDoc = await stream(
-        messages,
-        {
-          onDelta(delta) {
-            acc += delta;
-            panel.updateAssistant(assistantEl, acc);
-          },
-          onThinking() {
-            if (!acc) panel.setStatus("Planejando o documento…", true);
-          },
-          onTool() {
-            // sempre: o code execution roda por longos períodos após o texto
-            panel.setStatus("Gerando o arquivo .docx… (o código está executando no servidor)", true);
-          },
-          onFile(f) {
-            arquivo = f;
-          },
-          onTrunc() {},
-          onIter() {
-            ckptDoc = acc;
-          },
-          onRetry() {
-            acc = ckptDoc;
-            panel.updateAssistant(assistantEl, acc);
-            panel.setStatus("Instabilidade momentânea na API — tentando gerar de novo…", true);
-          },
-          onReinicio(n) {
-            acc = "";
-            ckptDoc = "";
-            arquivo = null;
-            panel.updateAssistant(assistantEl, acc);
-            panel.setStatus(
-              "O serviço da extensão reiniciou — reenviando a geração do documento (tentativa " +
-                (n + 1) + ")… pode levar mais 1–2 minutos",
-              true
-            );
-          },
+      const fimMinuta = await stream(messages, {
+        onDelta(delta) {
+          acc += delta;
+          panel.updateAssistant(assistantEl, acc);
         },
-        {
-          tools: [{ type: "code_execution_20260521", name: "code_execution" }],
-          container: {
-            skills: [{ type: "anthropic", skill_id: "docx", version: "latest" }],
-          },
-          // o parâmetro container (skills) exige a beta de code execution
-          // JUNTO com a de skills — sem ela a API devolve 400
-          betas: ["code-execution-2025-08-25", "skills-2025-10-02", "files-api-2025-04-14"],
-          // 32000: modelos menores (Haiku) truncavam por max_tokens no meio do
-          // código e o turno acabava sem arquivo; todos os modelos aceitam 32K
-          maxTokens: 32000,
-          // o docx pode precisar de mais rodadas de code execution que o teto
-          // padrão de 8 continuações pause_turn — sobretudo no Haiku
-          maxIter: 16,
+        onThinking() {
+          if (!acc) panel.setStatus("Planejando a estrutura do ato…", true);
         },
-        "gerarDoc"
-      );
-      registrarCusto(fimDoc);
+        onTool() {},
+        onTrunc() {},
+        onIter() {
+          ckptMinuta = acc;
+        },
+        onRetry() {
+          acc = ckptMinuta;
+          panel.updateAssistant(assistantEl, acc);
+          panel.setStatus("Instabilidade momentânea na API — tentando de novo…", true);
+        },
+        onReinicio(n) {
+          acc = "";
+          ckptMinuta = "";
+          panel.updateAssistant(assistantEl, acc);
+          panel.setStatus(
+            "O serviço da extensão reiniciou — refazendo a minuta (tentativa " + (n + 1) + ")…",
+            true
+          );
+        },
+      });
+      registrarCusto(fimMinuta);
 
-      if (arquivo) {
-        const idProc = PJE.getIdProcesso();
-        const nome = ("processo-" + (idProc ? idProc + "-" : "") + arquivo.filename)
-          .replace(/[^\w.\-]+/g, "-")
-          .replace(/-+/g, "-");
-        baixarArquivo(nome, arquivo.b64, arquivo.mime);
-        panel.updateAssistant(
-          assistantEl,
-          (acc ? acc + "\n\n" : "") + "✅ **Documento gerado e baixado:** " + nome
-        );
-        panel.setStatus("");
-      } else {
-        panel.setStatus(
-          "O modelo não gerou o arquivo .docx — tente reformular o pedido e gerar de novo."
-        );
+      const md = limparMarkdownMinuta(acc);
+      if (!md) {
+        panel.setStatus("O modelo não devolveu a minuta — tente gerar novamente.");
+        if (assistantEl) panel.removeMessage(assistantEl);
+        return;
       }
+
+      const url = await guardarMinuta(md, tituloDaMinuta(md));
+      const idProc = PJE.getIdProcesso();
+      const nomeMd = ("minuta" + (idProc ? "-processo-" + idProc : "") + ".md").replace(
+        /[^\w.\-]+/g,
+        "-"
+      );
+
+      panel.mostrarCardMinuta(assistantEl, {
+        md,
+        resumo: resumoDaMinuta(md),
+        // A aba abre no CLIQUE, não sozinha: a resposta demora e o gesto do
+        // usuário no "Gerar" já expirou — abrir aqui cairia no bloqueador de
+        // pop-ups. window.open de URL da extensão é navegação de topo, imune à
+        // CSP do tribunal (mesmo truque do "Abrir em nova aba" do preview).
+        onAbrir: () => window.open(url, "_blank", "noopener"),
+        onBaixar: () => baixarTexto(nomeMd, md, "text/markdown;charset=utf-8"),
+      });
+      panel.setStatus("");
     } catch (e) {
       panel.endPrep(true);
       panel.setStatus("Erro: " + (e && e.message ? e.message : e));
@@ -1555,17 +1545,109 @@
     }
   });
 
+  // --- Rascunhos de minuta -----------------------------------------------
+  // Ficam em chrome.storage.local — e não em session, como o mapa — porque o
+  // ponto do recurso é reabrir a minuta depois, inclusive noutro dia. Isso põe
+  // trecho dos autos NO DISCO: a poda dupla (10 mais recentes e nada acima de
+  // 7 dias) e o botão "Descartar" do editor existem por causa disso.
+  const MAX_MINUTAS = 10;
+  const VALIDADE_MINUTA_MS = 7 * 24 * 60 * 60 * 1000;
+
+  function guardarMinuta(md, titulo) {
+    return new Promise((resolve, reject) => {
+      const id = String(Date.now()) + "-" + Math.random().toString(36).slice(2, 8);
+      const chave = "minuta:" + id;
+      let processo = "";
+      try {
+        processo = PJE.getNumeroProcesso() || "";
+      } catch (e) {}
+      const registro = {
+        // Guarda o Markdown CRU: a página do editor (src/editor.html) o converte
+        // com o MinutaMd — parser dedicado que faz listas aninhadas, tabelas com
+        // alinhamento e parágrafos de verdade (o renderMd do chat achataria).
+        // O HTML editado é gravado de volta pelo próprio editor a cada mudança.
+        md,
+        titulo: titulo || "Minuta",
+        processo,
+        criadoEm: Date.now(),
+        atualizadoEm: Date.now(),
+      };
+      chrome.storage.local.set({ [chave]: registro }, () => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        podarMinutas();
+        resolve(chrome.runtime.getURL("src/editor.html?id=" + encodeURIComponent(id)));
+      });
+    });
+  }
+
+  function podarMinutas() {
+    chrome.storage.local.get(null, (tudo) => {
+      if (chrome.runtime.lastError || !tudo) return;
+      const limite = Date.now() - VALIDADE_MINUTA_MS;
+      const quando = (k) => (tudo[k] && tudo[k].atualizadoEm) || 0;
+      const chaves = Object.keys(tudo).filter((k) => k.indexOf("minuta:") === 0);
+      const vencidas = chaves.filter((k) => quando(k) < limite);
+      const vivas = chaves
+        .filter((k) => vencidas.indexOf(k) === -1)
+        .sort((a, b) => quando(b) - quando(a));
+      const remover = vencidas.concat(vivas.slice(MAX_MINUTAS));
+      if (remover.length) chrome.storage.local.remove(remover);
+    });
+  }
+
+  // Tira a cerca ``` que alguns modelos põem em volta do markdown e o
+  // preâmbulo antes do primeiro título. Mesmo papel do limparMarkdownMapa.
+  function limparMarkdownMinuta(txt) {
+    let t = String(txt || "").trim();
+    const cerca = t.match(/^```[a-z]*\s*\n([\s\S]*?)\n?```$/i);
+    if (cerca) t = cerca[1].trim();
+    const i = t.search(/^#{1,3}\s+/m);
+    if (i > 0) t = t.slice(i);
+    return t.trim();
+  }
+
+  // O nome do ato (linha do #) vira o título do documento e o nome do arquivo.
+  function tituloDaMinuta(md) {
+    const m = String(md || "").match(/^#\s+(.+)$/m);
+    const t = m ? m[1].replace(/[*_`]/g, "").trim() : "";
+    return t ? t.slice(0, 80) : "Minuta";
+  }
+
+  function resumoDaMinuta(md) {
+    const linhas = md.split(/\r?\n/);
+    const secoes = linhas.filter((l) => /^##\s+/.test(l)).length;
+    const paragrafos = linhas.filter((l) => l.trim() && !/^[#>|\-*\d]/.test(l.trim())).length;
+    return (secoes ? secoes + " seção(ões) · " : "") + paragrafos + " parágrafo(s)";
+  }
+
+  // Heurística de intenção — a primeira do projeto. É deliberadamente
+  // inofensiva: NÃO muda o request nem o system prompt, só decide se a oferta
+  // de editor ao fim de uma resposta de chat aparece em destaque. Falso
+  // negativo custa um clique a mais; falso positivo, um botão a mais.
+  const MINUTA_VERBO =
+    /\b(minut\w*|elabor\w*|redij\w*|redig\w*|escrev\w*|prepar\w*|fa[cç]\w*|gere|gerar|produz\w*)\b/i;
+  const MINUTA_ESPECIE =
+    /\b(despacho|senten[çc]a|decis[ãa]o|voto|ac[óo]rd[ãa]o|of[íi]cio|mandado|alvar[áa]|termo|parecer|promo[çc][ãa]o|cota|minuta|peti[çc][ãa]o|contesta[çc][ãa]o|r[ée]plica|recurso|apela[çc][ãa]o|embargos|agravo|alega[çc][õo]es|relat[óo]rio)\b/i;
+  const MINUTA_VETO = /\b(resum\w*|explic\w*|quais|qual|quando|quanto|liste|listar|analis\w*)\b/i;
+  function pareceMinuta(t) {
+    const s = String(t || "");
+    return MINUTA_VERBO.test(s) && MINUTA_ESPECIE.test(s) && !MINUTA_VETO.test(s);
+  }
+
   // ---------------------------------------------------------------------------
   // Mapa mental (markmap): um turno de chat comum cuja resposta é markdown
   // hierárquico. Não usa tools, skills nem code execution — por isso funciona
-  // TAMBÉM nos modelos Gemini, ao contrário do .docx. O markdown vai para o
+  // em qualquer modelo, Claude ou Gemini. O markdown vai para o
   // worker (storage.session) e a página src/mapa.html desenha o mapa.
   // ---------------------------------------------------------------------------
   const INSTRUCAO_MAPA_PADRAO =
     "Mapeie o processo: partes e representantes, síntese dos fatos, pedidos, teses de cada " +
     "parte, provas produzidas, decisões proferidas e situação atual do feito.";
 
-  // Prescritivo pelo mesmo motivo do sufixo do .docx: modelos menores (Haiku)
+  // Prescritivo pelo mesmo motivo do SUFIXO_MINUTA: modelos menores (Haiku)
   // seguem instruções ao pé da letra, e o parser de src/mapa.js só entende
   // títulos e listas — preâmbulo, tabela ou bloco de código estragariam o mapa.
   const SUFIXO_MAPA =
@@ -1615,7 +1697,7 @@
       panel.setStatus("Montando o mapa mental a partir das peças marcadas…", true);
       assistantEl = panel.addMessage("assistant", "");
 
-      // Request ISOLADO, como o .docx: não entra em conversation nem em
+      // Request ISOLADO, como a minuta: não entra em conversation nem em
       // pecasNaConversa — o anexo incremental e o histórico do chat seguem
       // intactos, e gerar um mapa não muda a conversa em andamento.
       const messages = prepararEnvio(

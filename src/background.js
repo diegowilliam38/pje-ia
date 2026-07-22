@@ -9,8 +9,6 @@
 import {
   streamClaude,
   uploadFile,
-  downloadFile,
-  fileMetadata,
   countTokens,
   MAX_TOKENS_CHAT,
 } from "./claude.js";
@@ -67,9 +65,8 @@ const MODEL_CAPS = {
     effort: false, // effort retorna erro no Haiku 4.5
     preco: { in: 1, out: 5 },
   },
-  // Modelos Google Gemini (Interactions API). docx:false → o botão "Gerar
-  // .docx" fica desabilitado (o code execution do Gemini não devolve
-  // arquivos); citacoesNativas:false → o system prompt pede citações
+  // Modelos Google Gemini (Interactions API). citacoesNativas:false → o
+  // system prompt pede citações
   // TEXTUAIS ("conforme a Contestação, fl. 12") e a UI mostra a nota.
   // tokensPagina: 258 (documentação oficial) — a estimativa local usa este
   // valor no lugar dos 2000/pág. da Anthropic. preco.cacheRead: tabela
@@ -79,7 +76,6 @@ const MODEL_CAPS = {
     contextTokens: 1000000,
     maxPages: 1000,
     googleSearch: true,
-    docx: false,
     citacoesNativas: false,
     thinking: null,
     effort: true, // vira generation_config.thinking_level
@@ -91,7 +87,6 @@ const MODEL_CAPS = {
     contextTokens: 1000000,
     maxPages: 1000,
     googleSearch: true,
-    docx: false,
     citacoesNativas: false,
     thinking: null,
     effort: true,
@@ -131,8 +126,7 @@ function capsDe(model) {
 }
 
 // Default: Haiku 4.5 — mais rápido e ~3× mais barato que o Sonnet 5; todas as
-// features funcionam nele (inclusive a skill docx via code_execution_20260521,
-// confirmado nos docs). O custo funcional é a janela menor (200 mil tokens,
+// features funcionam nele. O custo funcional é a janela menor (200 mil tokens,
 // 100 págs. de PDF) — para autos volumosos o usuário troca para o Sonnet 5
 // (1M) no popup/opções; o MODEL_CAPS e o medidor cuidam dos limites.
 function getCfg() {
@@ -322,9 +316,13 @@ function stripCitacoes(blocks) {
   });
 }
 
+// Teto de continuações pause_turn de um turno lógico. Era configurável por
+// payload enquanto a geração de .docx precisava de mais rodadas de execução
+// de código; hoje todo turno é chat e 8 basta com folga.
+const MAX_ITER = 8;
+
 // Erros transitórios que valem nova tentativa do MESMO request: 429/529/5xx
-// (flag retryable vinda do claude.js) e quedas de rede no meio do SSE — o
-// docx tem longos silêncios de code execution, janela típica dessas quedas.
+// (flag retryable vinda do claude.js) e quedas de rede no meio do SSE.
 function erroRetryavel(e) {
   if (e && e.retryable) return true;
   const msg = String((e && e.message) || e).toLowerCase();
@@ -339,7 +337,7 @@ const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Executa um turno completo (com continuações pause_turn), emitindo o progresso
 // pelo Port. Retorna {content, stopReason}; lança erro em falha ou recusa.
-// payload: {system, messages, tools?, container?, betas?, maxTokens?, maxIter?}
+// payload: {system, messages, tools?, betas?, maxTokens?}
 async function executarTurno(port, payload) {
   const cfg = await getCfg();
   const { model, effort } = cfg;
@@ -370,7 +368,6 @@ async function executarTurno(port, payload) {
   }
 
   let messages = payload.messages;
-  let container = payload.container || null;
   let contentAcumulado = [];
   let stopReason = null;
   // Um turno lógico pode ser vários requests físicos (continuações pause_turn):
@@ -385,16 +382,13 @@ async function executarTurno(port, payload) {
   };
   let usoUltimo = null;
 
-  // Um turno lógico = até maxIter requests físicos (continuações pause_turn);
-  // o docx pede um teto maior (modelos menores precisam de mais rodadas de
-  // code execution). Cada request físico ganha até 2 RE-TENTATIVAS em erro
+  // Um turno lógico = até MAX_ITER requests físicos (continuações
+  // pause_turn). Cada request físico ganha até 2 RE-TENTATIVAS em erro
   // transitório (429/529/5xx/queda de rede): "iter" marca o checkpoint na UI
   // e "retry" manda descartar o parcial da tentativa que falhou — sem isso o
   // texto duplicaria na tela.
-  const maxIter = payload.maxIter || 8;
-  for (let iteracao = 0; iteracao < maxIter; iteracao++) {
+  for (let iteracao = 0; iteracao < MAX_ITER; iteracao++) {
     const req = Object.assign({}, baseReq, { messages });
-    if (container) req.container = container;
     postar(port, { type: "iter" });
 
     let final = null;
@@ -428,10 +422,6 @@ async function executarTurno(port, payload) {
       for (const k of Object.keys(usoTotal)) usoTotal[k] += final.usage[k] || 0;
       usoUltimo = final.usage;
     }
-    // geração com skills: preserva o container para as continuações
-    if (final.containerId && payload.container) {
-      container = Object.assign({}, payload.container, { id: final.containerId });
-    }
     if (stopReason !== "pause_turn") break;
     // o servidor pausou o loop de ferramentas: reenvia com o turno parcial.
     // As citações NÃO voltam no reenvio: a API rejeita citações em conteúdo
@@ -454,74 +444,9 @@ async function executarTurno(port, payload) {
   };
 }
 
-// Extrai os file_ids de arquivos gerados pela execução de código
-// (blocos bash_code_execution_tool_result → bash_code_execution_result →
-//  saídas com file_id), na ordem em que aparecem.
-function extrairFileIds(blocks) {
-  const ids = [];
-  for (const b of blocks || []) {
-    if (b && b.type === "bash_code_execution_tool_result" && b.content) {
-      const outs = (b.content && b.content.content) || [];
-      for (const o of outs) if (o && o.file_id) ids.push(o.file_id);
-    }
-  }
-  return ids;
-}
-
-// Geração de documento (skill docx): executa o turno, localiza o .docx entre os
-// arquivos gerados no container e o baixa pela Files API, repassando os bytes
-// ao content script para download no navegador.
-async function gerarDocumento(port, payload) {
-  {
-    // Defesa em profundidade: a UI desabilita o botão nos modelos Gemini
-    // (o code execution do Gemini não devolve arquivos — limitação da API).
-    const { model } = await getCfg();
-    if (providerDe(model) === "gemini") {
-      throw new Error(
-        "a geração de .docx não está disponível nos modelos Gemini — troque para um modelo Claude nas opções da extensão"
-      );
-    }
-  }
-  const r = await executarTurno(port, payload);
-  const { apiKey } = await getCfg();
-  const ids = extrairFileIds(r.content);
-
-  let alvo = null;
-  let nome = "documento.docx";
-  for (const id of ids) {
-    try {
-      const meta = await fileMetadata({ apiKey, fileId: id });
-      if (meta && meta.filename && /\.docx$/i.test(meta.filename)) {
-        alvo = id; // fica com o ÚLTIMO .docx gerado (versão final)
-        nome = meta.filename;
-      }
-    } catch {
-      /* metadados indisponíveis: segue para o próximo */
-    }
-  }
-  if (!alvo && ids.length) alvo = ids[ids.length - 1];
-
-  if (alvo) {
-    const f = await downloadFile({ apiKey, fileId: alvo });
-    postar(port, { type: "file", filename: nome, b64: f.b64, mime: f.mime });
-  } else if (r.stopReason === "pause_turn") {
-    // o teto de iterações estourou ANTES de o arquivo sair — antes isso
-    // retornava em silêncio e o usuário via só "não gerou o arquivo"
-    throw new Error(
-      "a geração precisou de mais etapas do que o limite do servidor e não concluiu o arquivo — " +
-        "tente de novo (instruções mais simples ajudam; modelos menores, como o Haiku, às vezes precisam de nova tentativa)"
-    );
-  } else if (r.stopReason === "max_tokens") {
-    throw new Error(
-      "a resposta atingiu o limite de tokens antes de concluir o arquivo — tente de novo com uma instrução mais direta"
-    );
-  }
-  return r;
-}
-
 // Impede o Chrome de matar o service worker durante um turno longo: o MV3
-// encerra o worker após ~30 s sem eventos de extensão, e a geração de .docx
-// tem longos silêncios (code execution roda no servidor sem emitir SSE).
+// encerra o worker após ~30 s sem eventos de extensão, e um turno longo pode
+// ficar em silêncio por muito tempo (raciocínio extenso, busca na web).
 // Chamar uma API de extensão de tempos em tempos reseta o timer de ociosidade.
 function manterVivo() {
   // 15 s (não 20): margem maior sobre o teto de ~30 s de ociosidade — o
@@ -546,13 +471,10 @@ chrome.runtime.onConnect.addListener((port) => {
   port.onMessage.addListener((msg) => {
     // "ping" (e qualquer tipo desconhecido) só serve de keepalive: o próprio
     // recebimento da mensagem reseta o timer de ociosidade do worker.
-    if (!msg || (msg.type !== "chat" && msg.type !== "gerarDoc")) return;
+    if (!msg || msg.type !== "chat") return;
 
     const parar = manterVivo();
-    (msg.type === "chat"
-      ? executarTurno(port, msg.payload)
-      : gerarDocumento(port, msg.payload)
-    )
+    executarTurno(port, msg.payload)
       .then((r) =>
         postar(port, {
           type: "done",

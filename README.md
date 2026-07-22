@@ -57,7 +57,7 @@ investigação aberta, um agente com MCP é o caminho — o próprio painel suge
 - **Custo por resposta** — o rodapé estima o custo em US$ de cada resposta e o acumulado da conversa, calculado pela tabela de preços do provedor (com o desconto de cache).
 - **Citações com página** *(modelos Claude)* — as afirmações vêm com marcadores `[n]` e a lista de fontes ("Contestação, fl. 12") no rodapé; nos modelos Gemini a citação vem no próprio texto ("conforme a Contestação, fl. 12").
 - **Busca de jurisprudência** 🔍 — toggle que libera pesquisa na web (fontes oficiais: STF, STJ, Planalto, LexML…), com a consulta em andamento exibida em tempo real. Nos modelos Gemini usa o Google Search.
-- **Gerar .docx** 📄 *(modelos Claude)* — relatório do processo em Word de verdade (skill oficial da Anthropic), baixado direto pelo navegador.
+- **Minutar** ✍️ *(nos dois provedores)* — peça ao modelo o texto de um ato (despacho, decisão, sentença, parecer…) e ele abre num **editor de texto** próprio, em nova aba, já com a formatação forense (A4, margens 3/2 cm, Times 12, entrelinha 1,5, parágrafos justificados). Do editor você **⎘ copia formatado** para colar no editor de minutas do PJe, **⬇ baixa em `.docx`** (Word, gerado no próprio navegador) ou **🖨 imprime/salva em PDF**. Toda afirmação leva a origem `(peça · id · fl.)` e o que faltar nas peças vira `[COMPLETAR: …]`. Toda resposta longa do chat também ganha um botão **Abrir no editor**. O rascunho fica guardado no computador (7 dias) para reabrir depois.
 - **Mapa mental** 🧠 *(nos dois provedores)* — o modelo organiza as peças marcadas nos eixos da análise processual (partes, fatos, pedidos, teses, provas, audiências, decisões, prazos, situação) e a extensão abre um **mapa interativo** em nova aba (markmap): cada eixo com ícone e cor próprios, **tabelas** onde a informação é tabular, **pílulas** de folha, id da peça, data, valor e norma, e a origem (`peça · id · fl.`) em cada tópico. Nasce recolhido, com níveis de detalhe, zoom, tema escuro, impressão/PDF e download do texto em `.md`.
 - **Biblioteca de prompts** ✦ — salve instruções que você repete (título + texto) e insira-as digitando **`/`** no início do campo: o prompt vira um chip elegante acima da caixa de texto e é enviado antes da sua mensagem. Gerenciamento (criar/editar/excluir) no botão **✦ Prompts**, e os prompts acompanham você em outros navegadores pela sincronização da conta Google.
 - **OCR nativo** — peças digitalizadas (imagem) são lidas pelo próprio modelo, sem OCR externo.
@@ -94,14 +94,14 @@ investigação aberta, um agente com MCP é o caminho — o próprio painel suge
 
 | Modelo | Janela / PDF | Preço (US$/1M tokens) | Perfil |
 |---|---|---|---|
-| **Claude Haiku 4.5** (padrão) | 200 mil / 100 págs. | 1 / 5 | Rápido e barato; todos os recursos (citações `[n]`, .docx) |
-| **Claude Sonnet 5** | 1M / 600 págs. | 3 / 15 | Autos volumosos com todos os recursos |
+| **Claude Haiku 4.5** (padrão) | 200 mil / 100 págs. | 1 / 5 | Rápido e barato; citações `[n]` clicáveis |
+| **Claude Sonnet 5** | 1M / 600 págs. | 3 / 15 | Autos volumosos; todos os recursos |
 | **Claude Opus 4.8** | 1M / 600 págs. | 5 / 25 | Qualidade superior para análises delicadas |
 | **Claude Fable 5** | 1M / 600 págs. | 10 / 50 | O mais capaz — e o mais caro e lento |
 | **Gemini 3.6 Flash** | 1M / 1000 págs. | 1,50 / 7,50 | Rápido e multimodal, ótimo custo para autos grandes |
 | **Gemini 3.5 Flash-Lite** | 1M / 1000 págs. | 0,30 / 2,50 | O mais barato e veloz — triagens e resumos |
 
-> Nos modelos Gemini, as citações de página vêm no próprio texto (sem os marcadores `[n]` clicáveis) e a geração de .docx fica indisponível — esses recursos usam a API da Anthropic. Trocar entre Claude e Gemini no meio de uma conversa pede "Nova conversa".
+> Nos modelos Gemini, as citações de página vêm no próprio texto (sem os marcadores `[n]` clicáveis) — essa é a única diferença; minutar e o mapa mental funcionam igual nos dois provedores. Trocar entre Claude e Gemini no meio de uma conversa pede "Nova conversa".
 
 ## 🚀 Instalação
 
@@ -158,7 +158,7 @@ logado na mesma conta Google.
 
 Quando o que você precisa é **enxergar a estrutura** do feito — e não ler mais um
 relatório —, marque as peças e clique em **🧠 Mapa mental**. A instrução padrão
-(editável, como no `.docx`) aparece no campo e o botão Enviar vira **Gerar mapa**;
+(editável, como ao minutar) aparece no campo e o botão Enviar vira **Gerar mapa**;
 a resposta abre em **nova aba** como um mapa interativo, com o número do processo no
 centro e um ramo por eixo (partes, fatos, pedidos, teses, provas, situação atual).
 
@@ -174,13 +174,40 @@ ids de peça, datas, valores e artigos ganham **destaque colorido**.
 quantos tópicos vieram com peça e folha. Ainda dá para alternar o **tema escuro**,
 baixar o texto em **`.md`** e **imprimir** (ou salvar em PDF, já enquadrado).
 
-> Diferente do `.docx`, o mapa mental funciona **nos dois provedores** — Claude e
-> Gemini —, porque não depende de execução de código no servidor da Anthropic.
-> Os mapas gerados ficam disponíveis enquanto o navegador estiver aberto.
+> O mapa mental funciona **nos dois provedores** — Claude e Gemini —, porque é um
+> chat comum, sem execução de código. Os mapas ficam disponíveis enquanto o
+> navegador estiver aberto.
 
 <p align="center">
   <img src="docs/mapa-mental.gif" alt="Mapa mental do processo: começa recolhido nos eixos, abre em níveis de detalhe com tabelas de partes e decisões, mostra a peça, o id e a folha de origem em cada tópico e alterna para o tema escuro" width="880">
 </p>
+
+### ✍️ Minutar: da análise ao ato, num editor de verdade
+
+O chat explica o processo; **minutar** escreve a peça. Marque os documentos, clique em
+**✍️ Minutar** (a instrução padrão, editável, aparece no campo) e o modelo redige o ato
+cabível — despacho, decisão, sentença, parecer. A resposta abre em **nova aba** num
+**editor WYSIWYG** ([Jodit](https://xdsoft.net/jodit/)) já com a formatação forense:
+A4, margens 3/2 cm, Times 12, entrelinha 1,5, títulos centralizados e parágrafos
+justificados com recuo de primeira linha.
+
+No editor você revisa, ajusta e então:
+
+- **⎘ Copia formatado** — leva o texto rico para a área de transferência, pronto para
+  colar no editor de minutas do PJe sem perder títulos, negrito e justificação;
+- **⬇ Baixa `.docx`** — Word de verdade, gerado **no próprio navegador**
+  ([docx](https://docx.js.org)), com as mesmas medidas da tela (tabelas nativas,
+  numeração, estilos de título);
+- **🖨 Imprime / salva em PDF** — pelo diálogo nativo do Chrome, só a folha.
+
+**Toda afirmação leva a origem** `(Peça, id 123456, fl. 7)` e, onde falta dado nas peças,
+o modelo deixa `[COMPLETAR: …]` para quem assina preencher — nada de número, data ou
+precedente inventado. O rascunho fica **guardado no computador por 7 dias** para você
+reabrir e continuar; **Descartar**, no editor, apaga na hora. Como o mapa, minutar é um
+chat comum: funciona **em qualquer modelo**, Claude ou Gemini.
+
+> A minuta é uma sugestão de trabalho, não um ato: revise o texto e confira as citações
+> nos autos antes de usar.
 
 ### 🏛️ Todos os tribunais, sem configurar nada
 
@@ -308,7 +335,7 @@ saber em que arquivo mexer:
 - *"No meu tribunal as peças de execução fiscal se chamam 'CDA' e 'Certidão de Dívida Ativa'. Faça a lista reconhecer isso como categoria de prova."*
 - *"A fonte do chat é pequena para quem tem dificuldade de enxergar. Adicione um controle de tamanho do texto no cabeçalho."*
 - *"Quando eu marco mais de 20 peças, quero um aviso de que a resposta vai demorar."*
-- *"O botão 'Gerar .docx' devia lembrar a última instrução que usei."*
+- *"O botão 'Minutar' devia lembrar a última instrução que usei."*
 
 O Claude Code vai ler o `CLAUDE.md`, encontrar os arquivos certos, propor o código e
 **esperar sua aprovação** antes de alterar qualquer coisa (modo Manual, o padrão).

@@ -33,16 +33,15 @@ O worker (`src/background.js` + `src/claude.js`, ES modules) guarda a chave da A
 streaming SSE — **a chave nunca chega ao contexto da página**. Dois canais content↔worker:
 
 - **Port** `chrome.runtime.connect({name:"claude"})` para os turnos (streaming). Tipos
-  content→worker: `chat` e `gerarDoc`; worker→content: `delta`, `thinking`, `citation`,
-  `tool`, `file`, `trunc`, `iter` (início de request físico — checkpoint da UI),
+  content→worker: só `chat`; worker→content: `delta`, `thinking`, `citation`,
+  `tool`, `trunc`, `iter` (início de request físico — checkpoint da UI),
   `retry` (re-tentativa transitória — a UI reverte ao checkpoint para não duplicar
   texto/citações), `done {content, stopReason}`, `error`. **AUTO-RESUME**: se a porta
   cair SEM `done`/`error` (worker MV3 morto no meio do turno — acontece mesmo com
   keepalive), `stream()` em content.js reconecta e REENVIA o payload sozinho (até 2
   vezes; o turno é stateless e o prefixo está no cache de prompt). O handler
   `onReinicio` zera TODO o estado de UI do turno (o novo stream re-emite do zero).
-  Não transformar esse reenvio em erro imediato — era a causa nº 1 de ".docx falha
-  às vezes" no Haiku.
+  Não transformar esse reenvio em erro imediato (regra do turno longo em geral).
 - **`chrome.runtime.sendMessage`** (request/response) para `caps` (capacidades do
   modelo — a resposta traz `{model, effort, caps}`; model+effort alimentam o SELO do
   modelo ativo `panel.setModelo` na barra de ferramentas, atualizado ao vivo pelo
@@ -55,24 +54,19 @@ streaming SSE — **a chave nunca chega ao contexto da página**. Dois canais co
 `content_block_start/delta/stop`, incluindo `signature_delta` do thinking, `citations_delta`
 e `input_json_delta`) e emite `{kind:"final", content, stopReason, containerId}`.
 `background.js` resolve sozinho as continuações de **`pause_turn`** (reenvia
-`messages + [{role:"assistant", content: parcial}]`, reutilizando `container.id` quando há
-skills; máx. 8 iterações no chat e 16 na geração de documento — `payload.maxIter`) — o
+`messages + [{role:"assistant", content: parcial}]`; teto fixo `MAX_ITER` = 8) — o
 content script enxerga um único turno lógico. **Erros transitórios re-tentam sozinhos**:
 cada request físico ganha até 2 re-tentativas com backoff (429 espera 10 s) quando o
 erro é 429/529/5xx ou queda de rede no meio do SSE (flag `retryable` posta pelo
-`claude.js`; janela típica: os longos silêncios do code execution no docx). Se a
-geração de documento terminar sem arquivo com `stop_reason` `pause_turn` (teto de
-iterações) ou `max_tokens`, o worker LANÇA erro claro em vez de retornar em silêncio —
-o Haiku precisa de mais rodadas de code execution que o Sonnet e era onde o docx
-"falhava às vezes" sem explicação. `maxTokens` do docx é 32000 (16000 truncava o
-código do Haiku no meio).
+`claude.js`). `max_tokens` é 32000 (OBRIGATÓRIO na Anthropic; 32K é o teto de saída
+aceito por todos os modelos Claude).
 
 `MODEL_CAPS` em `background.js` governa por modelo: `provider` (anthropic|gemini),
 `contextTokens`, `maxPages` (600 nos modelos de 1M; 100 no Haiku; 1000 no Gemini),
 versões de `web_search`/`web_fetch` (variantes `_20260209` no Sonnet 5/Opus 4.8;
 básicas no Fable/Haiku), `thinking` (adaptive+summarized; omitido no Haiku) e `effort`
 (não suportado no Haiku; no Gemini vira `thinking_level`). Entradas Gemini têm ainda
-`docx:false`, `citacoesNativas:false`, `tokensPagina:258` e `preco.cacheRead`.
+`citacoesNativas:false`, `tokensPagina:258` e `preco.cacheRead`.
 
 ## Provedor Gemini (Interactions API)
 
@@ -112,10 +106,10 @@ quebrar:
   fixo no rodapé ela custava duas linhas em toda conversa.
   Annotations `url_citation` da busca viram citações web normais
   (`web_search_result_location`).
-- **Sem .docx no Gemini** (`docx:false`): o code execution do Gemini não devolve
-  arquivos. `panel.setDocxDisponivel(false)` desabilita o botão com tooltip (e
-  `lockInput` respeita a flag `docxDisponivel`); guardas defensivas em
-  `content.onGerarDoc` e `background.gerarDocumento`.
+- **Paridade de recursos com o Gemini**: minutar (editor) e o mapa mental são chats
+  comuns — sem skill, sem code execution —, então funcionam nos DOIS provedores. A
+  única capacidade condicionada por caps é a citação nativa por página
+  (`citacoesNativas`); nenhum recurso da UI é gated por nome de modelo.
 - **Busca**: toggle Jurisprudência no Gemini declara `[{type:"google_search"}]` — sem
   `allowed_domains` (a API não suporta); a priorização de fontes .jus.br vai por
   instrução no system prompt. Custo: 5.000 buscas/mês grátis, depois US$ 14/1.000.
@@ -161,15 +155,12 @@ quebrar:
   `sanearCitacoes` (content.js) ao gravar no histórico e `stripCitacoes`
   (background.js) nas continuações `pause_turn`. A UI mantém as citações
   renderizadas do turno; o modelo segue vendo o texto integral.
-- **Dois tipos de request, nunca misturados**: *chat/busca* (documentos + citações +
-  web tools quando o toggle "Jurisprudência" está ligado — e, uma vez usadas na
-  conversa, as web tools seguem declaradas nos turnos seguintes mesmo com o toggle
-  desligado (`buscaNaConversa`): trocar o conjunto de tools invalidaria o cache de
-  prefixo e arriscaria rejeição do histórico com blocos de ferramenta) e *gerar
-  documento* (skill
-  `docx` + `code_execution_20260521` + betas `code-execution-2025-08-25`/
-  `skills-2025-10-02`/`files-api-2025-04-14` — o `container` com skills exige a beta de
-  code execution junto com a de skills).
+- **Um só tipo de request** (não há mais o caminho de skill/`.docx`): *chat/busca* —
+  documentos + citações + web tools quando o toggle "Jurisprudência" está ligado. Uma
+  vez usadas na conversa, as web tools seguem declaradas nos turnos seguintes mesmo com
+  o toggle desligado (`buscaNaConversa`): trocar o conjunto de tools invalidaria o cache
+  de prefixo e arriscaria rejeição do histórico com blocos de ferramenta. Minuta e mapa
+  são o MESMO tipo de request de chat, apenas isolados (não entram em `conversation`).
   As versões `_20260209` dos web tools já embutem execução de código — **nunca** declare
   `code_execution` junto delas.
 - **Peças vão por `file_id` (Files API)**: upload único pelo worker com cache em
@@ -285,7 +276,8 @@ quebrar:
   turno do usuário e remove as peças do turno de `pecasNaConversa`, para permitir nova
   tentativa limpa.
 - **Keepalive do service worker (MV3)**: o Chrome mata o worker após ~30 s sem eventos
-  de extensão — fatal na geração de .docx, cujo code execution roda no servidor com
+  de extensão — fatal em turnos longos que ficam muito tempo sem emitir SSE (raciocínio
+  extenso, busca na web) com
   longos silêncios no SSE (sintoma: "conexão com o serviço interrompida"). Durante um
   turno, `background.js` chama `chrome.runtime.getPlatformInfo` a cada 20 s
   (`manterVivo`) e `content.js` manda `{type:"ping"}` pela porta; o handler do Port
@@ -298,16 +290,16 @@ quebrar:
   a Citations API devolve esse mesmo texto em `document_title`, de onde
   `infoCitacao` (content.js) o extrai de volta. Nunca enviar o título "limpo".
 - **Rastreabilidade peça · id · folha é a mesma nas QUATRO saídas** (chat Anthropic,
-  chat Gemini, `.docx`, mapa mental): o id é o número que abre o título da peça e é
+  chat Gemini, minuta/editor, mapa mental): o id é o número que abre o título da peça e é
   por ele que o usuário a reencontra na timeline do PJe — citar só o nome não serve.
   `PROMPT_INICIO` (compartilhado pelos dois provedores) exige nome + id; o
-  `SYSTEM_PROMPT_CIT_TEXTUAL`, o sufixo do `.docx` e o `SUFIXO_MAPA` usam o mesmo
+  `SYSTEM_PROMPT_CIT_TEXTUAL`, o `SUFIXO_MINUTA` e o `SUFIXO_MAPA` usam o mesmo
   formato literal `(Peça, id 123456, fl. 7)`. Ao editar um deles, editar os quatro.
 - **Contexto do caso no system** (`contextoDoProcesso` em content.js): número CNJ
   (`PJE.getNumeroProcesso`) e data de hoje. Sem o CNJ o mapa mental titulava com
   número inventado; sem a data, prazos e "situação atual" saíam calculados contra o
   conhecimento congelado do modelo. Ambos entram por `systemPromptAtual()` — o mesmo
-  ponto único do `customPrompt` —, então alcançam chat, `.docx`, mapa e count_tokens
+  ponto único do `customPrompt` —, então alcançam chat, minuta, mapa e count_tokens
   nos dois provedores de uma vez. A data muda o system uma vez por dia, o que é
   inofensivo: o cache é ephemeral de 5 min e a virada nunca cai numa janela viva.
 
@@ -457,7 +449,7 @@ quebrar:
   é governada pela CSP da página). TODOS os listeners são delegados no `.doclist`
   (as rows são recriadas a cada `setDocs`, que chama `hidePreview()`; `filtrarDocs`,
   `aplicarModo`, scroll da lista e Esc também fecham — o Esc do preview faz
-  `stopPropagation` para não cancelar o modo docx junto).
+  `stopPropagation` para não cancelar o modo minuta junto).
 
 ## Popup de menção `@` (panel.js)
 
@@ -504,7 +496,7 @@ ou pelas linhas de ação do próprio popup. Regras que não podem quebrar:
   falso positivo a cada frase. Um segundo `/` ou um `@` na query fecham o popup por
   construção. Ambos os popups nunca abrem juntos: os tokens são disjuntos.
 - **A concatenação acontece no PAINEL** (`montarTextoEnvio`, `prompt + "\n\n" + texto`;
-  campo vazio envia o prompt sozinho): `sendCb`/`gerarDocCb` seguem recebendo
+  campo vazio envia o prompt sozinho): `sendCb`/`minutaCb`/`mapaCb` seguem recebendo
   `(texto, ids)` e **content.js/protocolo/histórico não mudam em nada**. A bolha do
   usuário mostra o texto combinado de propósito — é o que foi à API.
 - **Um prompt por mensagem**: `promptAtivo` é objeto único; escolher outro substitui o
@@ -521,52 +513,107 @@ ou pelas linhas de ação do próprio popup. Regras que não podem quebrar:
   Sem resultado na busca o teclado é liberado (Enter envia a mensagem que começa com
   "/" literal); as ações fixas seguem clicáveis pelo mouse.
 - **Esc em cascata**: `/` → `@` → modal (o keydown do `.plib-card` faz
-  `stopPropagation`, senão cancelaria o modo docx junto) → modo docx.
+  `stopPropagation`, senão cancelaria o modo minuta junto) → modo minuta.
 - **Exclusão em dois cliques** ("excluir" → "excluir?"), nunca `confirm()` nativo: o
   dialog da página vive fora do Shadow DOM e congela a extensão.
-- **docx + prompt convivem**: com chip ativo e campo vazio, o botão `.btn-docx` NÃO
-  injeta a `INSTRUCAO_DOCX_PADRAO` (o prompt já é a instrução do documento).
+- **minuta + prompt convivem**: com chip ativo e campo vazio, o botão `.btn-minuta` NÃO
+  injeta a `INSTRUCAO_MINUTA_PADRAO` (o prompt já é a instrução da minuta).
 - `PLIB` ausente (harness sem o content script) esconde o botão e desliga a feature
   em silêncio — nada quebra.
 
-## Geração de .docx (skill oficial)
+## Minuta e editor de texto — página `src/editor.html`
 
-Botão "📄 Gerar .docx" no painel liga o **modo documento** (`docxMode` em `panel.js`):
-a instrução padrão (editável) entra no campo, a faixa `.docxbar` explica o passo e o
-botão Enviar vira "📄 Gerar" — Enviar/Enter disparam o request `gerarDoc` com as peças
-selecionadas + a instrução do campo (vazia cai na padrão). ✕ na faixa, Esc (com o
-popup `@` fechado) ou novo clique no botão cancelam; "Nova conversa" também desliga o
-modo. Não reintroduzir o fluxo antigo de "dois cliques no mesmo botão" — o usuário
-sempre aperta Enviar. O sufixo anexado à instrução em content.js é
-PRESCRITIVO de propósito (tabelas nativas obrigatórias, autocorreção de código,
-verificação do arquivo com python-docx antes de entregar): modelos menores (Haiku)
-seguem instruções literalmente e, sem essas regras, às vezes entregavam o .docx sem
-tabelas — não suavizar o texto. O sufixo também exige a **origem** de toda afirmação
-— `(Título da peça, id 123456, fl. 7)` e uma coluna "Origem" em toda tabela — e leva
-a lista explícita de ids das peças anexadas, exatamente como o mapa mental
-(sem a lista o modelo inventa o id). Aqui a origem importa ainda mais que no chat:
-o documento circula FORA da extensão, onde não há citação nativa nem timeline para
-conferir. O worker extrai o
-`file_id` dos blocos
-`bash_code_execution_tool_result` (fica com o **último** `.docx` gerado), baixa via Files
-API e repassa os bytes pelo Port; o content script dispara o download com Blob + âncora
-(sem permissão `downloads`). Custo: code execution tem franquia de 1.550 h/mês por
-organização (US$ 0,05/h depois), além dos tokens.
+Substitui o antigo `.docx` por skill da Anthropic (removido: era a maior fonte de
+complexidade — code execution, `container`, três betas, keepalive dedicado — e só rodava
+no Claude). Agora o modelo devolve **markdown** e a extensão o abre num **editor WYSIWYG**
+(Jodit) numa aba própria; o `.docx` é gerado **no cliente**, igual nos dois provedores.
+
+Botão "✍️ Minutar" liga o **modo minuta** (`setMinutaMode` em `panel.js`), clone exato do
+contrato do modo mapa: instrução padrão editável no campo, faixa `.minutabar`, Enviar vira
+"✍️ Gerar minuta", ✕/Esc/segundo clique cancelam. Mutuamente exclusivo com o mapa; "Nova
+conversa" desliga ambos. O turno (`panel.onMinuta` → handler em `content.js`) é um **chat
+comum** (sem tools/skills/`container`) — por isso funciona nos dois provedores. Regras:
+
+- **Request isolado, como o mapa**: `prepararEnvio([{role:"user", content:[...blocos,
+  instrucao + SUFIXO_MINUTA + lista de ids]}], null)`. Não entra em `conversation` nem em
+  `pecasNaConversa` — gerar uma minuta não altera a conversa em andamento.
+- **`SUFIXO_MINUTA` é prescritivo de propósito** (mesma razão do `SUFIXO_MAPA`): só
+  Markdown, sem preâmbulo nem cerca ```` ``` ````, um `#` (nome do ato) e `##` nas seções;
+  prosa em parágrafos, não bullets; **origem obrigatória** `(Título da peça, id 123456,
+  fl. 7)` — o documento circula FORA da extensão, sem citação nativa nem timeline para
+  conferir; nada inventado (o que falta vira `[COMPLETAR: …]`); sem assinatura/cabeçalho de
+  tribunal (o PJe já põe). A lista explícita de ids vai no texto (sem ela o modelo inventa
+  o id). `limparMarkdownMinuta` tira cerca e preâmbulo que escapem.
+- **Canal de dados = `chrome.storage.local`** (não `session` como o mapa): a minuta precisa
+  sobreviver ao fechar o navegador, e o content script acessa `local` direto — **sem RPC
+  nova no worker**. `guardarMinuta` grava `minuta:<id>` com `{md, titulo, processo,
+  criadoEm, atualizadoEm}` — **o Markdown CRU, não HTML** —, poda para os 10 mais recentes e
+  descarta acima de 7 dias, e devolve a URL `src/editor.html?id=…`. ISTO GRAVA TRECHO DOS
+  AUTOS NO DISCO (a única persistência do gênero na extensão): daí a poda dupla, o botão
+  "Descartar", a lista de recuperação e as notas no `PRIVACY.md`/`help.html`.
+- **Conversão Markdown→HTML é do `MinutaMd` (`src/minuta-md.js`), NÃO do `renderMd` do
+  chat**: o renderMd do painel é o renderizador de BALÃO — achata listas aninhadas e junta
+  parágrafos com `<br>`, inaceitável num documento. O `MinutaMd` (parser dedicado, testado)
+  faz **listas aninhadas reais** (pilha por indentação), tabelas com alinhamento, parágrafos
+  de verdade, títulos no nível certo (# → h1) e o mesmo *escape-first* de segurança (o texto
+  vem dos autos). A conversão roda na PÁGINA do editor (script normal, sem a limitação de
+  content script) na 1ª abertura; o HTML editado é gravado de volta e reusado depois.
+- **Recuperação de rascunhos** (`listarRascunhos` em editor.js): sem uma lista, o rascunho
+  ficaria órfão no disco. O botão "🗂 Rascunhos" abre um dropdown com os `minuta:*` (mais
+  recente primeiro); `editor.html` SEM `?id` vira a própria lista (modo-lista); o popup tem
+  a porta de entrada "📝 Minhas minutas".
+- **Card no chat, aba no clique** (`panel.mostrarCardMinuta`, clone do `mostrarCardMapa`): a
+  bolha vira card "Minuta gerada" com "Abrir no editor" (`window.open` no clique — a resposta
+  demora e o gesto do "Gerar" já expirou; navegação de topo é imune à CSP do tribunal) e
+  "Baixar .md". Depois de `mostrarCardMinuta` NÃO se chama `updateAssistant` nesse elemento.
+- **Oferta em respostas de chat comuns** (`panel.adicionarAcaoEditor`): ao fim de um turno
+  normal, uma ação "Abrir no editor" abaixo da bolha (irmã do `.body`, sobrevive a
+  `updateAssistant`). Vira botão em DESTAQUE quando `pareceMinuta(text)` (a **primeira
+  heurística de intenção** do projeto: VERBO de redação + ESPÉCIE de peça, com VETO para
+  pedidos de leitura) reconhece um pedido de peça redigida — a heurística NÃO toca no
+  request nem no system prompt, só a proeminência do botão.
+
+### A página do editor (`src/editor.html`/`.js`/`.css` + `src/editor-docx.js`)
+
+- **Jodit** (`vendor/jodit.min.js`, global `Jodit`, MIT) monta a barra FORA da folha (config
+  `toolbar: "#barra"`): a largura da folha é A4 e a barra na folha quebraria em duas filas.
+  A largura A4 vive no `.folha-wrap`, não no `.jodit-container` — o Jodit escreve
+  `max-width:100%;width:auto` no style inline do container, e inline vence classe.
+  Tipografia forense (Times 12, 1,5, justificado, recuo 1,25 cm) no `.jodit-wysiwyg`, e
+  `@media print` esconde topo/barra e imprime só a folha.
+- **`.docx` no cliente** (`vendor/docx.iife.js`, global `docx`, MIT): `EditorDocx.gerarBlob`
+  em `editor-docx.js` percorre o DOM do conteúdo (via `DOMParser`, que não executa scripts —
+  o HTML teve origem no modelo) e monta `Paragraph`/`TextRun`/`Table` com page setup A4 +
+  margens 3/2 cm, numeração declarada e estilos de título; `docx.Packer.toBlob()` → Blob +
+  `<a download>` (sem permissão `downloads`). **Editar `editor.css` e `editor-docx.js`
+  juntos**: as medidas forenses estão nos dois e precisam bater (o que se vê é o que se
+  imprime/exporta).
+- **Copiar formatado**: `navigator.clipboard.write` com `ClipboardItem text/html+text/plain`
+  (exige `"clipboardWrite"` no manifest), com fallback de `execCommand("copy")` sobre uma
+  seleção na própria página. **Descartar** é exclusão em dois cliques (nunca `confirm()`
+  nativo, que congela a página).
+- **CSP da extensão veta scripts externos** (`script-src 'self'`): o Jodit em config PADRÃO
+  puxa o `ace` (modo código) e o `js-beautify` de cdnjs — ambos bloqueados. Por isso o
+  `montarEditor` fixa `beautifyHTML:false`, `sourceEditor:"area"` e **remove o botão
+  `source`**: o editor de minutas é WYSIWYG puro, sem visão de HTML cru (que também não
+  faria sentido para o usuário). Não reintroduzir o botão `source`.
+- `vendor/` é **intocado**; nenhum bundle entra em página de tribunal. `src/editor.html`
+  está em `web_accessible_resources` (aberto de `*.jus.br`); os subrecursos não precisam.
 
 ## Mapa mental (markmap) — página `src/mapa.html`
 
 Botão "🧠 Mapa mental" na barra de ferramentas liga o **modo mapa** (`setMapaMode` em
-`panel.js`), clone exato do contrato do modo documento: instrução padrão editável no
+`panel.js`), clone exato do contrato do modo minuta: instrução padrão editável no
 campo, faixa `.mapabar`, Enviar vira "🧠 Gerar mapa", ✕/Esc/segundo clique cancelam.
 Os dois modos são **mutuamente exclusivos** (ligar um desliga o outro) e "Nova conversa"
 desliga ambos. O turno (`panel.onMapa` → handler em `content.js`) é um **chat comum**:
-sem tools, sem skills, sem `container` — por isso funciona TAMBÉM no Gemini, ao
-contrário do `.docx`. Regras que não podem quebrar:
+sem tools, sem skills, sem `container` — por isso funciona nos dois provedores. Regras
+que não podem quebrar:
 
-- **Request isolado, como o docx**: `prepararEnvio([{role:"user", content:[...blocos,
+- **Request isolado, como a minuta**: `prepararEnvio([{role:"user", content:[...blocos,
   instrucao + SUFIXO_MAPA]}], null)`. Não entra em `conversation` nem em
   `pecasNaConversa` — gerar um mapa não altera a conversa em andamento.
-- **`SUFIXO_MAPA` é prescritivo de propósito** (mesma razão do sufixo do docx): só
+- **`SUFIXO_MAPA` é prescritivo de propósito** (mesma razão do `SUFIXO_MINUTA`): só
   Markdown, sem preâmbulo nem cerca ```, um único `#`, `##` nos eixos, listas `-` com
   até 3 níveis, itens curtos com peça/folha entre parênteses, nada de tabela/HTML.
   `limparMarkdownMapa` ainda tira cerca e preâmbulo que escapem.
@@ -632,7 +679,7 @@ contrário do `.docx`. Regras que não podem quebrar:
 - Não há bundler. Valide sintaxe com `node --check src/*.js`. Testes de unidade fora do
   navegador no scratchpad da sessão: `renderMd` (escape-first + citações) roda com
   `eval` do `panel.js`; o acumulador SSE de `claude.js` roda com `fetch` fake devolvendo
-  um `ReadableStream` de eventos simulados (chat com citação, `pause_turn`, docx);
+  um `ReadableStream` de eventos simulados (chat com citação, `pause_turn`);
   `_findSlashToken`/`_montarTextoEnvio` (gatilho `/` e merge prompt+texto) também saem
   do `eval` do `panel.js`, e `PLIB` roda com um stub de `chrome.storage.sync`
   (get/set/remove + `onChanged` manual). `mdParaArvore` (mapa mental) roda em `vm` com
@@ -729,8 +776,7 @@ expandido.
     chaves de uma vez.
 - Modelos da API: manter os IDs do `popup.html`/`options.html` alinhados aos aliases
   atuais da Anthropic (`claude-haiku-4-5` é o default em `background.js` — rápido e
-  barato; todas as features funcionam nele, inclusive a skill docx com
-  `code_execution_20260521`; a janela menor de 200 mil tokens/100 págs. é o custo
+  barato; todas as features funcionam nele; a janela menor de 200 mil tokens/100 págs. é o custo
   aceito, com o Sonnet 5 de 1M oferecido para autos volumosos) e do Google
   (`gemini-3.6-flash`, `gemini-3.5-flash-lite` — GA na Interactions API), e a tabela
   `MODEL_CAPS` sincronizada com os docs (limites, versões de tools, thinking/effort).
@@ -742,7 +788,7 @@ expandido.
 - **Instruções personalizadas** (`customPrompt`): anexadas por `systemPromptAtual()`
   em content.js DEPOIS das regras-base, com rótulo "siga-as no que não conflitar
   com as regras acima" (a âncora de não-invenção permanece autoritativa). Ponto
-  ÚNICO de injeção → alcança chat, geração de .docx e count_tokens nos DOIS
+  ÚNICO de injeção → alcança chat, minuta, mapa e count_tokens nos DOIS
   provedores (Anthropic `system` / Gemini `system_instruction`, repasse verbatim
   do worker). INVARIANTE: campo vazio ⇒ prompt byte a byte idêntico ao padrão
   *dado o mesmo processo e o mesmo dia* (o sufixo de `contextoDoProcesso` — CNJ +

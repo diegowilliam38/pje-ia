@@ -394,7 +394,7 @@ var PjePanel = (function () {
               <div class="toolbar">
                 <div class="tools">
                   <button class="tgl-search" aria-pressed="false" title="Liga/desliga a busca de jurisprudência e legislação em fontes oficiais (STF, STJ, Planalto…). Com a busca ligada, escreva a pergunta e use o botão Enviar normalmente.">🔍 Jurisprudência</button>
-                  <button class="btn-docx" title="Liga o modo documento: a instrução aparece no campo (edite à vontade) e o botão Enviar vira “Gerar” — clique nele (ou Enter) para gerar o Word (.docx) com base nas peças marcadas.">📄 Gerar .docx</button>
+                  <button class="btn-minuta" title="Liga o modo minuta: a instrução aparece no campo (edite à vontade) e o botão Enviar vira “Gerar minuta” — a resposta abre num editor de texto, em nova aba, de onde você copia para o PJe, baixa em Word (.docx) ou imprime.">📝 Minutar</button>
                   <button class="btn-mapa" title="Liga o modo mapa mental: a instrução aparece no campo (edite à vontade) e o botão Enviar vira “Gerar mapa” — a resposta abre num mapa mental interativo, em nova aba.">🧠 Mapa mental</button>
                   <button class="btn-plib" title="Seus prompts salvos: crie instruções reutilizáveis (título + texto) e insira-as na conversa digitando “/” no início do campo de mensagem. Sincronizam entre navegadores logados na mesma conta Google.">✦ Prompts</button>
                 </div>
@@ -410,9 +410,9 @@ var PjePanel = (function () {
                   <span class="cite-note" hidden tabindex="0" role="note" title="Modelos Gemini: as citações de página aparecem no próprio texto da resposta (ex.: “conforme a Contestação, fl. 12”), sem os marcadores [n] automáticos dos modelos Claude." aria-label="Neste modelo as citações de página aparecem no próprio texto da resposta, sem os marcadores numerados dos modelos Claude.">ⓘ</span>
                 </div>
               </div>
-              <div class="docxbar" hidden>
-                <span class="docxbar-t">📄 <b>Modo documento ligado</b> — revise a instrução abaixo e clique em <b>Gerar</b>: a resposta será um arquivo Word (.docx), pode levar 1–2 min.</span>
-                <button class="docxbar-x" title="Cancelar a geração de documento (Esc)">✕</button>
+              <div class="minutabar" hidden>
+                <span class="docxbar-t">📝 <b>Modo minuta ligado</b> — revise a instrução abaixo e clique em <b>Gerar minuta</b>: a resposta abre num editor, em nova aba, pronta para revisar e levar ao PJe.</span>
+                <button class="minutabar-x" title="Cancelar a geração da minuta (Esc)">✕</button>
               </div>
               <div class="mapabar" hidden>
                 <span class="docxbar-t">🧠 <b>Modo mapa mental ligado</b> — revise a instrução abaixo e clique em <b>Gerar mapa</b>: a resposta vira um mapa mental interativo, que abre em nova aba.</span>
@@ -859,56 +859,53 @@ var PjePanel = (function () {
         : "Busca de jurisprudência desligada.";
     });
 
-    // Geração de .docx por MODO DOCUMENTO explícito: o clique no botão liga o
-    // modo — a instrução padrão (editável) entra no campo, a faixa .docxbar
-    // explica o passo e o botão Enviar vira "📄 Gerar". Enviar/Enter geram o
-    // documento; ✕, Esc ou novo clique no botão cancelam. (O fluxo antigo de
-    // "dois cliques no mesmo botão" confundia: todo mundo aperta Enviar.)
-    const INSTRUCAO_DOCX_PADRAO =
-      "Elabore um relatório completo do processo: identificação e partes, síntese dos fatos, " +
-      "linha do tempo dos atos processuais, pedidos, teses de cada parte, provas produzidas e " +
-      "situação atual do feito.";
-    const btnDocx = $(".btn-docx");
-    const docxbar = $(".docxbar");
-    const TITLE_DOCX_PADRAO = btnDocx.title; // restaurado quando o docx volta
-    let gerarDocCb = null;
-    let docxMode = false;
-    // false quando o modelo atual não gera .docx (Gemini): o botão fica
-    // desabilitado com tooltip explicativo, e lockInput(false) não o reativa.
-    let docxDisponivel = true;
-    function setDocxMode(on) {
-      docxMode = on;
-      docxbar.hidden = !on;
-      btnDocx.classList.toggle("on", on);
-      btnDocx.textContent = on ? "✕ Cancelar .docx" : "📄 Gerar .docx";
-      sendBtn.textContent = on ? "📄 Gerar" : "Enviar";
+    // Geração de MINUTA por modo explícito: o clique no botão liga o modo — a
+    // instrução padrão (editável) entra no campo, a faixa .minutabar explica o
+    // passo e o botão Enviar vira "📝 Gerar minuta". Enviar/Enter geram; ✕, Esc
+    // ou novo clique no botão cancelam. (Não reintroduzir o fluxo de "dois
+    // cliques no mesmo botão": todo mundo aperta Enviar.)
+    // Como o mapa mental, o turno é um chat comum — sem skill, sem execução de
+    // código —, então funciona em QUALQUER modelo, Claude ou Gemini.
+    const INSTRUCAO_MINUTA_PADRAO =
+      "Elabore a minuta do ato cabível neste momento do processo, com relatório, " +
+      "fundamentação e dispositivo, indicando a origem de cada afirmação.";
+    const btnMinuta = $(".btn-minuta");
+    const minutabar = $(".minutabar");
+    let minutaCb = null;
+    let minutaMode = false;
+    function setMinutaMode(on) {
+      minutaMode = on;
+      minutabar.hidden = !on;
+      btnMinuta.classList.toggle("on", on);
+      btnMinuta.textContent = on ? "✕ Cancelar minuta" : "📝 Minutar";
+      sendBtn.textContent = on ? "📝 Gerar minuta" : "Enviar";
       sendBtn.classList.toggle("docx", on);
       inEl.placeholder = on
-        ? "Instrução do documento — edite e clique em Gerar…"
+        ? "Instrução da minuta — edite e clique em Gerar minuta…"
         : "Pergunte sobre as peças… (@ cita uma peça)";
       if (!on) statusEl.textContent = "";
     }
-    btnDocx.addEventListener("click", () => {
-      if (docxMode) return setDocxMode(false); // segundo clique = cancelar
+    btnMinuta.addEventListener("click", () => {
+      if (minutaMode) return setMinutaMode(false); // segundo clique = cancelar
       if (!getSelected().length) {
         statusEl.textContent =
-          "Para gerar o documento, primeiro marque as peças que devem embasá-lo.";
+          "Para gerar a minuta, primeiro marque as peças que devem embasá-la.";
         return;
       }
       if (mapaMode) setMapaMode(false); // os dois modos são mutuamente exclusivos
       // preserva o que o usuário já digitou; senão, oferece a instrução
       // padrão — SALVO quando há prompt salvo ativo (chip): ele já é a
-      // instrução do documento, injetar a padrão duplicaria comandos
+      // instrução da minuta, injetar a padrão duplicaria comandos
       if (!inEl.value.trim() && !promptAtivo) {
-        inEl.value = INSTRUCAO_DOCX_PADRAO;
+        inEl.value = INSTRUCAO_MINUTA_PADRAO;
         autoresize();
       }
-      setDocxMode(true);
+      setMinutaMode(true);
       inEl.focus();
     });
-    docxbar
-      .querySelector(".docxbar-x")
-      .addEventListener("click", () => setDocxMode(false));
+    minutabar
+      .querySelector(".minutabar-x")
+      .addEventListener("click", () => setMinutaMode(false));
 
     // Modo MAPA MENTAL — mesmo contrato do modo documento (o Enviar é
     // sequestrado, a faixa explica o passo, ✕/Esc/segundo clique cancelam).
@@ -941,7 +938,7 @@ var PjePanel = (function () {
           "Para gerar o mapa mental, primeiro marque as peças que devem embasá-lo.";
         return;
       }
-      if (docxMode) setDocxMode(false); // os dois modos são mutuamente exclusivos
+      if (minutaMode) setMinutaMode(false); // os dois modos são mutuamente exclusivos
       if (!inEl.value.trim() && !promptAtivo) {
         inEl.value = INSTRUCAO_MAPA_PADRAO;
         autoresize();
@@ -2054,17 +2051,17 @@ var PjePanel = (function () {
       // acontece aqui, no painel: o content script recebe o texto final e o
       // protocolo/histórico não mudam em nada
       const t = montarTextoEnvio(promptAtivo && promptAtivo.texto, inEl.value);
-      // No modo documento, Enviar/Enter geram o .docx (instrução vazia cai na
+      // No modo minuta, Enviar/Enter geram a minuta (instrução vazia cai na
       // padrão, tratada pelo content script) — nunca viram mensagem de chat.
-      if (docxMode) {
-        if (!gerarDocCb) return;
+      if (minutaMode) {
+        if (!minutaCb) return;
         const sel = getSelected();
         if (!sel.length) {
-          statusEl.textContent = "Marque as peças que devem embasar o documento.";
+          statusEl.textContent = "Marque as peças que devem embasar a minuta.";
           return;
         }
-        setDocxMode(false);
-        gerarDocCb(t, sel);
+        setMinutaMode(false);
+        minutaCb(t, sel);
         inEl.value = "";
         inEl.style.height = "auto";
         setPromptAtivo(null); // consumido no envio
@@ -2158,10 +2155,10 @@ var PjePanel = (function () {
           return;
         }
       }
-      // Esc com o popup @ fechado cancela o modo documento / mapa mental
-      if (e.key === "Escape" && (docxMode || mapaMode)) {
+      // Esc com o popup @ fechado cancela o modo minuta / mapa mental
+      if (e.key === "Escape" && (minutaMode || mapaMode)) {
         e.preventDefault();
-        if (docxMode) setDocxMode(false);
+        if (minutaMode) setMinutaMode(false);
         if (mapaMode) setMapaMode(false);
         return;
       }
@@ -2308,7 +2305,7 @@ var PjePanel = (function () {
         needkeyEl = null;
         prepEl = null;
         transcript.length = 0;
-        setDocxMode(false); // nova conversa desliga os modos documento…
+        setMinutaMode(false); // nova conversa desliga os modos minuta…
         setMapaMode(false); // …e mapa mental
         setPromptAtivo(null); // e solta o chip de prompt salvo
         statusEl.textContent = "";
@@ -2464,8 +2461,8 @@ var PjePanel = (function () {
       isSearchOn() {
         return searchOn;
       },
-      onGerarDoc(cb) {
-        gerarDocCb = cb;
+      onMinuta(cb) {
+        minutaCb = cb;
       },
       onMapa(cb) {
         mapaCb = cb;
@@ -2502,6 +2499,59 @@ var PjePanel = (function () {
         el.__body.querySelector(".mapacard-src").addEventListener("toggle", () => {
           msgs.scrollTop = msgs.scrollHeight;
         });
+        msgs.scrollTop = msgs.scrollHeight;
+      },
+      // Resultado da minuta: mesmo contrato do card do mapa (o __body é
+      // reescrito — NÃO chamar updateAssistant nesse elemento depois disto).
+      // O texto fica no <details> porque a minuta é longa e o que interessa
+      // no chat é a AÇÃO: abrir no editor.
+      mostrarCardMinuta(el, info) {
+        if (!el || !info) return;
+        estruturaAssistant(el);
+        const entry = el.__entry;
+        if (entry) entry.text = info.md || "";
+        el.__body.innerHTML =
+          '<div class="mapacard minutacard">' +
+          '<div class="mapacard-t">📝 <b>Minuta gerada</b>' +
+          (info.resumo ? " — " + escapeHtml(info.resumo) : "") +
+          "</div>" +
+          '<div class="mapacard-acts">' +
+          '<button class="mapacard-abrir">Abrir no editor</button>' +
+          '<button class="mapacard-md">⬇ Baixar .md</button>' +
+          "</div>" +
+          '<details class="mapacard-src"><summary>Ver o texto da minuta</summary>' +
+          '<div class="mapacard-md-body">' + renderMd(info.md || "") + "</div>" +
+          "</details>" +
+          "</div>";
+        el.__body
+          .querySelector(".mapacard-abrir")
+          .addEventListener("click", () => info.onAbrir && info.onAbrir());
+        el.__body
+          .querySelector(".mapacard-md")
+          .addEventListener("click", () => info.onBaixar && info.onBaixar());
+        el.__body.querySelector(".mapacard-src").addEventListener("toggle", () => {
+          msgs.scrollTop = msgs.scrollHeight;
+        });
+        msgs.scrollTop = msgs.scrollHeight;
+      },
+      // Oferta de editor ao fim de uma resposta de chat COMUM: uma linha de
+      // ação abaixo da bolha. Fica no próprio elemento da mensagem (irmã do
+      // .body), e não dentro dele, para sobreviver a um updateAssistant
+      // posterior. `destaque` a torna um botão cheio — é o que a heurística de
+      // intenção liga quando o usuário claramente pediu uma peça redigida.
+      adicionarAcaoEditor(el, info) {
+        if (!el || !info || el.querySelector(".editor-act")) return;
+        estruturaAssistant(el);
+        const box = document.createElement("div");
+        box.className = "editor-act" + (info.destaque ? " destaque" : "");
+        const b = document.createElement("button");
+        b.textContent = info.destaque ? "📝 Abrir no editor" : "📝 Editar como documento";
+        b.title =
+          "Abre esta resposta num editor de texto, em nova aba: revise, copie para " +
+          "o PJe, baixe em Word (.docx) ou imprima.";
+        b.addEventListener("click", () => info.onAbrir && info.onAbrir(b));
+        box.appendChild(b);
+        el.appendChild(box);
         msgs.scrollTop = msgs.scrollHeight;
       },
       // busy=true mostra um spinner antes do texto (trabalho em andamento —
@@ -2589,26 +2639,13 @@ var PjePanel = (function () {
         inEl.disabled = b;
         sendBtn.disabled = b;
         // trava também as ações — clicar durante uma resposta não faz nada,
-        // e botão ativo-porém-morto confunde. O docx permanece desabilitado
-        // quando o modelo atual não o suporta (Gemini).
+        // e botão ativo-porém-morto confunde.
         tglSearch.disabled = b;
-        btnDocx.disabled = b || !docxDisponivel;
+        btnMinuta.disabled = b;
         btnMapa.disabled = b;
         btnPlib.disabled = b;
         const px = promptbar.querySelector(".pchip-x");
         if (px) px.disabled = b;
-      },
-      // Disponibilidade do "📄 Gerar .docx" pelo modelo atual: a geração usa
-      // a execução de código + skill docx da API da Anthropic — nos modelos
-      // Gemini o botão fica desabilitado com o motivo no tooltip.
-      setDocxDisponivel(ok) {
-        docxDisponivel = !!ok;
-        if (!docxDisponivel && docxMode) setDocxMode(false);
-        btnDocx.disabled = !docxDisponivel || inEl.disabled;
-        btnDocx.classList.toggle("off", !docxDisponivel);
-        btnDocx.title = docxDisponivel
-          ? TITLE_DOCX_PADRAO
-          : "A geração de .docx usa a execução de código da API da Anthropic — indisponível nos modelos Gemini. Troque para um modelo Claude nas opções da extensão.";
       },
       // Nota discreta sobre o modo de citações do modelo atual: "textual"
       // (Gemini — páginas citadas no próprio texto) mostra a nota; "nativa"
