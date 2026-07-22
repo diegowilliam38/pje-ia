@@ -17,6 +17,9 @@
 }
 
 * { box-sizing: border-box; }
+/* Mesmo motivo do panel.css/mapa.css: qualquer display definido por regra de
+   autor vence o atributo hidden, e o bloco "escondido" reaparece. */
+[hidden] { display: none !important; }
 
 body {
   margin: 0;
@@ -73,6 +76,72 @@ body {
 
 label.field { display: block; margin: 14px 0 6px; font-weight: 600; font-size: 13px; }
 label.field .hint { display: block; font-weight: 400; font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+
+/* Estado de CADA chave: o chip do topo fala só do provedor do modelo ativo,
+   então sem isto não dá para saber, de relance, se a outra chave está salva (o
+   caso comum de quem usa Claude e Gemini). O seletor NÃO pode ser escopado em
+   label.field: no popup o mesmo elemento vive dentro de um <summary>. */
+.kstate {
+  font-weight: 600; font-size: 11px;
+  display: inline-flex; align-items: center; gap: 5px;
+  color: var(--muted);
+}
+.kstate::before {
+  content: ""; width: 7px; height: 7px; border-radius: 50%;
+  background: #c3ced7;
+}
+.kstate.on { color: var(--ok); }
+.kstate.on::before { background: var(--ok); }
+label.field .kstate { float: right; }
+
+/* Chave recolhível (só no popup, onde a altura é limitada a 600px). Fechada,
+   ela é uma linha de ESTADO; aberta, é o campo de sempre. */
+.keybox { margin: 10px 0; }
+.keybox > summary {
+  list-style: none; cursor: pointer;
+  display: flex; align-items: center; gap: 8px;
+  font-weight: 600; font-size: 13px; color: var(--text);
+  padding: 7px 10px;
+  border: 1px solid var(--line); border-radius: 9px; background: #fff;
+}
+.keybox > summary::-webkit-details-marker { display: none; }
+.keybox > summary::before {
+  content: ""; flex: none;
+  border-left: 5px solid var(--muted);
+  border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+  transition: transform 0.15s;
+}
+.keybox[open] > summary::before { transform: rotate(90deg); }
+.keybox > summary:hover { border-color: var(--pje); }
+.keybox > summary .kstate { float: none; margin-left: auto; }
+/* Aberta, cabeçalho e campo formam UM cartão só — solto, o input parecia
+   pertencer ao bloco seguinte. */
+.keybox[open] > summary {
+  border-bottom: none; border-radius: 9px 9px 0 0; background: var(--cream);
+}
+.keybox[open] .keybox-in {
+  border: 1px solid var(--line); border-top: none; border-radius: 0 0 9px 9px;
+  background: #fff;
+}
+.keybox-in { padding: 10px; }
+.keybox-in .hint { display: block; font-size: 11.5px; color: var(--muted); margin-top: 6px; }
+
+/* Linha de dois campos: controle curto à esquerda, explicação ao lado — em vez
+   de a dica empurrar mais uma linha inteira para baixo da dobra. */
+.row2 { display: flex; align-items: center; gap: 12px; }
+.row2 > select, .row2 > input { flex: 0 1 200px; }
+.row2 .side-hint { flex: 1; min-width: 0; font-size: 11.5px; color: var(--muted); line-height: 1.4; }
+
+/* Rodapé de links: o que era bloco vira uma linha. */
+.foot {
+  margin-top: 16px; padding-top: 12px;
+  border-top: 1px dashed var(--line);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;
+  font-size: 11.5px; color: var(--muted);
+}
+.foot a { color: var(--pje-2); font-weight: 600; text-decoration: none; }
+.foot a:hover { text-decoration: underline; }
+.foot .sep { color: #aebdc7; } /* --line não contrasta com o fundo do popup */
 
 input, select, textarea {
   width: 100%;
@@ -152,4 +221,12 @@ input:focus, select:focus, textarea:focus {
   padding: 9px 11px;
   font-size: 11.5px;
   color: var(--warn);
+}
+/* Variante de UMA linha para o popup: o aviso de sigilo precisa estar sempre
+   visível (é compromisso com o usuário), mas como bloco ele empurrava o botão
+   Salvar para baixo da dobra a cada abertura. */
+.note.slim {
+  margin-top: 12px; padding: 7px 10px; line-height: 1.4;
+  background: transparent; border: none; border-left: 3px solid #e2c98e;
+  border-radius: 0;
 }

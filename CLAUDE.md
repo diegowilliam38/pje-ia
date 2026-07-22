@@ -705,6 +705,28 @@ expandido.
   (`.hint-key`) aparecem com o campo em foco ou enquanto a conversa está vazia
   (classe `.novato` no `.ft`, posta por `showEmptyHint`), com revelação
   `grid-template-rows: 0fr→1fr` (anima sem reservar espaço morto).
+- **Popup × página de opções** (`popup.html`, `options.html`, ambos servidos pelo
+  MESMO `popup.js`): o popup é o console rápido (largura **460px** — o Chrome
+  aceita até 800×600, e com 340 o nome do modelo era cortado no meio) e a página
+  de opções é a versão com as explicações longas, aberta pelo link "Configuração
+  completa" (`chrome.runtime.openOptionsPage`). Regras que não podem quebrar:
+  - **Todo elemento que existe em só uma das páginas é opcional no `popup.js`**
+    (`if (el)`): `boxA`/`boxG`/`firstRun`/`abrirOpcoes` são exclusivos do popup e
+    quebrariam a página de opções se acessados direto. Os IDs compartilhados
+    (`apiKey`, `geminiApiKey`, `model`, `effort`, `customPrompt`, `save`,
+    `saveStatus`, `chip`, `chipText`, `togglePw`, `togglePwG`) precisam existir
+    **nas duas**.
+  - **Progressive disclosure por ESTADO, como no painel**: as chaves são
+    `<details class="keybox">` — a que falta para o modelo ativo abre sozinha, a
+    que já está salva vira uma linha de estado (cada campo aberto custa ~99px dos
+    600px de altura que o popup do Chrome tem). Os passos "Como usar"
+    (`#firstRun`) só aparecem enquanto NENHUMA chave foi salva, e o critério é o
+    que está **salvo**, não o que está sendo digitado — sumir no meio da
+    digitação seria um salto de layout no meio da tarefa.
+  - **`.kstate` (ponto + "configurada") não pode ser escopado em `label.field`**:
+    no popup o mesmo elemento vive dentro de um `<summary>`. O chip do topo fala
+    só do provedor do modelo ativo; são os `.kstate` que dizem o estado das duas
+    chaves de uma vez.
 - Modelos da API: manter os IDs do `popup.html`/`options.html` alinhados aos aliases
   atuais da Anthropic (`claude-haiku-4-5` é o default em `background.js` — rápido e
   barato; todas as features funcionam nele, inclusive a skill docx com

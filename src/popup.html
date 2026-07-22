@@ -4,7 +4,25 @@
     <meta charset="utf-8" />
     <link rel="stylesheet" href="ui.css" />
     <style>
-      html, body { width: 340px; }
+      /* 460px: o popup do Chrome aceita até 800px, e com 340 o nome do modelo
+         era cortado no meio ("Gemini 3.5 Flash-Lite (1M tokens — o mais…"). */
+      html, body { width: 460px; }
+      /* Compactação exclusiva do popup (a página de opções mantém o respiro):
+         o teto de 600px do popup do Chrome é o que manda aqui. */
+      .brand { padding: 13px 20px; }
+      .brand img { width: 34px; height: 34px; }
+      .body { padding: 14px 20px 16px; }
+      .status-chip { margin-bottom: 12px; }
+      label.field { margin: 12px 0 5px; }
+      .btn { margin-top: 14px; }
+      .save-row { position: relative; }
+      .save-status {
+        position: absolute; inset: 0; margin: 14px 0 0;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--paper); border-radius: 10px;
+        pointer-events: none;
+      }
+      .save-status:empty { display: none; }
     </style>
   </head>
   <body>
@@ -21,23 +39,37 @@
         <span class="dot"></span><span id="chipText">Chave não configurada</span>
       </div>
 
-      <label class="field" for="apiKey">
-        Chave da API — Anthropic (modelos Claude)
-        <span class="hint">Não tem uma chave? <a href="help.html" target="_blank" style="color:var(--pje-2);font-weight:600">Veja o passo a passo →</a></span>
-      </label>
-      <div class="pw-row">
-        <input id="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off" />
-        <button class="toggle-pw" id="togglePw" type="button">mostrar</button>
-      </div>
+      <!-- Chaves: recolhidas quando JÁ configuradas (popup.js abre as que faltam).
+           No dia a dia o popup é aberto para trocar de modelo, não para
+           reescrever a chave — e cada campo aberto custava 99px dos 600px que o
+           popup do Chrome tem. Os inputs seguem no DOM, então salvar não muda. -->
+      <details class="keybox" id="boxA">
+        <summary>
+          Chave da API — Anthropic (Claude)
+          <span class="kstate" id="kstateA">não configurada</span>
+        </summary>
+        <div class="keybox-in">
+          <div class="pw-row">
+            <input id="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off" aria-label="Chave da API da Anthropic" />
+            <button class="toggle-pw" id="togglePw" type="button">mostrar</button>
+          </div>
+          <span class="hint">Não tem uma chave? <a href="help.html" target="_blank">Veja o passo a passo →</a></span>
+        </div>
+      </details>
 
-      <label class="field" for="geminiApiKey">
-        Chave da API — Google (modelos Gemini)
-        <span class="hint">Opcional. Crie em aistudio.google.com — <a href="help.html#gemini" target="_blank" style="color:var(--pje-2);font-weight:600">passo a passo →</a></span>
-      </label>
-      <div class="pw-row">
-        <input id="geminiApiKey" type="password" placeholder="AIza..." autocomplete="off" />
-        <button class="toggle-pw" id="togglePwG" type="button">mostrar</button>
-      </div>
+      <details class="keybox" id="boxG">
+        <summary>
+          Chave da API — Google (Gemini)
+          <span class="kstate" id="kstateG">não configurada</span>
+        </summary>
+        <div class="keybox-in">
+          <div class="pw-row">
+            <input id="geminiApiKey" type="password" placeholder="AIza..." autocomplete="off" aria-label="Chave da API do Google" />
+            <button class="toggle-pw" id="togglePwG" type="button">mostrar</button>
+          </div>
+          <span class="hint">Opcional. Crie em aistudio.google.com — <a href="help.html#gemini" target="_blank">passo a passo →</a></span>
+        </div>
+      </details>
 
       <label class="field" for="model">Modelo</label>
       <select id="model">
@@ -53,24 +85,32 @@
         </optgroup>
       </select>
 
-      <label class="field" for="effort">Nível de raciocínio
-        <span class="hint">Alto = mais qualidade; Baixo = mais rápido e barato. Nos modelos Gemini vira o nível de "thinking".</span>
-      </label>
-      <select id="effort">
-        <option value="high" selected>Alto (recomendado)</option>
-        <option value="medium">Médio</option>
-        <option value="low">Baixo</option>
-      </select>
+      <label class="field" for="effort">Nível de raciocínio</label>
+      <div class="row2">
+        <select id="effort">
+          <option value="high" selected>Alto (recomendado)</option>
+          <option value="medium">Médio</option>
+          <option value="low">Baixo</option>
+        </select>
+        <span class="side-hint">Alto = mais qualidade; baixo = mais rápido e barato.</span>
+      </div>
 
       <label class="field" for="customPrompt">Instruções personalizadas (opcional)
-        <span class="hint">Diga quem você é e como quer as respostas — vale para Claude e Gemini. Ex.: "Sou assessor de vara criminal; destaque prazos prescricionais e regime de pena."</span>
+        <span class="hint">Quem você é e como quer as respostas — vale para Claude e Gemini.</span>
       </label>
-      <textarea id="customPrompt" rows="3" maxlength="4000" placeholder="Ex.: Sou advogado(a) da parte autora; aponte riscos e teses favoráveis…"></textarea>
+      <textarea id="customPrompt" rows="2" maxlength="4000" placeholder="Ex.: Sou advogado(a) da parte autora; aponte riscos e teses favoráveis…"></textarea>
 
-      <button class="btn" id="save">Salvar configuração</button>
-      <div class="save-status" id="saveStatus"></div>
+      <!-- O status do salvamento fica SOBRE o botão (posição absoluta): como
+           bloco próprio ele reservava 30px vazios em toda abertura do popup. -->
+      <div class="save-row">
+        <button class="btn" id="save">Salvar configuração</button>
+        <div class="save-status" id="saveStatus"></div>
+      </div>
 
-      <div class="steps">
+      <!-- Passos do PRIMEIRO USO: popup.js esconde este bloco assim que existe
+           qualquer chave salva. É quando eles servem — e é o que permite o
+           popup caber sem rolagem no uso do dia a dia. -->
+      <div class="steps" id="firstRun">
         <h3>Como usar</h3>
         <div class="step">
           <div class="n">1</div>
@@ -86,8 +126,16 @@
         </div>
       </div>
 
-      <div class="note">
-        As peças marcadas são enviadas à API do provedor do modelo escolhido (Anthropic ou Google). Processos podem conter dados sigilosos — use conforme as normas do seu tribunal. <a href="https://github.com/marcosmarf27/pje-ia/blob/main/PRIVACY.md" target="_blank" rel="noopener" style="color: inherit; font-weight: 600">Política de privacidade</a>.
+      <div class="note slim">
+        As peças marcadas vão à API do provedor escolhido — processos podem conter dados sigilosos.
+      </div>
+
+      <div class="foot">
+        <a href="#" id="abrirOpcoes">Configuração completa</a>
+        <span class="sep">·</span>
+        <a href="help.html" target="_blank">Ajuda, modelos e preços</a>
+        <span class="sep">·</span>
+        <a href="https://github.com/marcosmarf27/pje-ia/blob/main/PRIVACY.md" target="_blank" rel="noopener">Privacidade</a>
       </div>
     </div>
 

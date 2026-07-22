@@ -28,6 +28,7 @@
 
         <label class="field" for="apiKey">
           Chave da API — Anthropic (modelos Claude)
+          <span class="kstate" id="kstateA">não configurada</span>
           <span class="hint">Armazenada apenas neste navegador. Não tem uma chave? <a href="help.html" target="_blank" style="color:var(--pje-2);font-weight:600">Veja o passo a passo →</a></span>
         </label>
         <div class="pw-row">
@@ -37,6 +38,7 @@
 
         <label class="field" for="geminiApiKey">
           Chave da API — Google (modelos Gemini)
+          <span class="kstate" id="kstateG">não configurada</span>
           <span class="hint">Opcional. Crie em aistudio.google.com — <a href="help.html#gemini" target="_blank" style="color:var(--pje-2);font-weight:600">passo a passo →</a></span>
         </label>
         <div class="pw-row">
@@ -58,14 +60,15 @@
           </optgroup>
         </select>
 
-        <label class="field" for="effort">Nível de raciocínio
-          <span class="hint">Alto = mais qualidade; Baixo = mais rápido e barato. Nos modelos Gemini vira o nível de "thinking".</span>
-        </label>
-        <select id="effort">
-          <option value="high" selected>Alto (recomendado)</option>
-          <option value="medium">Médio</option>
-          <option value="low">Baixo</option>
-        </select>
+        <label class="field" for="effort">Nível de raciocínio</label>
+        <div class="row2">
+          <select id="effort">
+            <option value="high" selected>Alto (recomendado)</option>
+            <option value="medium">Médio</option>
+            <option value="low">Baixo</option>
+          </select>
+          <span class="side-hint">Alto = mais qualidade; baixo = mais rápido e barato. Nos modelos Gemini vira o nível de <i>thinking</i>.</span>
+        </div>
 
         <label class="field" for="customPrompt">Instruções personalizadas (opcional)
           <span class="hint">Diga quem você é e como quer as respostas — vale para os modelos Claude e Gemini, no chat e no .docx. Ex.: "Sou assessor de gabinete de vara criminal; destaque prazos prescricionais e regime de pena." Alterar isso no meio de uma conversa invalida o cache (o turno seguinte custa um pouco mais).</span>
