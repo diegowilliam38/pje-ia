@@ -15,37 +15,50 @@
   // a Anthropic gera citações estruturadas por página (citations API); o
   // Gemini não tem esse recurso — o modelo é instruído a citar a peça e a
   // página NO PRÓPRIO texto (caps.citacoesNativas === false).
+  // A identificação da peça (nome + id) vive no trecho COMPARTILHADO porque é
+  // requisito do produto nos dois provedores: o id é o número que abre o título
+  // de cada peça e é por ele que o usuário reencontra a peça na timeline do PJe
+  // (mesma convenção do SUFIXO_MAPA e do sufixo do .docx).
   const PROMPT_INICIO = [
     "Você é um assistente jurídico que analisa autos de processos do PJe.",
     "Responda sempre em português do Brasil.",
     "Baseie-se SOMENTE nos documentos anexados (peças selecionadas pelo usuário).",
-    "Cite a peça de origem pelo nome ao afirmar fatos (ex.: 'na Contestação…').",
+    "Toda afirmação sobre os autos precisa ser rastreável até a peça de origem.",
+    "Cada peça anexada tem um id — o número que abre o seu título (em",
+    "'123456 - Contestação', o id é 123456) — e é por ele que o usuário reencontra",
+    "a peça na linha do tempo do processo. NUNCA invente id, folha, data ou valor.",
   ];
   const PROMPT_FIM = [
-    "Seja objetivo e técnico. Se a informação não estiver nos documentos selecionados,",
+    "Seja objetivo e técnico. Comece pela resposta: nada de preâmbulo do tipo 'Vou",
+    "analisar as peças' ou 'Com base nos documentos fornecidos'.",
+    "Se a informação não estiver nos documentos selecionados,",
     "diga explicitamente que não consta nas peças fornecidas — não invente.",
     "Atenção a peças de mero encaminhamento: no PJe é comum a petição conter apenas",
     "uma remissão como 'Em anexo' ou 'Segue anexo', com o conteúdo real nos documentos",
     "anexos protocolados junto dela. Nesse caso, diga claramente que a peça é só um",
     "encaminhamento e oriente o usuário a marcar também os anexos correspondentes",
     "(ex.: as peças 'Documento de Comprovação' logo abaixo dela na lista).",
-    "Formate a resposta em markdown quando ajudar a leitura: use títulos curtos,",
-    "listas e tabelas (ex.: linha do tempo dos atos, partes, pedidos).",
+    "Use markdown — títulos curtos, listas e tabelas (ex.: linha do tempo dos atos,",
+    "partes, pedidos) — quando a resposta tiver mais de um eixo; para uma pergunta",
+    "pontual, responda em uma ou duas frases corridas, sem estruturar.",
   ];
   const SYSTEM_PROMPT = PROMPT_INICIO.concat(
     [
-      "As citações precisas de trechos (com página) são geradas automaticamente pelo",
-      "sistema — apoie cada afirmação relevante no trecho correspondente sempre que",
-      "possível. Peças digitalizadas sem camada de texto podem não permitir citação",
-      "automática; nesse caso, apenas indique a peça pelo nome e avise o usuário.",
+      "As citações precisas de trechos são geradas automaticamente pelo sistema e já",
+      "mostram peça, id e folha ao usuário — apoie cada afirmação relevante no trecho",
+      "correspondente e NÃO repita id nem folha no corpo do texto.",
+      "Peças digitalizadas sem camada de texto podem não permitir citação automática;",
+      "só nesse caso escreva a referência no próprio texto (ex.: 'na Contestação, id",
+      "123456') e avise o usuário de que aquela peça não é citável.",
     ],
     PROMPT_FIM
   ).join(" ");
   const SYSTEM_PROMPT_CIT_TEXTUAL = PROMPT_INICIO.concat(
     [
-      "Ao afirmar fatos relevantes, cite a peça E a página no PRÓPRIO texto, no",
-      "formato 'conforme a Contestação, fl. 12' — indique sempre a página do PDF",
-      "de origem quando conseguir identificá-la.",
+      "Ao afirmar fatos relevantes, cite a peça, o id E a página no PRÓPRIO texto,",
+      "no formato '(Contestação, id 123456, fl. 12)' — indique sempre a página do",
+      "PDF de origem quando conseguir identificá-la; sem folha identificável, use",
+      "'(Contestação, id 123456)'.",
       "Se usar a busca na web, priorize fontes oficiais brasileiras: sites .jus.br",
       "(tribunais, STF, STJ, TST, CNJ) e planalto.gov.br — cite a fonte de cada",
       "informação obtida na web.",
@@ -65,11 +78,27 @@
   // personalizadas — usado no envio (chat e .docx) E no count_tokens, para o
   // pré-voo medir o mesmo request que vai de fato. Anthropic recebe como
   // `system`; Gemini como `system_instruction` (o worker repassa verbatim).
+  // Contexto do caso que o modelo não tem como deduzir dos PDFs com segurança:
+  // o número CNJ (sem ele o mapa mental titulava com número inventado) e a data
+  // de hoje (prazos, prescrição e "situação atual" sairiam calculados contra o
+  // conhecimento congelado do modelo). Custo de cache desprezível: o cache é
+  // ephemeral de 5 min, então a virada diária nunca cai dentro de uma janela viva.
+  function contextoDoProcesso() {
+    let s = "";
+    try {
+      const num = PJE.getNumeroProcesso();
+      if (num) s += " Processo em análise: " + num + ".";
+    } catch {
+      /* página sem número identificável — segue sem ele */
+    }
+    return s + " Hoje é " + new Date().toLocaleDateString("pt-BR") + ".";
+  }
+
   function systemPromptAtual() {
     const base =
-      modelCaps && modelCaps.citacoesNativas === false
+      (modelCaps && modelCaps.citacoesNativas === false
         ? SYSTEM_PROMPT_CIT_TEXTUAL
-        : SYSTEM_PROMPT;
+        : SYSTEM_PROMPT) + contextoDoProcesso();
     if (!customPrompt) return base;
     return (
       base +
@@ -821,18 +850,28 @@
 
   // Rótulo humano de uma citação da API: "Peça, fl(s). X[–Y]" (fim exclusivo)
   // para PDFs; título do site (com link) para resultados da busca web;
-  // só o título para documentos de texto (char_location).
+  // para documentos de texto (char_location) não há página — sobra o trecho.
+  // O `id` sai como campo PRÓPRIO (não colado no rótulo): é ele que o painel usa
+  // para tornar a citação clicável (rola a timeline até a peça). O id vem de
+  // graça no document_title, que é o `title` que montarBlocos enviou.
   function infoCitacao(c) {
     if (c.type === "web_search_result_location") {
       return { label: c.title || c.url || "fonte na web", url: c.url };
     }
-    const doc = tituloLimpo(c.document_title) || "peça";
+    const bruto = String(c.document_title || "");
+    const id = (bruto.match(/^(\d{6,})\s*-\s*/) || [])[1] || null;
+    const doc = tituloLimpo(bruto) || "peça";
     if (c.type === "page_location") {
       const ini = c.start_page_number;
       const fim = (c.end_page_number || ini + 1) - 1;
-      return { label: doc + (fim > ini ? ", fls. " + ini + "–" + fim : ", fl. " + ini) };
+      return {
+        label: doc + (fim > ini ? ", fls. " + ini + "–" + fim : ", fl. " + ini),
+        id,
+      };
     }
-    return { label: doc };
+    // char_location: sem página. O trecho citado é a única âncora disponível.
+    const trecho = String(c.cited_text || "").replace(/\s+/g, " ").trim();
+    return { label: doc, id, trecho: trecho.slice(0, 300) || undefined };
   }
   function tituloLimpo(t) {
     return String(t || "").replace(/^\d{6,}\s*-\s*/, "");
@@ -1413,7 +1452,19 @@
                   " Se algum passo do código falhar (ex.: criação de tabela), corrija o código e" +
                   " execute novamente até funcionar — não entregue o documento sem as tabelas." +
                   " Antes de encerrar, reabra o arquivo gerado com python-docx e confirme que as" +
-                  " tabelas estão presentes; se alguma faltar, refaça o documento.",
+                  " tabelas estão presentes; se alguma faltar, refaça o documento." +
+                  // Mesma convenção do mapa mental: o documento circula FORA da
+                  // extensão, então sem a referência de origem ninguém consegue
+                  // conferir a afirmação nos autos.
+                  " ORIGEM OBRIGATÓRIA: toda afirmação sobre os autos leva a referência entre" +
+                  " parênteses, no formato (Título da peça, id 123456, fl. 7) — o id é o número" +
+                  " que abre o título de cada peça na lista abaixo e a folha é a do PDF daquela" +
+                  " peça. Sem folha identificável, use (Título da peça, id 123456). NUNCA invente" +
+                  " id, folha, data ou valor. Toda tabela termina com uma coluna \"Origem\"" +
+                  " contendo essa mesma referência." +
+                  " Peças anexadas, use exatamente estes ids: " +
+                  selectedIds.map((id) => metaDe(id).titulo).join("; ") +
+                  ".",
               },
             ],
           },

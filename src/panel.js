@@ -905,7 +905,12 @@ var PjePanel = (function () {
           linhas.push("");
           linhas.push("Fontes:");
           t.cites.forEach((c, i) =>
-            linhas.push(i + 1 + ". " + c.label + (c.url ? " — " + c.url : ""))
+            linhas.push(
+              i + 1 + ". " + c.label +
+                // o id é o que permite reencontrar a peça na timeline do PJe
+                (c.id ? " (id " + c.id + ")" : "") +
+                (c.url ? " — " + c.url : "")
+            )
           );
         }
         linhas.push("");
@@ -1069,6 +1074,17 @@ var PjePanel = (function () {
     // cada setDocs). O content script rola a página do PJe até o documento.
     // -------------------------------------------------------------------------
     let verTimelineCb = null;
+    // Compartilhado pelo botão da lista de peças e pelas citações do chat.
+    function irParaPeca(id) {
+      if (!id || !verTimelineCb) return;
+      hidePreview();
+      // No modal (expandido/cheia) a página fica coberta: troca para o modo
+      // lateral antes de rolar, para o usuário VER o documento destacado.
+      if (wrap.classList.contains("expanded")) aplicarModo("lateral");
+      // setTimeout (não rAF: o Chrome suprime rAF em janela ocluída) — dá
+      // tempo do layout assentar antes de o content script rolar a página.
+      setTimeout(() => verTimelineCb(id), 50);
+    }
     doclist.addEventListener("click", (e) => {
       const btn = e.target.closest(".d-ver");
       if (!btn) return;
@@ -1077,15 +1093,15 @@ var PjePanel = (function () {
       e.preventDefault();
       e.stopPropagation();
       const row = btn.closest(".docrow");
-      if (!row || !verTimelineCb) return;
-      hidePreview();
-      // No modal (expandido/cheia) a página fica coberta: troca para o modo
-      // lateral antes de rolar, para o usuário VER o documento destacado.
-      if (wrap.classList.contains("expanded")) aplicarModo("lateral");
-      const id = row.dataset.id;
-      // setTimeout (não rAF: o Chrome suprime rAF em janela ocluída) — dá
-      // tempo do layout assentar antes de o content script rolar a página.
-      setTimeout(() => verTimelineCb(id), 50);
+      if (!row) return;
+      irParaPeca(row.dataset.id);
+    });
+    // Citação do rodapé de uma resposta → mesma navegação. Handler DELEGADO no
+    // container: as bolhas são re-renderizadas a cada delta do stream, então um
+    // listener por linha morreria no primeiro token seguinte.
+    msgs.addEventListener("click", (e) => {
+      const btn = e.target.closest(".cite-go");
+      if (btn) irParaPeca(btn.dataset.id);
     });
 
     // -------------------------------------------------------------------------
@@ -2280,8 +2296,10 @@ var PjePanel = (function () {
         msgs.scrollTop = msgs.scrollHeight;
         return el;
       },
-      // cites: [{label, url?}] — citações do turno; viram sobrescritos [n] no
-      // texto e uma lista numerada de fontes no rodapé da bolha.
+      // cites: [{label, url?, id?, trecho?}] — citações do turno; viram
+      // sobrescritos [n] no texto e uma lista numerada de fontes no rodapé da
+      // bolha. Com `id` (peça do processo), a linha vira botão que rola a
+      // timeline até a peça — é o que torna a resposta auditável nos autos.
       updateAssistant(el, fullText, cites) {
         estruturaAssistant(el);
         // recolhe o raciocínio quando a resposta começa a chegar
@@ -2293,12 +2311,29 @@ var PjePanel = (function () {
             cites
               .map((c, i) => {
                 const rot = escapeHtml(c.label);
-                // fontes da web (busca de jurisprudência) viram links
-                const corpo =
-                  c.url && /^https?:\/\//.test(c.url)
-                    ? '<a href="' + escapeHtml(c.url) + '" target="_blank" rel="noopener">' +
-                      rot + "</a>"
-                    : rot;
+                // O id só entra no DOM se for realmente numérico (vem do título
+                // da peça, que é conteúdo dos autos).
+                const id = /^\d+$/.test(String(c.id || "")) ? String(c.id) : "";
+                let corpo;
+                if (c.url && /^https?:\/\//.test(c.url)) {
+                  // fontes da web (busca de jurisprudência) viram links
+                  corpo =
+                    '<a href="' + escapeHtml(c.url) + '" target="_blank" rel="noopener">' +
+                    rot + "</a>";
+                } else if (id) {
+                  corpo =
+                    '<button type="button" class="cite-go" data-id="' + id + '"' +
+                    ' title="Ver esta peça na linha do tempo do processo">' +
+                    rot + ' <span class="cite-id">id ' + id + "</span></button>";
+                } else {
+                  corpo = rot;
+                }
+                // char_location não tem folha: o trecho citado é a única âncora.
+                if (c.trecho) {
+                  corpo +=
+                    ' <span class="cite-tr" title="' + escapeHtml(c.trecho) + '">“' +
+                    escapeHtml(c.trecho.slice(0, 60)) + "…”</span>";
+                }
                 return (
                   '<span class="cite-row"><sup class="cit">' + (i + 1) + "</sup> " +
                   corpo + "</span>"

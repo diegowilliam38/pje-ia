@@ -186,6 +186,16 @@ quebrar:
   (`\uE000<n>\uE001` — sempre como escapes ASCII no código, nunca o caractere cru) que
   atravessam o escape-first do `renderMd` e viram `<sup>` só DEPOIS do escape. PDFs
   escaneados sem camada de texto não são citáveis (degradação graciosa).
+  `infoCitacao` devolve `{label, id?, url?, trecho?}`: o **id sai como campo
+  próprio**, nunca colado no rótulo — é ele que o painel usa para transformar a
+  linha do rodapé num botão `.cite-go`, que reusa `onVerNaTimeline` →
+  `PJE.scrollAte(id)` (mesmo caminho do botão "ver na timeline" das peças, via
+  `irParaPeca`). O handler é DELEGADO no container de mensagens: as bolhas são
+  re-renderizadas a cada delta do stream e um listener por linha morreria no
+  primeiro token seguinte. O `id` só entra no DOM se casar `^\d+$` (vem do título
+  da peça, que é conteúdo dos autos). `char_location` (peças HTML) não tem página:
+  a citação leva `trecho` (o `cited_text`) como única âncora. `chaveCitacao` NÃO
+  usa o id — a dedup por `document_index` é por turno e está correta.
 
 - **Fonte de verdade da seleção de peças**: os checkboxes de `.doclist` em `panel.js`.
   Chips da barra de contexto, contador `x/y no contexto` (pill no cabeçalho da lista,
@@ -281,8 +291,23 @@ quebrar:
 - **Markdown seguro**: `renderMd()` em `panel.js` **escapa primeiro, formata depois**.
   Qualquer mudança ali precisa preservar essa ordem (a resposta do modelo pode conter
   conteúdo dos autos).
-- **Blocos `document` levam `title`** (título da peça) para o modelo citar as peças pelo
-  nome — exigência do system prompt.
+- **Blocos `document` levam `title`** (título da peça, no formato `"123456 - Nome"`)
+  — exigência do system prompt, e o único canal pelo qual o **id** da peça viaja:
+  a Citations API devolve esse mesmo texto em `document_title`, de onde
+  `infoCitacao` (content.js) o extrai de volta. Nunca enviar o título "limpo".
+- **Rastreabilidade peça · id · folha é a mesma nas QUATRO saídas** (chat Anthropic,
+  chat Gemini, `.docx`, mapa mental): o id é o número que abre o título da peça e é
+  por ele que o usuário a reencontra na timeline do PJe — citar só o nome não serve.
+  `PROMPT_INICIO` (compartilhado pelos dois provedores) exige nome + id; o
+  `SYSTEM_PROMPT_CIT_TEXTUAL`, o sufixo do `.docx` e o `SUFIXO_MAPA` usam o mesmo
+  formato literal `(Peça, id 123456, fl. 7)`. Ao editar um deles, editar os quatro.
+- **Contexto do caso no system** (`contextoDoProcesso` em content.js): número CNJ
+  (`PJE.getNumeroProcesso`) e data de hoje. Sem o CNJ o mapa mental titulava com
+  número inventado; sem a data, prazos e "situação atual" saíam calculados contra o
+  conhecimento congelado do modelo. Ambos entram por `systemPromptAtual()` — o mesmo
+  ponto único do `customPrompt` —, então alcançam chat, `.docx`, mapa e count_tokens
+  nos dois provedores de uma vez. A data muda o system uma vez por dia, o que é
+  inofensivo: o cache é ephemeral de 5 min e a virada nunca cai numa janela viva.
 
 ## Busca de peças e orientações (panel.js)
 
@@ -486,11 +511,16 @@ botão Enviar vira "📄 Gerar" — Enviar/Enter disparam o request `gerarDoc` c
 selecionadas + a instrução do campo (vazia cai na padrão). ✕ na faixa, Esc (com o
 popup `@` fechado) ou novo clique no botão cancelam; "Nova conversa" também desliga o
 modo. Não reintroduzir o fluxo antigo de "dois cliques no mesmo botão" — o usuário
-sempre aperta Enviar. O sufixo de formatação anexado à instrução em content.js é
+sempre aperta Enviar. O sufixo anexado à instrução em content.js é
 PRESCRITIVO de propósito (tabelas nativas obrigatórias, autocorreção de código,
 verificação do arquivo com python-docx antes de entregar): modelos menores (Haiku)
 seguem instruções literalmente e, sem essas regras, às vezes entregavam o .docx sem
-tabelas — não suavizar o texto. O worker extrai o
+tabelas — não suavizar o texto. O sufixo também exige a **origem** de toda afirmação
+— `(Título da peça, id 123456, fl. 7)` e uma coluna "Origem" em toda tabela — e leva
+a lista explícita de ids das peças anexadas, exatamente como o mapa mental
+(sem a lista o modelo inventa o id). Aqui a origem importa ainda mais que no chat:
+o documento circula FORA da extensão, onde não há citação nativa nem timeline para
+conferir. O worker extrai o
 `file_id` dos blocos
 `bash_code_execution_tool_result` (fica com o **último** `.docx` gerado), baixa via Files
 API e repassa os bytes pelo Port; o content script dispara o download com Blob + âncora
@@ -648,7 +678,8 @@ expandido.
   ÚNICO de injeção → alcança chat, geração de .docx e count_tokens nos DOIS
   provedores (Anthropic `system` / Gemini `system_instruction`, repasse verbatim
   do worker). INVARIANTE: campo vazio ⇒ prompt byte a byte idêntico ao padrão
-  (zero regressão para quem não usa). Editar no meio da conversa só invalida o
+  *dado o mesmo processo e o mesmo dia* (o sufixo de `contextoDoProcesso` — CNJ +
+  data — é anterior e independente do `customPrompt`). Editar no meio da conversa só invalida o
   cache de prefixo (sem guarda de "Nova conversa" — o system não faz parte do
   histórico); o `storage.onChanged` atualiza a variável e zera `ultimaChaveEst`,
   e `estimativaLocalTokens` soma o tamanho do texto ao chute do system.

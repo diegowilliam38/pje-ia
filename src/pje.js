@@ -11,6 +11,40 @@ var PJE = (function () {
     return new URLSearchParams(location.search).get("idProcesso");
   }
 
+  // Número CNJ do processo (NNNNNNN-DD.AAAA.J.TR.OOOO). Vai ao system prompt
+  // para o modelo não precisar garimpá-lo nos PDFs — sem ele, o título do mapa
+  // mental saía com número inventado. O padrão CNJ é nacional, então a mesma
+  // regex serve qualquer tribunal.
+  // Busca em cascata do barato para o caro: título da aba → cabeçalho dos autos
+  // → um PEDAÇO do texto da página. Nunca varrer o body inteiro: a página dos
+  // autos é enorme e isto roda no boot. null quando não encontra (todo o
+  // consumo é condicional).
+  // O cache é POR PROCESSO, não por página: o PJe novo é uma SPA e troca de
+  // autos sem recarregar — um cache permanente devolveria o número do processo
+  // anterior para o system prompt do processo novo.
+  const RE_CNJ = /\b\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}\b/;
+  let numeroCache; // undefined = ainda não procurou; null = procurou e não achou
+  let numeroCacheDe = null; // idProcesso a que o cache acima pertence
+  function getNumeroProcesso() {
+    const proc = getIdProcesso();
+    if (numeroCache !== undefined && numeroCacheDe === proc) return numeroCache;
+    numeroCacheDe = proc;
+    // Thunks, não valores: ler innerText da página dos autos custa caro (força
+    // layout num DOM enorme) e não pode acontecer quando o título já resolveu.
+    const fontes = [
+      () => document.title,
+      () =>
+        (document.querySelector("#navbar, .navbar, #cabecalho, .cabecalho") || {})
+          .textContent,
+      () => ((document.body && document.body.innerText) || "").slice(0, 5000),
+    ];
+    for (const f of fontes) {
+      const m = String(f() || "").match(RE_CNJ);
+      if (m) return (numeroCache = m[0]);
+    }
+    return (numeroCache = null);
+  }
+
   // Varre a timeline (#divTimeLine) e devolve [{id, titulo}] sem duplicatas.
   function listarDocumentos() {
     const links = [...document.querySelectorAll("#divTimeLine a")];
@@ -343,6 +377,7 @@ var PJE = (function () {
   return {
     getBase,
     getIdProcesso,
+    getNumeroProcesso,
     listarDocumentos,
     baixar,
     scrollAte,
