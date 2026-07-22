@@ -482,6 +482,13 @@
     // bloqueador de pop-up) os nós ficavam presos no estado inicial, invisíveis.
     // A animação volta logo depois, para abrir/fechar ramos e trocar de nível.
     mm = new markmap.Markmap(svgEl, { ...opcoes(nivelAtual), duration: 0 });
+    // Abrir um ramo empurra o conteúdo para fora da viewport (o markmap não
+    // reenquadra sozinho): depois de cada abre/fecha, traz o ramo para a tela.
+    const alternar = mm.toggleNode.bind(mm);
+    mm.toggleNode = async (dados, recursivo) => {
+      await alternar(dados, recursivo);
+      await mm.ensureVisible(dados, { left: 24, right: 24, top: 24, bottom: 24 });
+    };
     mm.setData(clonarArvore(arvore)).then(() => {
       mm.fit();
       mm.setOptions({ duration: DURACAO });

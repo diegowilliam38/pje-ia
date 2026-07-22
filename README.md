@@ -179,7 +179,7 @@ baixar o texto em **`.md`** e **imprimir** (ou salvar em PDF, já enquadrado).
 > Os mapas gerados ficam disponíveis enquanto o navegador estiver aberto.
 
 <p align="center">
-  <img src="docs/mapa-mental.jpg" alt="Mapa mental do processo: eixos da análise processual com ícone e cor próprios, tabelas de partes e de decisões, e a origem (peça, id e folha) sob cada tópico" width="860">
+  <img src="docs/mapa-mental.gif" alt="Mapa mental do processo: começa recolhido nos eixos, abre em níveis de detalhe com tabelas de partes e decisões, mostra a peça, o id e a folha de origem em cada tópico e alterna para o tema escuro" width="880">
 </p>
 
 ### 🏛️ Todos os tribunais, sem configurar nada
