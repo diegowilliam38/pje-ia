@@ -1,8 +1,8 @@
-# Política de Privacidade — PJe IA (Análise de Processos)
+# Política de Privacidade — TecJustiça PJe (Análise de Processos)
 
-**Última atualização: 22 de julho de 2026**
+**Última atualização: 23 de julho de 2026**
 
-A extensão **PJe IA — Análise de Processos** ("a extensão") adiciona um painel de chat
+A extensão **TecJustiça PJe — Análise de Processos** ("a extensão") adiciona um painel de chat
 com IA à tela de autos digitais do PJe (Processo Judicial Eletrônico). Esta política
 descreve, de forma completa, quais dados a extensão trata, para onde eles vão e o que
 **nunca** é feito com eles.

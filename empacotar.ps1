@@ -1,5 +1,5 @@
 # Empacota a extensão para a Chrome Web Store.
-# Uso: pwsh ./empacotar.ps1  →  gera pje-ia-v<versão>.zip na raiz (ignorado pelo git).
+# Uso: pwsh ./empacotar.ps1  →  gera tecjustica-pje-v<versão>.zip na raiz (ignorado pelo git).
 # O ZIP contém APENAS o que a extensão precisa em runtime: manifest.json, src/, icons/, vendor/.
 
 $ErrorActionPreference = "Stop"
@@ -7,7 +7,7 @@ $raiz = $PSScriptRoot
 
 $manifest = Get-Content (Join-Path $raiz "manifest.json") -Raw | ConvertFrom-Json
 $versao = $manifest.version
-$zip = Join-Path $raiz "pje-ia-v$versao.zip"
+$zip = Join-Path $raiz "tecjustica-pje-v$versao.zip"
 
 # Valida a sintaxe dos scripts antes de empacotar (não há build step)
 Get-ChildItem (Join-Path $raiz "src\*.js") | ForEach-Object {
@@ -15,7 +15,7 @@ Get-ChildItem (Join-Path $raiz "src\*.js") | ForEach-Object {
   if ($LASTEXITCODE -ne 0) { throw "Erro de sintaxe em $($_.Name) — pacote NÃO gerado." }
 }
 
-$staging = Join-Path ([System.IO.Path]::GetTempPath()) "pje-ia-pack-$versao"
+$staging = Join-Path ([System.IO.Path]::GetTempPath()) "tecjustica-pje-pack-$versao"
 if (Test-Path $staging) { Remove-Item $staging -Recurse -Force }
 New-Item -ItemType Directory -Path $staging | Out-Null
 

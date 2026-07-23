@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "PJe IA — Análise de Processos",
-  "version": "0.13.1",
-  "description": "Chat com IA (Claude ou Gemini) sobre os autos do PJe de qualquer tribunal: selecione as peças do processo e converse com o modelo.",
+  "name": "TecJustiça PJe — Análise de Processos",
+  "version": "0.14.0",
+  "description": "Chat com IA (Claude ou Gemini) sobre os autos do PJe de qualquer tribunal: selecione as peças do processo e converse com o modelo. Por TecJustiça.",
   "permissions": ["storage", "clipboardWrite"],
   "host_permissions": [
     "https://*.jus.br/*",
@@ -40,7 +40,7 @@
     }
   ],
   "action": {
-    "default_title": "PJe IA — configurar e usar",
+    "default_title": "TecJustiça PJe — configurar e usar",
     "default_popup": "src/popup.html",
     "default_icon": {
       "16": "icons/icon16.png",

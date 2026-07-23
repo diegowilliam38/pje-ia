@@ -46,13 +46,13 @@ Painel → **+ Novo item** → arraste o ZIP. Depois preencha as abas a seguir.
 ## 3. Aba "Detalhes do item" (Store listing)
 
 - **Idioma**: Português (Brasil).
-- **Título**: `PJe IA — Análise de Processos`
+- **Título**: `TecJustiça PJe — Análise de Processos`
 - **Resumo**: preenchido automaticamente com a `description` do manifest (limite de
   **132 caracteres** — validado no upload; a atual tem 130).
 - **Descrição** (colar):
 
   ```
-  PJe IA adiciona um assistente de IA à tela de autos digitais do PJe (Processo
+  TecJustiça PJe adiciona um assistente de IA à tela de autos digitais do PJe (Processo
   Judicial Eletrônico) — em qualquer tribunal que use o sistema (TJs, TRFs, TRTs).
 
   Você marca as peças do processo, pergunta em linguagem natural e o modelo — Claude

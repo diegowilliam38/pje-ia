@@ -967,7 +967,7 @@ var PjePanel = (function () {
     const dlBtn = $(".dl");
     dlBtn.addEventListener("click", () => {
       if (!transcript.length) return;
-      const linhas = ["# Conversa — PJe IA", ""];
+      const linhas = ["# Conversa — TecJustiça PJe", ""];
       for (const t of transcript) {
         linhas.push(t.role === "user" ? "## Usuário" : "## Assistente");
         linhas.push("");

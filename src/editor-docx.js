@@ -364,9 +364,9 @@ var EditorDocx = (function () {
     if (!filhos.length) filhos = [new docx.Paragraph({ children: [textRun("", {})] })];
 
     const doc = new docx.Document({
-      creator: "PJe IA",
+      creator: "TecJustiça PJe",
       title: titulo || "Minuta",
-      description: "Minuta gerada e editada na extensão PJe IA",
+      description: "Minuta gerada e editada na extensão TecJustiça PJe",
       styles: estilos(),
       numbering: numeracao(),
       sections: [{ properties: { page: PAGINA }, children: filhos }],

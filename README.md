@@ -1,8 +1,15 @@
 <p align="center">
-  <img src="docs/banner.png" alt="PJe IA — Análise de autos judiciais com Claude" width="100%">
+  <img src="docs/logo.png" alt="TecJustiça PJe" width="132">
+</p>
+
+<h1 align="center">TecJustiça PJe</h1>
+
+<p align="center">
+  <em>Análise de autos judiciais com IA — um projeto <a href="https://tecjustica.substack.com/">TecJustiça</a></em>
 </p>
 
 <p align="center">
+  <a href="https://tecjustica.substack.com/"><img alt="Blog TecJustiça" src="https://img.shields.io/badge/blog-TecJusti%C3%A7a-0078aa?style=flat-square"></a>
   <a href="LICENSE"><img alt="Licença MIT" src="https://img.shields.io/badge/licen%C3%A7a-MIT-0078aa?style=flat-square"></a>
   <img alt="Chrome Manifest V3" src="https://img.shields.io/badge/Chrome-Manifest%20V3-005f88?style=flat-square&logo=googlechrome&logoColor=white">
   <img alt="Claude API" src="https://img.shields.io/badge/IA-Claude%20(Anthropic)-0078aa?style=flat-square">
@@ -10,7 +17,7 @@
   <img alt="PJe 1º grau" src="https://img.shields.io/badge/PJe-1%C2%BA%20grau-005f88?style=flat-square">
 </p>
 
-**PJe IA** é uma extensão Chrome que adiciona um assistente de IA à tela de autos digitais
+**TecJustiça PJe** é uma extensão Chrome que adiciona um assistente de IA à tela de autos digitais
 do **PJe (Processo Judicial Eletrônico)**. Você marca as peças do processo, pergunta em
 linguagem natural e o modelo — **Claude (Anthropic)** ou **Gemini (Google)**, à sua
 escolha — responde com base no conteúdo real dos documentos — resumos, linhas do tempo,
@@ -23,7 +30,7 @@ do próprio PJe.
 
 ## 🎯 O que ele é — e o que ele não é
 
-**PJe IA é um chat simplificado sobre os autos, não um agente autônomo.** Ele não navega
+**TecJustiça PJe é um chat simplificado sobre os autos, não um agente autônomo.** Ele não navega
 no processo sozinho: **você** seleciona as peças (pelos checkboxes ou digitando `@`) e, a
 partir delas, faz perguntas, pedidos e gera documentos. A resposta usa somente os
 documentos que você marcou — nada entra no contexto sem a sua escolha.
@@ -34,7 +41,7 @@ jurídico como o [TecJustiça MCP](https://mcp.tecjustica.com/) (demonstração 
 em [pjece.tecjustica.com](https://pjece.tecjustica.com/)), decide sozinho quais peças
 abrir, lê os autos por conta própria e gerencia o contexto automaticamente.
 
-| | **PJe IA (esta extensão)** | **Agente autônomo + MCP** (Claude Code, Agent SDK…) |
+| | **TecJustiça PJe (esta extensão)** | **Agente autônomo + MCP** (Claude Code, Agent SDK…) |
 |---|---|---|
 | Quem escolhe as peças | **Você**, manualmente | O agente decide o que abrir e ler |
 | Fluxo | Marcar peças → perguntar → resposta | Delegar a tarefa → o agente navega e itera sozinho |
@@ -117,7 +124,7 @@ investigação aberta, um agente com MCP é o caminho — o próprio painel suge
    - O Chrome carrega a extensão dessa pasta — não a apague depois.
 2. Abra `chrome://extensions` e ative o **Modo do desenvolvedor** (canto superior direito).
 3. Clique em **Carregar sem compactação** e selecione a pasta extraída (a que contém o `manifest.json`).
-4. Clique no ícone **PJe IA** na barra do Chrome, cole sua chave de API — da **Anthropic**
+4. Clique no ícone **TecJustiça PJe** na barra do Chrome, cole sua chave de API — da **Anthropic**
    (modelos Claude) e/ou do **Google** (modelos Gemini) — escolha o modelo e salve.
    - Não tem chave? O popup traz um **guia passo a passo** para criar a chave: Anthropic no
      [console.anthropic.com](https://console.anthropic.com), Google no

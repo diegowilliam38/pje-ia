@@ -465,7 +465,7 @@
       arvore.content +
       "</span>";
     document.title =
-      "Mapa mental" + (dados.processo ? " — processo " + dados.processo : "") + " — PJe IA";
+      "Mapa mental" + (dados.processo ? " — processo " + dados.processo : "") + " — TecJustiça PJe";
     const orig = contarComOrigem(arvore);
     subEl.textContent =
       (dados.titulo || "Processo") +
