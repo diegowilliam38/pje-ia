@@ -97,7 +97,7 @@
       elSalvo.className = "salvo ok";
       elSalvo.textContent = "salvo " + horaCurta(dados.atualizadoEm);
       elSalvo.title = "Rascunho guardado neste computador";
-      document.title = dados.titulo + " — PJe IA";
+      document.title = dados.titulo + " — TecJustiça PJe";
     });
   }
 
@@ -112,6 +112,18 @@
   // O rascunho vive em chrome.storage.local; sem uma forma de listá-los, ficaria
   // órfão no disco. Esta lista é a porta de recuperação — funciona a partir de
   // qualquer aba do editor (dropdown) e da própria página sem ?id (modo lista).
+  // Ela CRESCE (uma minuta por geração), então tem busca (filtro por título e
+  // número do processo) e exclusão por linha (dois cliques, como no descartar —
+  // confirm() nativo trava a página).
+
+  // Busca sem acento (NFD + remoção de diacríticos), o mesmo norm() do painel.
+  const norm = (s) =>
+    String(s == null ? "" : s).normalize("NFD").replace(/\p{Mn}/gu, "").toLowerCase();
+
+  const SVG_LUPA =
+    '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.6 10.6 14 14"/></svg>';
+  const SVG_LIXO =
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.6 4h10.8M6 4V2.7h4V4M4.1 4l.6 9a1 1 0 0 0 1 .95h4.6a1 1 0 0 0 1-.95l.6-9M6.6 6.6v5M9.4 6.6v5"/></svg>';
 
   function listarRascunhos(cb) {
     if (!temStorage) return cb([]);
@@ -125,41 +137,175 @@
     });
   }
 
+  function vazioHtml() {
+    return (
+      '<div class="vazio">Nenhuma minuta guardada. Gere uma pelo botão ' +
+      "“📝 Minutar” no painel do processo.</div>"
+    );
+  }
+
+  // Uma linha por rascunho — vale no dropdown e na lista de tela cheia. A âncora
+  // (.ropen) abre; o botão .rdel (fora da âncora) exclui.
   function linhasRascunhos(lista, atualId) {
-    if (!lista.length) {
-      return (
-        '<div class="vazio">Nenhuma minuta guardada ainda. Gere uma pelo botão ' +
-        "“📝 Minutar” no painel do processo.</div>"
-      );
-    }
+    if (!lista.length) return vazioHtml();
     return lista
       .map((r) => {
         const atual = r.id === atualId;
         const quando = tempoRelativo(r.atualizadoEm || r.criadoEm || Date.now());
         const proc = r.processo ? escaparTexto(r.processo) + " · " : "";
+        const busca = norm((r.titulo || "Minuta") + " " + (r.processo || ""));
         return (
-          '<a class="rrow' + (atual ? " atual" : "") + '" href="editor.html?id=' +
-          encodeURIComponent(r.id) + '">' +
+          '<div class="rrow' + (atual ? " atual" : "") + '" data-id="' +
+          escaparTexto(r.id) + '" data-busca="' + escaparTexto(busca) + '">' +
+          '<a class="ropen" href="editor.html?id=' + encodeURIComponent(r.id) + '">' +
           '<span class="rt">' + escaparTexto(r.titulo || "Minuta") + "</span>" +
           '<span class="rm">' + proc + quando + (atual ? " · aberta" : "") + "</span>" +
-          "</a>"
+          "</a>" +
+          '<button class="rdel" type="button" title="Excluir esta minuta" ' +
+          'aria-label="Excluir minuta">' + SVG_LIXO + "</button>" +
+          "</div>"
         );
       })
       .join("");
   }
 
+  // Cabeçalho de busca (fica FORA das linhas re-filtradas, para o campo não
+  // perder o foco durante a digitação — o filtro só liga/desliga row.hidden).
+  function campoBusca(n) {
+    return (
+      '<div class="rbusca">' + SVG_LUPA +
+      '<input type="search" class="rbusca-in" autocomplete="off" spellcheck="false" ' +
+      'placeholder="Buscar por título ou processo…" aria-label="Buscar minuta">' +
+      '<span class="rbusca-n">' + n + (n === 1 ? " minuta" : " minutas") + "</span>" +
+      "</div>"
+    );
+  }
+
+  function contarVisiveis(escopo) {
+    const lista = escopo.querySelector(".drop-list, .lista-b");
+    if (!lista) return;
+    const rows = lista.querySelectorAll(".rrow");
+    const cnt = escopo.querySelector(".rbusca-n");
+    if (cnt) cnt.textContent = rows.length + (rows.length === 1 ? " minuta" : " minutas");
+    if (!rows.length) {
+      const busca = escopo.querySelector(".rbusca");
+      if (busca) busca.hidden = true; // sem itens, buscar não faz sentido
+      lista.innerHTML = vazioHtml();
+    }
+  }
+
+  // Filtro por título/processo. Esc no campo (com texto) só limpa — não fecha o
+  // dropdown; vazio, o Esc borbulha e o handler global fecha.
+  function ligarBusca(escopo) {
+    const inp = escopo.querySelector(".rbusca-in");
+    const lista = escopo.querySelector(".drop-list, .lista-b");
+    if (!inp || !lista) return;
+    inp.addEventListener("input", () => {
+      const q = norm(inp.value.trim());
+      let vis = 0;
+      lista.querySelectorAll(".rrow").forEach((row) => {
+        const ok = !q || (row.dataset.busca || "").indexOf(q) !== -1;
+        row.hidden = !ok;
+        if (ok) vis++;
+      });
+      let sem = lista.querySelector(".sem-res");
+      if (vis === 0) {
+        if (!sem) {
+          sem = document.createElement("div");
+          sem.className = "sem-res";
+          lista.appendChild(sem);
+        }
+        sem.hidden = false;
+        sem.textContent = "Nenhuma minuta corresponde a “" + inp.value.trim() + "”.";
+      } else if (sem) {
+        sem.hidden = true;
+      }
+      const cnt = escopo.querySelector(".rbusca-n");
+      if (cnt) cnt.textContent = vis + (vis === 1 ? " minuta" : " minutas");
+    });
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && inp.value) {
+        e.stopPropagation();
+        inp.value = "";
+        inp.dispatchEvent(new Event("input"));
+      }
+    });
+  }
+
+  function desarmarLixo(btn) {
+    clearTimeout(btn._t);
+    btn.dataset.armado = "";
+    btn.classList.remove("armado");
+    btn.innerHTML = SVG_LIXO;
+  }
+
+  function excluirRascunho(id, feito) {
+    const k = "minuta:" + id;
+    const fim = () => {
+      // se a minuta excluída é a aberta NESTA aba, para o autosave (senão o
+      // próximo salvar a recriaria) e sinaliza no indicador de salvamento
+      if (chave === k) {
+        chave = null;
+        clearTimeout(tSalvar);
+        elSalvo.className = "salvo";
+        elSalvo.textContent = "excluída";
+        elSalvo.title = "Esta minuta foi excluída da lista de rascunhos";
+      }
+      feito && feito();
+    };
+    if (temStorage) chrome.storage.local.remove(k, fim);
+    else fim();
+  }
+
+  // Exclusão por linha, delegada no container (as linhas são recriadas a cada
+  // abertura). Dois cliques: 1º arma (o botão vira “Excluir?” vermelho, some em
+  // 4 s), 2º confirma.
+  function ligarExcluir(escopo) {
+    const lista = escopo.querySelector(".drop-list, .lista-b");
+    if (!lista) return;
+    lista.addEventListener("click", (e) => {
+      const btn = e.target.closest(".rdel");
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const row = btn.closest(".rrow");
+      if (!row) return;
+      if (btn.dataset.armado !== "1") {
+        lista.querySelectorAll(".rdel.armado").forEach(desarmarLixo);
+        btn.dataset.armado = "1";
+        btn.classList.add("armado");
+        btn.textContent = "Excluir?";
+        btn._t = setTimeout(() => desarmarLixo(btn), 4000);
+        return;
+      }
+      clearTimeout(btn._t);
+      excluirRascunho(row.dataset.id, () => {
+        row.classList.add("saindo");
+        setTimeout(() => {
+          row.remove();
+          contarVisiveis(escopo);
+        }, 170);
+      });
+    });
+  }
+
   let dropAberto = false;
   function toggleDrop() {
     const drop = $("#drop");
-    if (dropAberto) {
-      drop.hidden = true;
-      dropAberto = false;
-      return;
-    }
+    if (dropAberto) return fecharDrop();
     listarRascunhos((lista) => {
-      drop.innerHTML = linhasRascunhos(lista, chave ? chave.slice("minuta:".length) : null);
+      const atualId = chave ? chave.slice("minuta:".length) : null;
+      drop.innerHTML =
+        (lista.length ? campoBusca(lista.length) : "") +
+        '<div class="drop-list" role="menu" aria-label="Minutas guardadas">' +
+        linhasRascunhos(lista, atualId) +
+        "</div>";
+      ligarBusca(drop);
+      ligarExcluir(drop);
       drop.hidden = false;
       dropAberto = true;
+      const inp = drop.querySelector(".rbusca-in");
+      if (inp) inp.focus();
     });
   }
   function fecharDrop() {
@@ -179,9 +325,15 @@
         '<div class="lista-box">' +
           (aviso ? '<div class="lista-aviso">' + aviso + "</div>" : "") +
           '<div class="lista-h">Suas minutas recentes</div>' +
+          (lista.length ? campoBusca(lista.length) : "") +
           '<div class="lista-b">' + linhasRascunhos(lista, null) + "</div>" +
           "</div>"
       );
+      const box = elAviso.querySelector(".lista-box");
+      if (box) {
+        ligarBusca(box);
+        ligarExcluir(box);
+      }
     });
   }
 
@@ -367,7 +519,7 @@
       }
       dados = d;
       elTitulo.value = d.titulo || "Minuta";
-      document.title = elTitulo.value + " — PJe IA";
+      document.title = elTitulo.value + " — TecJustiça PJe";
       elSub.textContent = d.processo ? "Processo " + d.processo : "";
       elSalvo.className = "salvo ok";
       elSalvo.textContent = "salvo " + horaCurta(d.atualizadoEm || d.criadoEm || Date.now());

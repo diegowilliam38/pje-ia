@@ -188,12 +188,68 @@ body {
   box-shadow: 0 8px 28px -8px rgba(0, 0, 0, 0.35);
   padding: 4px;
 }
-/* uma linha por rascunho — vale no dropdown e na lista de tela cheia */
+.drop {
+  animation: dropIn 0.14s ease-out;
+}
+@keyframes dropIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* busca — a lista cresce (uma minuta por geração), então filtra por título e
+   número do processo. Fixa no topo do dropdown para não rolar com as linhas. */
+.rbusca {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 4px;
+  padding: 6px 8px;
+  background: #fff;
+  border-bottom: 1px solid #e7ecf0;
+}
+.rbusca > svg {
+  flex: none;
+  color: #8a97a3;
+}
+.rbusca-in {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: #1a2730;
+  padding: 2px 0;
+}
+.rbusca-in::placeholder {
+  color: #9aa5af;
+}
+.rbusca-in:focus {
+  outline: none;
+}
+.rbusca-in::-webkit-search-cancel-button {
+  cursor: pointer;
+}
+.rbusca-n {
+  flex: none;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: #93a0ab;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* uma linha por rascunho — vale no dropdown e na lista de tela cheia.
+   .ropen abre a minuta; .rdel (fora da âncora) exclui. */
 .rrow {
-  display: block;
-  text-decoration: none;
-  color: inherit;
-  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 6px 10px;
   border-radius: 6px;
 }
 .rrow:hover {
@@ -203,7 +259,18 @@ body {
   background: #e7f1f7;
   box-shadow: inset 2px 0 0 var(--pje);
 }
-.rrow .rt {
+.rrow.saindo {
+  opacity: 0;
+  transform: translateX(10px);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+.ropen {
+  flex: 1;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+}
+.ropen .rt {
   display: block;
   font-size: 13px;
   font-weight: 600;
@@ -212,17 +279,62 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.rrow .rm {
+.ropen .rm {
   display: block;
   font-size: 11px;
   color: #5d6b7a;
   margin-top: 1px;
 }
-.vazio {
+/* excluir — discreto, revelado no hover/foco da linha (padrão Gmail/Notion).
+   Dois cliques: o botão vira “Excluir?” vermelho antes de apagar; nada de
+   confirm() nativo (trava a página). */
+.rdel {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  min-width: 26px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #9aa5af;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s, background 0.12s, color 0.12s, border-color 0.12s;
+}
+.rrow:hover .rdel,
+.rdel:focus-visible,
+.rdel.armado {
+  opacity: 1;
+}
+.rdel:hover {
+  background: #fdecea;
+  color: #c0392b;
+}
+.rdel:focus-visible {
+  outline: 2px solid var(--pje);
+  outline-offset: 1px;
+}
+.rdel.armado {
+  background: #c0392b;
+  border-color: #a5301f;
+  color: #fff;
+  padding: 0 10px;
+}
+.vazio,
+.sem-res {
   padding: 14px 12px;
   font-size: 12.5px;
   color: #5d6b7a;
   line-height: 1.4;
+}
+.sem-res {
+  text-align: center;
 }
 
 /* ------------------------------------------------------- barra do editor */
@@ -427,6 +539,18 @@ body {
 }
 .lista-b .rrow:last-child {
   border-bottom: none;
+}
+/* na tela cheia a busca é um campo com moldura (não fixa) acima do cartão */
+.lista-box .rbusca {
+  position: static;
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  background: #fff;
+  border: 1px solid #d7dbdf;
+  border-radius: 8px;
+}
+.lista-box .rbusca-in {
+  font-size: 14px;
 }
 
 .rodape-nota {
