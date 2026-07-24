@@ -216,6 +216,13 @@ chat comum: funciona **em qualquer modelo**, Claude ou Gemini.
 > A minuta é uma sugestão de trabalho, não um ato: revise o texto e confira as citações
 > nos autos antes de usar.
 
+<!-- VITRINE: grave a tela "✍️ Minutar → Gerar minuta → editor" e salve como docs/minutar.gif;
+     depois troque este comentário pelo bloco abaixo:
+<p align="center">
+  <img src="docs/minutar.gif" alt="Minutar: marcar as peças, clicar em Minutar, o modelo redige o ato e abre em nova aba no editor WYSIWYG com formatação forense; copiar formatado e baixar .docx" width="880">
+</p>
+-->
+
 ### 🏛️ Todos os tribunais, sem configurar nada
 
 A extensão funciona em **qualquer tribunal que rode PJe** (TJs, TRFs, TRTs — 1º ou 2º
@@ -284,7 +291,7 @@ flowchart LR
 - [x] Biblioteca de prompts do usuário (`/` no campo, sincronizada entre navegadores)
 - [ ] Compaction para conversas muito longas
 - [ ] Limpeza de uploads antigos na Files API
-- [ ] Publicação na Chrome Web Store — **enviada para análise em 21/07/2026** (aguardando revisão)
+- [x] Publicação na Chrome Web Store — v0.9.9 **aprovada e publicada**; atualização **v0.14.0** (rebrand TecJustiça PJe, Gemini, editor de minutas, mapa mental) em publicação
 
 ## 🤝 Contribuindo — mesmo sem saber programar
 
