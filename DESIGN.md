@@ -203,6 +203,12 @@ com dots de 7px. Itens: checkbox 15px (raio `--r-xs`) + dot 7px da categoria +
 nome (`--fs-meta`, peso 500, truncado) + **id em `--ff-mono`**, `--fs-nano`, cor
 `--muted-3`. Rodapé com "Mostrando N de M" e o botão ↻ Carregar todas.
 
+A faixa abaixo da lista (`.docs-tip`) hospeda as ações que valem para a **lista
+inteira** — hoje `⟳ Carregar todas as peças` e `⬇ Baixar .zip`. Elas
+compartilham a MESMA regra de estilo (`.tip-load, .tip-zip`) de propósito: são
+pares, e regras separadas divergiriam com o tempo. Ação nova de escopo "lista
+toda" entra aqui, não na `.toolbar` — aquela linha já vive no limite em 484px.
+
 ### Estado vazio da conversa
 Eyebrow + título serifado centrado; grade de 3 cartões de passo (número em
 círculo `--accent-bg`/`--pje`); bloco "Comece por aqui" com chips pill que

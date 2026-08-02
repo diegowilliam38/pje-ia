@@ -577,6 +577,76 @@ Regras que NÃO podem quebrar:
   `aplicarModo`, scroll da lista e Esc também fecham — o Esc do preview faz
   `stopPropagation` para não cancelar o modo minuta junto).
 
+## Exportação das peças em `.zip` (zip.js + exportar.js + content.js)
+
+Botão **⬇ Baixar .zip** na faixa `.docs-tip`, irmão de "⟳ Carregar todas as peças"
+(as duas são ações sobre a lista INTEIRA; a `.toolbar` já estava apertada com cinco
+botões em 484px). Existe para trabalhar os autos **fora** da extensão — no Claude
+Code, num script, num arquivo de caso. Regras que não podem quebrar:
+
+- **Sem a permissão `downloads`**, pela MESMA razão que fez a grid virar iframe: ela
+  muda o aviso de instalação da Web Store numa extensão já publicada. Blob + âncora
+  `download` (`baixarBlob` em content.js, o caminho que o mapa e a minuta já usavam)
+  resolve, e como o resultado é **um** arquivo não há a enxurrada de downloads que a
+  API `chrome.downloads` evitaria. A revogação do object URL tem 120 s de folga — o
+  Chrome lê o blob DEPOIS do clique e um zip de centenas de MB demora a gravar.
+- **`src/zip.js` (`ZipW`) é um escritor de ZIP próprio**, ~200 linhas: cabeçalho
+  local + diretório central + EOCD, CRC-32 tabelado e deflate pela
+  `CompressionStream("deflate-raw")` nativa. Vendorizar (JSZip/fflate) traria
+  30–100 KB e um terceiro para auditar, para resolver a parte fácil. Sem Zip64
+  (tetos de 4 GB e 65.535 entradas, com erro claro). **Cada entrada vira um Blob
+  assim que é produzida** e o arquivo final é `new Blob(partes)`: concatenar num
+  Uint8Array mataria a aba num processo grande. Deflate só no que ENCOLHE — PDF já
+  é contêiner deflacionado, e `montarZip` passa `comprimir:false` nele.
+- **`src/exportar.js` (`PjeExport`) é PURO**: não conhece `docsCache`, `PJE` nem o
+  painel — recebe `docs`, a `ficha` e um `obter(id)`. É o que permite testá-lo fora
+  do navegador (o ZIP gerado é validado pelo `zipfile` do Python, um leitor
+  independente — escritor conferido pelo próprio leitor não prova nada).
+- **`NNN_Titulo-limpo_ID.ext`**: o `NNN` é a posição CRONOLÓGICA no processo (não o
+  índice do laço), para a ordenação alfabética da pasta coincidir com a ordem dos
+  autos; o `ID` fica no nome porque **o nome do arquivo é o único metadado que
+  sobrevive a sair da ferramenta**. O prefixo `123456 - ` do título é removido
+  (`\d{6,}`, mesmo limiar do regex da timeline) para o id não aparecer duas vezes.
+- **A ordem cronológica tem duas fontes e o critério vai ESCRITO no índice**: a data
+  de juntada (só existe quando a grid foi lida) é dado; a inversa da ordem da tela é
+  PREMISSA (o PJe lista do mais recente para o mais antigo). Peça sem data mantém a
+  posição relativa — mover para um extremo seria inventar cronologia.
+- **Três arquivos de metadados**, e o ZIP se explica sozinho no destino:
+  `LEIA-ME.md` (convenção de nomes, formato de citação `(Título, id 123456, fl. 7)`,
+  limites conhecidos), `indice.txt` (ficha do processo + **uma linha por peça**,
+  campos separados por `" | "`, SEM truncar — uma tabela alinhada com dez campos só
+  caberia cortando o nome de quem juntou a peça, que é justamente o que se pergunta
+  a um índice) e `indice.json`. O formato de citação aqui é a **QUINTA** saída da
+  regra peça·id·folha — ao editar `PROMPT_INICIO`/`SYSTEM_PROMPT_CIT_TEXTUAL`/
+  `SUFIXO_MINUTA`/`SUFIXO_MAPA`, editar este também.
+- **Ficha do processo** (`PJE.lerCabecalhoProcesso`): raspa `#maisDetalhes`
+  (`dl.dl-horizontal` em blocos IRMÃOS — órgão julgador, cargo e competência vivem
+  em `<dl>` próprios, por isso varre TODOS) e `#poloAtivo`/`#poloPassivo`. O titular
+  sai do `<td>` com as `<ul>` REMOVIDAS de um clone; sem isso o nome do advogado
+  colaria no da parte. `parsePessoa` corta o nome no primeiro `" - CPF|CNPJ|OAB"`,
+  nunca no primeiro hífen (quebraria "BANCO ITAU CONSIGNADO S.A." e sobrenomes
+  compostos). Tudo best-effort: falha vira `null` e a exportação segue sem a ficha.
+- **`lerLinhas` guarda as colunas desconhecidas em `extras`**: a grid varia por
+  tribunal (sigilo, matéria, órgão…) e um parser que só lê as cinco colunas
+  conhecidas joga fora exatamente o que aquele tribunal tem de particular.
+- **Segredo de justiça vira banner no topo** do `LEIA-ME.md` e do `indice.txt`, e
+  `segredoDeJustica` no JSON — muda como o pacote deve ser tratado, então não pode
+  ser mais uma linha no meio da ficha.
+- **Concorrência**: a exportação e qualquer turno disputariam a MESMA sessão JSF
+  (o download do PJe é serializado). `exportando` bloqueia envio/minuta/mapa
+  (`bloqueadoPelaExportacao`), o download do preview e — o caso não óbvio — a
+  **camada 2 da estimativa dinâmica**: as ativações da exportação mexem na timeline,
+  o que dispara `syncSelection` o tempo todo, e o refinamento sairia baixando peças
+  em paralelo. A camada 1 (estimativa local) continua, que é de graça.
+- **Cancelável**: `startPrep(items, {titulo, fim, onCancelar})` ganha um botão
+  Cancelar quando há `onCancelar` (300 peças a ~5,6 s são ~28 min). No
+  `setPrepState`, o estado **`erro` também adianta o contador** — sem isso a barra
+  de uma exportação com falhas nunca chegaria ao fim. Sem `opts`, o card é byte a
+  byte o do preparo de envio.
+- **Teto de 600 MB** (`TETO_BYTES`): o conteúdo vive em `docsCache` como base64
+  (~1,33× os bytes) e é materializado em Uint8Array ao zipar. Estourar mata a aba
+  sem dizer por quê; a mensagem manda exportar em levas marcando parte das peças.
+
 ## Popup de menção `@` (panel.js)
 
 Detecção por regex do token `@busca` antes do caret (`findMentionToken`); busca ignora

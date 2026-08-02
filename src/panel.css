@@ -467,13 +467,16 @@
 .docs-tip.carregando .tip-txt,
 .docs-tip:has(.tip-i:hover) .tip-txt,
 .docs-tip:has(.tip-i:focus) .tip-txt { display: block; }
-.tip-load {
+/* "Carregar todas as peças" e "Baixar .zip" são ações IRMÃS sobre a lista
+   inteira — compartilham a regra de propósito, para não divergirem com o
+   tempo. */
+.tip-load, .tip-zip {
   border: 1px solid #cfe0e9; background: #eef5f9; color: var(--pje-2);
   border-radius: 6px; padding: 3px 9px; font-size: var(--fs-micro); font-weight: 600;
   cursor: pointer; transition: background 0.12s;
 }
-.tip-load:hover { background: #d4e4ec; }
-.tip-load:disabled { opacity: 0.6; cursor: default; }
+.tip-load:hover, .tip-zip:hover { background: #d4e4ec; }
+.tip-load:disabled, .tip-zip:disabled { opacity: 0.6; cursor: default; }
 
 .main { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 
@@ -568,6 +571,21 @@
   animation: spin 0.7s linear infinite;
 }
 .prep-ic.done { background: #2e7d4f; color: #fff; animation: pop 0.22s ease-out; }
+/* Peça que não pôde ser baixada: a exportação SEGUE em frente (o índice lista
+   as falhas no fim), então o estado precisa ser visível sem parecer fatal. */
+.prep-ic.erro {
+  border: 1.5px solid var(--erro); color: var(--erro);
+  font-size: var(--fs-nano); font-weight: 700; line-height: 1;
+}
+.prep-ic.erro::after { content: "!"; }
+.prep-cancel {
+  margin-left: var(--sp-2); border: 1px solid var(--line-strong);
+  background: var(--surface); color: var(--text-3); border-radius: var(--r-sm);
+  padding: 2px 8px; font-size: var(--fs-micro); font-weight: 600;
+  font-family: inherit; cursor: pointer; transition: background 0.14s ease;
+}
+.prep-cancel:hover { background: var(--hover); }
+.prep-cancel:disabled { opacity: 0.6; cursor: default; }
 @keyframes pop { from { transform: scale(0.5); } to { transform: scale(1); } }
 @keyframes spin { to { transform: rotate(360deg); } }
 .prep-bar {

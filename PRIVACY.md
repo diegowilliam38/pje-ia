@@ -96,6 +96,17 @@ de ajuda.
   provedor de IA numa moldura `<modelos_de_referencia>` com a instrução expressa de que
   servem **apenas de forma e linguagem** — nenhum fato dos modelos pode entrar na minuta, que
   se baseia só nas peças do processo em tela.
+- **Exportação em `.zip`** (“⬇ Baixar .zip”, abaixo da lista de peças): monta o arquivo
+  **dentro do seu navegador** e o entrega pelo download comum — nada trafega para o
+  desenvolvedor nem para nenhum provedor de IA nesta operação; o único servidor
+  acessado é o **do próprio tribunal**, com a sua sessão, exatamente como quando você
+  baixa uma peça clicando nela. O arquivo resultante é salvo por **você**, onde você
+  escolher, e a partir daí deixa de estar sob controle da extensão. Note que ele contém
+  **as peças integrais** e um índice com a ficha do processo — inclusive **CPF/CNPJ das
+  partes e inscrição na OAB dos advogados**, quando a página os exibe. Se o processo
+  tramitar em **segredo de justiça**, o `LEIA-ME.md` e o `indice.txt` avisam disso logo
+  no topo, mas o cuidado com o arquivo é seu. A extensão **não** pede a permissão
+  `downloads` do Chrome: ela não enxerga nem gerencia a sua pasta de downloads.
 - A única exceção são os **prompts salvos**, gravados no `chrome.storage.sync` para
   acompanharem você em outros dispositivos: quem os replica é o próprio Chrome, pela
   sincronização da sua conta Google. Sem conta ou com a sincronização desligada, eles

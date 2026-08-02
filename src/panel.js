@@ -376,6 +376,7 @@ var PjePanel = (function () {
               <span class="tip-i" role="note" tabindex="0" title="${TIP_PADRAO_ATTR}" aria-label="${TIP_PADRAO_ATTR}">⚠️</span>
               <span class="tip-txt"></span>
               <button type="button" class="tip-load" title="Rola a linha do tempo do processo automaticamente até o fim para carregar todas as peças na lista">⟳ Carregar todas as peças</button>
+              <button type="button" class="tip-zip" title="Baixa as peças num único arquivo .zip, numeradas na ordem do processo e acompanhadas de um índice com tipo, data e autor da juntada. Exporta as peças MARCADAS; sem nenhuma marcada, exporta todas as da lista.">⬇ Baixar .zip</button>
             </div>
           </div>
           <div class="main">
@@ -507,6 +508,7 @@ var PjePanel = (function () {
     const tipBox = $(".docs-tip");
     const tipTxt = $(".tip-txt");
     const tipLoad = $(".tip-load");
+    const tipZip = $(".tip-zip");
     const msgs = $(".msgs");
     const ft = $(".ft");
     const statusEl = $(".status");
@@ -1172,6 +1174,32 @@ var PjePanel = (function () {
     // -------------------------------------------------------------------------
     let carregarTLCb = null;
     tipLoad.addEventListener("click", () => carregarTLCb && carregarTLCb());
+
+    // -------------------------------------------------------------------------
+    // "Baixar .zip": exporta as peças MARCADAS — ou todas as da lista, quando
+    // nenhuma está marcada. A regra segue a mesma fonte de verdade de todo o
+    // resto (os checkboxes); o fallback para "todas" existe porque exportar os
+    // autos inteiros é o caso comum, e obrigar a marcar 300 peças antes seria
+    // um pedágio sem propósito. Qual dos dois aconteceu vai dito no card de
+    // progresso — a ação não pode ser ambígua.
+    // -------------------------------------------------------------------------
+    let zipCb = null;
+    tipZip.addEventListener("click", () => {
+      if (!zipCb || tipZip.disabled) return;
+      const marcadas = getSelectedDocs();
+      const alvo = marcadas.length ? marcadas : allDocs;
+      if (!alvo.length) {
+        statusEl.textContent = "A lista de peças está vazia — não há o que exportar.";
+        return;
+      }
+      zipCb(alvo, { todas: !marcadas.length });
+    });
+    // Trava o botão enquanto a exportação corre (o download do PJe é
+    // serializado: dois lotes ao mesmo tempo brigariam pela sessão JSF).
+    function setZipOcupado(on) {
+      tipZip.disabled = !!on;
+      tipZip.textContent = on ? "Baixando…" : "⬇ Baixar .zip";
+    }
     // Em repouso o aviso é só o ícone ⚠️ (o texto vive no title dele) — ocupava
     // duas linhas fixas da coluna. Com PROGRESSO ou carregando, o texto volta a
     // ser visível: é feedback de uma ação em curso, não um aviso de fundo.
@@ -2564,10 +2592,18 @@ var PjePanel = (function () {
     let prepEl = null;
     let prepTotal = 0;
     let prepDone = 0;
+    let prepOpts = {};
 
-    function startPrep(items) {
+    // opts (todos opcionais, e os padrões reproduzem o comportamento original):
+    //   titulo     — cabeçalho enquanto corre ("Preparando peças…")
+    //   fim        — texto de conclusão; recebe o total ("N peças anexadas…")
+    //   onCancelar — quando presente, acrescenta um botão Cancelar. Só faz
+    //                sentido em lotes longos (exportação): o preparo de um
+    //                envio dura segundos e um botão ali seria ruído.
+    function startPrep(items, opts) {
       endPrep(true);
       clearEmptyHint();
+      prepOpts = opts || {};
       prepTotal = items.length;
       prepDone = 0;
       prepEl = document.createElement("div");
@@ -2582,10 +2618,23 @@ var PjePanel = (function () {
           "</span></div>";
       }
       prepEl.innerHTML =
-        '<div class="prep-hd"><span class="prep-spin"></span><span class="prep-ttl">Preparando peças…</span>' +
-        '<span class="prep-n">0/' + prepTotal + "</span></div>" +
+        '<div class="prep-hd"><span class="prep-spin"></span><span class="prep-ttl">' +
+        escapeHtml(prepOpts.titulo || "Preparando peças…") +
+        "</span>" +
+        '<span class="prep-n">0/' + prepTotal + "</span>" +
+        (prepOpts.onCancelar
+          ? '<button type="button" class="prep-cancel" title="Interrompe a exportação">Cancelar</button>'
+          : "") +
+        "</div>" +
         '<div class="prep-list">' + rows + "</div>" +
         '<div class="prep-bar"><i></i></div>';
+      if (prepOpts.onCancelar) {
+        prepEl.querySelector(".prep-cancel").addEventListener("click", (ev) => {
+          ev.target.disabled = true;
+          ev.target.textContent = "Cancelando…";
+          prepOpts.onCancelar();
+        });
+      }
       msgs.appendChild(prepEl);
       msgs.scrollTop = msgs.scrollHeight;
     }
@@ -2597,7 +2646,10 @@ var PjePanel = (function () {
       const ic = row.querySelector(".prep-ic");
       ic.className = "prep-ic " + state;
       ic.innerHTML = state === "done" ? SVG.check : "";
-      if (state === "done") {
+      // "erro" também ADIANTA o contador: a peça terminou de ser tentada. Sem
+      // isso a barra de uma exportação com falhas nunca chegaria ao fim, e o
+      // usuário ficaria olhando um progresso travado sem saber que acabou.
+      if (state === "done" || state === "erro") {
         prepDone++;
         prepEl.querySelector(".prep-n").textContent = prepDone + "/" + prepTotal;
         prepEl.querySelector(".prep-bar i").style.width =
@@ -2615,8 +2667,13 @@ var PjePanel = (function () {
         return;
       }
       // confirma visualmente e recolhe
-      el.querySelector(".prep-ttl").textContent =
-        prepTotal === 1 ? "Peça anexada à conversa" : prepTotal + " peças anexadas à conversa";
+      const btnCancel = el.querySelector(".prep-cancel");
+      if (btnCancel) btnCancel.remove();
+      el.querySelector(".prep-ttl").textContent = prepOpts.fim
+        ? prepOpts.fim(prepTotal, prepDone)
+        : prepTotal === 1
+          ? "Peça anexada à conversa"
+          : prepTotal + " peças anexadas à conversa";
       el.querySelector(".prep-spin").outerHTML =
         '<span class="prep-okic">' + SVG.check + "</span>";
       el.classList.add("ok");
@@ -2677,6 +2734,14 @@ var PjePanel = (function () {
       onCarregarTimeline(cb) {
         carregarTLCb = cb;
       },
+      // Botão "Baixar .zip" da mesma faixa. cb(docs, {todas}) — `docs` já vem
+      // resolvido (marcadas, ou todas quando nada está marcado) e `todas` diz
+      // qual dos dois caminhos foi tomado, para o content script informar.
+      onExportarZip(cb) {
+        zipCb = cb;
+      },
+      // Trava/destrava o botão durante a exportação.
+      setZipOcupado,
       // Estado da dica: {texto, carregando}. Sem argumento volta ao padrão.
       setTimelineTip,
       // Preview no hover: cb SÍNCRONO que devolve o conteúdo em cache ou null

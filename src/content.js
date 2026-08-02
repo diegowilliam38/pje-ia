@@ -460,6 +460,9 @@
   // `setDocs`. Guardamos o `tipo` oficial de cada uma — a timeline não tem esse
   // dado e a categoria acaba adivinhada por regex sobre o título.
   let docsDaGrid = null;
+  // Cobertura da última leitura da grid, para a exportação poder DIZER de onde
+  // a lista veio em vez de deixar implícito que é o processo inteiro.
+  let gridInfo = null;
 
   let carregandoTimeline = false;
   panel.onCarregarTimeline(async () => {
@@ -482,6 +485,7 @@
       );
       if (grid && grid.docs.length) {
         docsDaGrid = grid.docs;
+        gridInfo = grid;
         atualizarListaPecas();
         panel.setTimelineTip({
           texto: grid.incompleto
@@ -523,6 +527,116 @@
     }
   });
 
+  // ---------------------------------------------------------------------------
+  // "Baixar .zip": exporta as peças para trabalhar os autos FORA da extensão.
+  //
+  // Sem a permissão "downloads", de propósito: ela mudaria o aviso de instalação
+  // da Web Store numa extensão já publicada — o mesmo motivo que fez a leitura da
+  // grid virar iframe em vez de aba. Blob + âncora `download` (o caminho que o
+  // mapa e a minuta já usam) resolve, e como o resultado é UM arquivo, não há a
+  // enxurrada de downloads que a API evitaria.
+  // ---------------------------------------------------------------------------
+  let exportando = false;
+  panel.onExportarZip(async (docs, opcoes) => {
+    if (exportando) return;
+    if (busy) {
+      panel.setStatus("Aguarde a resposta atual terminar para exportar as peças.");
+      return;
+    }
+    if (typeof PjeExport === "undefined" || typeof ZipW === "undefined") {
+      panel.setStatus("Exportação indisponível: recarregue a página do processo.");
+      return;
+    }
+    exportando = true;
+    const sinal = { cancelado: false };
+    const todas = !!(opcoes && opcoes.todas);
+    panel.setZipOcupado(true);
+    // `docs` já são os objetos {id, titulo} do painel — passar por metaDe
+    // (que recebe um ID) devolveria "Peça [object Object]" em cada linha.
+    panel.startPrep(docs, {
+      titulo: todas
+        ? "Exportando as " + docs.length + " peças da lista…"
+        : "Exportando " + docs.length + " peça(s) marcada(s)…",
+      fim: (total, feitas) =>
+        feitas === total
+          ? "Arquivo .zip gerado com " + total + " peça(s)"
+          : "Arquivo .zip gerado — " + feitas + " de " + total + " peça(s)",
+      onCancelar: () => {
+        sinal.cancelado = true;
+      },
+    });
+    try {
+      const r = await PjeExport.montarZip({
+        docs,
+        cnj: PJE.getNumeroProcesso(),
+        // Ficha do processo (classe, assunto, partes…): sai do DOM que já está
+        // na tela e é o que faz o pacote se explicar sozinho no destino.
+        ficha: PJE.lerCabecalhoProcesso(),
+        origemLista: descreverOrigemLista(todas),
+        sinal,
+        onEtapa: (id, estado) => panel.setPrepState(id, estado),
+        // Mesmo caminho do envio: o que já está em cache não baixa de novo, e o
+        // que baixar aqui fica disponível para a conversa (prefetch de graça).
+        obter: async (id) => {
+          if (!docsCache.has(id)) docsCache.set(id, await PJE.baixar(id));
+          return docsCache.get(id);
+        },
+      });
+      panel.endPrep();
+      baixarBlob(r.nome, r.blob);
+      const partes = [r.resumo.ok + " peça(s)"];
+      if (r.resumo.paginas) partes.push(r.resumo.paginas + " páginas");
+      partes.push(fmtMB(r.blob.size));
+      panel.setStatus(
+        "✅ " + r.nome + " — " + partes.join(", ") +
+          (r.resumo.falhas
+            ? ". " + r.resumo.falhas + " peça(s) falharam (a relação está no indice.txt)."
+            : ".")
+      );
+    } catch (e) {
+      const msg = (e && e.message) || String(e);
+      panel.endPrep(true);
+      panel.setStatus(
+        msg === "cancelado" ? "Exportação cancelada." : "Não foi possível exportar: " + msg
+      );
+      if (msg !== "cancelado") console.warn("[PJe IA] exportar zip:", e);
+    } finally {
+      exportando = false;
+      panel.setZipOcupado(false);
+    }
+  });
+
+  // De onde veio a lista que está sendo exportada — vai escrito no LEIA-ME e no
+  // índice. "Pode estar incompleta" precisa ser dito COM o motivo; sem ele, a
+  // ressalva vira ruído que ninguém lê.
+  function descreverOrigemLista(todas) {
+    let base;
+    if (gridInfo && !gridInfo.incompleto) {
+      base =
+        "lida da tela oficial “Documentos” do PJe, por completo (" +
+        gridInfo.total +
+        " documentos em " +
+        gridInfo.paginas +
+        " página(s))";
+    } else if (gridInfo) {
+      base =
+        "lida da tela oficial “Documentos” do PJe, mas PARCIALMENTE (" +
+        gridInfo.paginasLidas +
+        " de " +
+        gridInfo.paginas +
+        " páginas)";
+    } else {
+      base =
+        "lida da linha do tempo do processo, que o PJe carrega sob demanda conforme " +
+        "a rolagem — peças antigas podem não ter entrado";
+    }
+    return base + (todas ? "" : "; e esta exportação inclui apenas as peças marcadas na lista");
+  }
+
+  function fmtMB(n) {
+    return n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.round(n / 1024) + " KB";
+  }
+
   // Preview no hover: fornece o conteúdo JÁ em cache (síncrono, nunca baixa —
   // download do PJe é serializado na sessão JSF e travaria a cada passada de
   // mouse). Cache-miss devolve null e o painel oferece o botão "Baixar".
@@ -532,6 +646,7 @@
   // peça baixada aqui entra no docsCache que baixarSelecionadas reaproveita).
   panel.onPreviewBaixar(async (id) => {
     if (busy) throw new Error("aguarde a resposta atual terminar para abrir a peça");
+    if (exportando) throw new Error("aguarde a exportação terminar para abrir a peça");
     if (!docsCache.has(id)) docsCache.set(id, await PJE.baixar(id));
     return docsCache.get(id);
   });
@@ -552,8 +667,18 @@
     for (const d of daTimeline) {
       const g = porId.get(d.id);
       vistos.add(d.id);
-      // título da timeline (o usuário reconhece) + tipo oficial da grid
-      out.push(g ? Object.assign({}, d, { tipo: g.tipo }) : d);
+      // título da timeline (o usuário reconhece) + os dados que só a grid tem:
+      // tipo oficial (usado por `categoriaDe`) e a procedência da juntada
+      // (data e autor), que alimentam o índice da exportação em ZIP.
+      out.push(
+        g
+          ? Object.assign({}, d, {
+              tipo: g.tipo,
+              juntadoEm: g.juntadoEm,
+              juntadoPor: g.juntadoPor,
+            })
+          : d
+      );
     }
     for (const g of docsDaGrid) if (!vistos.has(g.id)) out.push(g);
     return out;
@@ -978,16 +1103,22 @@
     });
   }
 
-  // Dispara o download de um texto no navegador (Blob + âncora; sem a permissão
-  // "downloads") — markdown do mapa mental e da minuta.
-  function baixarTexto(filename, texto, mime) {
-    const blob = new Blob([texto], { type: mime || "text/plain;charset=utf-8" });
+  // Dispara o download de um Blob no navegador (âncora com `download`; SEM a
+  // permissão "downloads", que mudaria o aviso de instalação da Web Store).
+  // Usado pelo markdown do mapa e da minuta e pelo .zip das peças.
+  function baixarBlob(filename, blob) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = filename;
     a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    // A revogação precisa de folga: o Chrome lê o blob DEPOIS do clique, e um
+    // .zip de centenas de MB leva um tempo perceptível para ser gravado.
+    setTimeout(() => URL.revokeObjectURL(url), 120000);
+  }
+
+  function baixarTexto(filename, texto, mime) {
+    baixarBlob(filename, new Blob([texto], { type: mime || "text/plain;charset=utf-8" }));
   }
 
   // Rótulo humano de uma citação da API: "Peça, fl(s). X[–Y]" (fim exclusivo)
@@ -1173,7 +1304,12 @@
 
     // Camada 2: refinamento em segundo plano (downloads + uploads + count).
     estTimer = setTimeout(async () => {
-      if (busy) return;
+      // `exportando` entra aqui, e não na guarda de cima: a estimativa LOCAL
+      // (camada 1) é de graça e pode continuar durante a exportação, mas este
+      // refinamento BAIXA peças — e a exportação já está usando a sessão JSF,
+      // que é serializada. Duas frentes de download só se atrapalhariam, e as
+      // ativações da própria exportação re-disparam este handler o tempo todo.
+      if (busy || exportando) return;
       // mesma seleção e mesma conversa da última medição precisa: pula
       const chave = ids.slice().sort().join(",") + "|" + conversation.length;
       if (chave === ultimaChaveEst) return;
@@ -1250,8 +1386,17 @@
     }, 900);
   });
 
+  // Exportação e turno disputariam a MESMA sessão JSF (o download do PJe é
+  // serializado). Em vez de deixar os dois se atrapalharem em silêncio — com o
+  // usuário vendo só lentidão —, o segundo é recusado com o motivo.
+  function bloqueadoPelaExportacao() {
+    if (!exportando) return false;
+    panel.setStatus("Exportação em andamento. Aguarde o .zip terminar ou clique em Cancelar.");
+    return true;
+  }
+
   panel.onSend(async (text, selectedIds) => {
-    if (busy) return;
+    if (busy || bloqueadoPelaExportacao()) return;
     if (selectedIds.length === 0) {
       panel.setStatus("Marque ao menos uma peça — na lista acima ou digitando @ no campo.");
       return;
@@ -1626,7 +1771,7 @@
   }
 
   panel.onMinuta(async (text, selectedIds, modelos) => {
-    if (busy) return;
+    if (busy || bloqueadoPelaExportacao()) return;
     if (selectedIds.length === 0) {
       panel.setStatus("Marque as peças que devem embasar a minuta.");
       return;
@@ -1890,7 +2035,7 @@
     " imagens, HTML, fórmulas nem numeração de tópicos.";
 
   panel.onMapa(async (text, selectedIds) => {
-    if (busy) return;
+    if (busy || bloqueadoPelaExportacao()) return;
     if (selectedIds.length === 0) {
       panel.setStatus("Marque as peças que devem embasar o mapa mental.");
       return;

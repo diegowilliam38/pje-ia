@@ -45,6 +45,110 @@ var PJE = (function () {
     return (numeroCache = null);
   }
 
+  // ==========================================================================
+  // Cabeçalho do processo (classe, assunto, partes…) — para a exportação
+  // ==========================================================================
+  //
+  // O painel de detalhes dos Autos Digitais é a ficha do processo, e sai de
+  // graça do DOM que já está na tela. Sem ela, um ZIP das peças chega ao
+  // destino sem dizer de que ação se trata, quem são as partes ou qual o valor
+  // discutido — informação que está a um seletor de distância.
+  //
+  // A leitura é BEST-EFFORT em todos os níveis (qualquer falha vira null e a
+  // exportação segue sem a ficha): é um enfeite valioso, nunca um requisito.
+
+  // "JOSE SIDOU DA SILVA - CPF: 170.373.523-49 (AUTOR)"
+  // "JOSUE CALEBE ... - OAB CE53045 - CPF: 073.706.313-03 (ADVOGADO)"
+  // "BANCO ITAU CONSIGNADO S.A. - CNPJ: 33.885.724/0001-19 (REU)"
+  //
+  // O papel vem entre parênteses NO FIM, e é o que distingue autor de réu e
+  // parte de advogado. Puro e exportado para teste — o formato é do PJe, não
+  // do navegador.
+  function parsePessoa(linha) {
+    const t = limparCelula(linha);
+    if (!t) return null;
+    const mPapel = t.match(/\(([^()]+)\)\s*$/);
+    const papel = mPapel ? mPapel[1].trim() : null;
+    const semPapel = (mPapel ? t.slice(0, mPapel.index) : t).trim();
+    const mDoc = semPapel.match(/\b(CPF|CNPJ)\s*:\s*([\d.\-/]+)/i);
+    const mOab = semPapel.match(/\bOAB\s*([A-Z]{2}\s*[\w.-]+)/i);
+    // O nome é tudo que vem ANTES do primeiro " - CPF/CNPJ/OAB". Cortar no
+    // primeiro hífen quebraria "BANCO ITAU CONSIGNADO S.A." e todo nome
+    // composto com hífen.
+    const nome = semPapel
+      .split(/\s+-\s+(?:CPF|CNPJ|OAB)\b/i)[0]
+      .trim()
+      .replace(/[\s-]+$/, "");
+    if (!nome) return null;
+    return {
+      nome,
+      papel,
+      documento: mDoc ? mDoc[2] : null,
+      tipoDocumento: mDoc ? mDoc[1].toUpperCase() : null,
+      oab: mOab ? mOab[1].replace(/\s+/g, "") : null,
+      texto: t,
+    };
+  }
+
+  // Um polo (#poloAtivo / #poloPassivo): cada <td> é uma parte, e a <ul> que
+  // ele contém traz os representantes dela.
+  function lerPolo(sel) {
+    const box = document.querySelector(sel);
+    if (!box) return null;
+    const partes = [];
+    for (const td of box.querySelectorAll("tbody tr td")) {
+      // O titular é o texto do <td> SEM a árvore de representantes; ler o
+      // textContent inteiro colaria o nome do advogado no da parte.
+      const clone = td.cloneNode(true);
+      clone.querySelectorAll("ul").forEach((u) => u.remove());
+      const titular = parsePessoa(clone.textContent);
+      if (!titular) continue;
+      const representantes = [];
+      for (const li of td.querySelectorAll("ul li")) {
+        const p = parsePessoa(li.textContent);
+        if (p) representantes.push(p);
+      }
+      partes.push(Object.assign(titular, { representantes }));
+    }
+    return partes.length ? partes : null;
+  }
+
+  // Ficha completa: {campos:{rótulo->valor}, poloAtivo, poloPassivo, numero}.
+  function lerCabecalhoProcesso() {
+    try {
+      const campos = {};
+      const det = document.querySelector("#maisDetalhes");
+      if (det) {
+        // Os pares vivem em VÁRIOS <dl class="dl-horizontal"> irmãos (o PJe
+        // quebra órgão julgador, cargo e competência em blocos próprios), por
+        // isso varremos todos em vez de pegar o primeiro.
+        for (const dl of det.querySelectorAll("dl")) {
+          let rotulo = null;
+          for (const el of dl.children) {
+            if (el.tagName === "DT") {
+              rotulo = limparCelula(el.textContent).replace(/\s*[:?]+$/, "");
+            } else if (el.tagName === "DD" && rotulo) {
+              // <dd> pode conter uma <ul> (Assunto costuma ser lista)
+              const itens = [...el.querySelectorAll("li")]
+                .map((li) => limparCelula(li.textContent))
+                .filter(Boolean);
+              const valor = itens.length ? itens.join("; ") : limparCelula(el.textContent);
+              if (valor) campos[rotulo] = valor;
+              rotulo = null;
+            }
+          }
+        }
+      }
+      const poloAtivo = lerPolo("#poloAtivo");
+      const poloPassivo = lerPolo("#poloPassivo");
+      if (!Object.keys(campos).length && !poloAtivo && !poloPassivo) return null;
+      return { numero: getNumeroProcesso(), campos, poloAtivo, poloPassivo };
+    } catch (e) {
+      console.debug("[PJe IA] cabeçalho do processo:", e && e.message);
+      return null;
+    }
+  }
+
   // Varre a timeline (#divTimeLine) e devolve [{id, titulo}] sem duplicatas.
   function listarDocumentos() {
     const links = [...document.querySelectorAll("#divTimeLine a")];
@@ -356,7 +460,11 @@ var PJE = (function () {
       const pages = await contarPaginas(blob);
       console.debug("[PJe IA] peça", id, "PDF de", blob.size, "bytes,", pages, "página(s)");
       const b64 = await blobToB64(blob);
-      return { kind: "pdf", b64, size: blob.size, pages };
+      // `fmt` guarda o formato de ORIGEM da peça. `kind` diz como o conteúdo
+      // viaja daqui em diante (pdf x texto) e é o que o envio usa; `fmt`
+      // preserva a distinção que o `kind` achata — HTML e RTF viram ambos
+      // "text" — e é o que a exportação em ZIP registra no índice.
+      return { kind: "pdf", fmt: "pdf", b64, size: blob.size, pages };
     }
     // blob.text() decodifica sempre UTF-8; honra o charset do header quando
     // outro (PJe legado pode servir HTML em ISO-8859-1 — acentuação).
@@ -381,7 +489,7 @@ var PJE = (function () {
       );
       text = extraido.trim();
       if (!text) return null;
-      return { kind: "text", text };
+      return { kind: "text", fmt: "rtf", text };
     }
     // Peças HTML: extrai só o texto legível (sem tags/scripts) para o modelo.
     if (ct.includes("html")) {
@@ -396,7 +504,7 @@ var PJE = (function () {
     text = text.trim();
     console.debug("[PJe IA] peça", id, "texto de", text.length, "chars (" + ct + ")");
     if (!text) return null;
-    return { kind: "text", text };
+    return { kind: "text", fmt: ct.includes("html") ? "html" : "texto", text };
   }
 
   // Rola a timeline do PJe até a peça e a destaca com um flash temporário.
@@ -611,11 +719,30 @@ var PJE = (function () {
     return null;
   }
 
+  // Colunas que viram campo próprio. As DEMAIS não são descartadas: vão para
+  // `extras`, porque a grid varia de tribunal para tribunal (sigilo, matéria,
+  // órgão, situação…) e um parser que só lê as cinco que eu conheço joga fora
+  // exatamente o que aquele tribunal tem de particular. Como o mapa de colunas
+  // é lido do cabeçalho, colunas novas entram sozinhas.
+  const COLUNAS_PROPRIAS = new Set(["id", "documento", "tipo", "juntado em", "juntado por"]);
+
   function lerLinhas(tb, mapa) {
     const out = [];
     const cel = (tds, nome) => {
       const i = mapa[semAcento(nome)];
       return i == null || !tds[i] ? "" : limparCelula(tds[i].textContent);
+    };
+    const extrasDe = (tds) => {
+      const ex = {};
+      for (const nome of Object.keys(mapa)) {
+        if (COLUNAS_PROPRIAS.has(nome)) continue;
+        const i = mapa[nome];
+        const v = tds[i] ? limparCelula(tds[i].textContent) : "";
+        // Colunas de ação (o ícone de download, o checkbox) chegam vazias —
+        // guardá-las só encheria o índice de campos sem valor.
+        if (v) ex[nome] = v;
+      }
+      return ex;
     };
     for (const tr of tb.querySelectorAll("tr")) {
       const tds = [...tr.children].filter((c) => c.tagName === "TD");
@@ -632,6 +759,7 @@ var PJE = (function () {
         tipo,
         juntadoEm: cel(tds, "juntado em"),
         juntadoPor: cel(tds, "juntado por"),
+        extras: extrasDe(tds),
       });
     }
     return out;
@@ -841,6 +969,7 @@ var PJE = (function () {
     getBase,
     getIdProcesso,
     getNumeroProcesso,
+    lerCabecalhoProcesso,
     listarDocumentos,
     baixar,
     scrollAte,
@@ -852,6 +981,7 @@ var PJE = (function () {
     _lerLinhas: lerLinhas,
     _limparCelula: limparCelula,
     _rtfParaTexto: rtfParaTexto,
+    _parsePessoa: parsePessoa,
     _urlsDownload: urlsDownload,
     _totalPaginasGrid: totalPaginasGrid,
   };

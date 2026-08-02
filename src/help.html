@@ -272,6 +272,41 @@
         </ul>
       </div>
 
+      <h1 class="serif">Levar os autos para fora: baixar tudo em .zip</h1>
+      <div class="card">
+        <p>Abaixo da lista de peças, ao lado de ⟳ Carregar todas as peças, o botão
+        <strong>⬇ Baixar .zip</strong> monta <strong>um único arquivo</strong> com as peças e
+        um índice. Serve para quando você quer trabalhar o processo fora da extensão — num
+        editor, num script, ou com uma ferramenta de IA que leia pastas, como o Claude Code.</p>
+        <p>Ele exporta as peças <strong>marcadas</strong>; sem nenhuma marcada, exporta
+        <strong>todas as da lista</strong>. Como o PJe entrega uma peça de cada vez, um
+        processo grande leva alguns minutos — o cartão de progresso mostra peça a peça e tem
+        botão <strong>Cancelar</strong>.</p>
+        <p>Dentro do .zip:</p>
+        <ul>
+          <li><strong><code>pecas/</code></strong> — um arquivo por peça, nomeado
+          <code>NNN_Titulo_id.ext</code>. O <strong>NNN</strong> é a posição da peça na ordem
+          do processo, então a pasta já aparece ordenada como os autos; o <strong>id</strong>
+          no nome é o número que reencontra a peça no PJe. Peças digitalizadas saem em
+          <code>.pdf</code>; as redigidas no editor do PJe saem em <code>.txt</code>, com o
+          texto já extraído.</li>
+          <li><strong><code>indice.txt</code></strong> — a ficha do processo (classe, assunto,
+          valor da causa, órgão julgador, partes e advogados) e <strong>uma linha por
+          peça</strong> com id, nome, tipo oficial, data e autor da juntada, formato, páginas
+          e tamanho.</li>
+          <li><strong><code>indice.json</code></strong> — os mesmos dados, para programas.</li>
+          <li><strong><code>LEIA-ME.md</code></strong> — explica a convenção de nomes e pede
+          que toda afirmação venha com a origem no formato
+          <code>(Título da peça, id 123456, fl. 7)</code>. É o que faz o pacote se explicar
+          sozinho para quem (ou o que) abrir a pasta depois.</li>
+        </ul>
+        <p class="warn-box"><strong>Cuidado com o arquivo.</strong> Ele contém as peças integrais e
+        dados pessoais das partes (CPF/CNPJ, OAB dos advogados). Se o processo correr em
+        segredo de justiça, o LEIA-ME e o índice avisam no topo — mas a guarda do arquivo
+        passa a ser sua. A extensão não pede a permissão de <em>downloads</em> do Chrome: ela
+        não enxerga nem gerencia a sua pasta de downloads.</p>
+      </div>
+
       <h1 class="serif">Editar e entregar a minuta</h1>
       <div class="card">
         <p>O botão <strong>✍️ Minutar</strong> pede ao modelo o texto de um ato e o abre num
