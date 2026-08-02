@@ -216,6 +216,25 @@ chat comum: funciona **em qualquer modelo**, Claude ou Gemini.
 > A minuta é uma sugestão de trabalho, não um ato: revise o texto e confira as citações
 > nos autos antes de usar.
 
+#### 📚 Modelos: a minuta sai no **seu** formato
+
+Cada gabinete tem seu jeito de escrever. Em **📚 Modelos** você cadastra as suas
+peças-modelo — sentenças, decisões, despachos, ofícios, atas, mandados — organizadas por
+espécie. Ao ligar o modo minuta, escolha a espécie em **Seguir modelos** e o assistente
+recebe as suas peças daquela categoria: ele analisa, adota como base a mais adequada ao
+caso e aproveita a estrutura das seções, as fórmulas de praxe e o linguajar das demais.
+
+**Os fatos nunca vêm do modelo.** O texto que você cadastra entra no pedido numa moldura
+com regra expressa de que serve **só de forma**: nome de parte, valor, data, dispositivo
+ou fundamento saem exclusivamente das peças do processo em tela — o que faltar vira
+`[COMPLETAR: …]`, como sempre. Quanto mais modelos da mesma espécie você cadastrar,
+melhor o assistente capta o seu estilo.
+
+Os modelos ficam **só neste navegador** (não sincronizam) e você os apaga quando quiser
+pela própria biblioteca. Como a minuta manda os autos inteiros **mais** os seus modelos,
+o recurso exige um modelo de IA com janela de **1 milhão de tokens** — no Haiku 4.5
+(padrão) o botão fica desativado, explicando o porquê.
+
 <!-- VITRINE: grave a tela "✍️ Minutar → Gerar minuta → editor" e salve como docs/minutar.gif;
      depois troque este comentário pelo bloco abaixo:
 <p align="center">
@@ -289,6 +308,7 @@ flowchart LR
 - [x] Preview de peças, modo lateral e "ver na timeline"
 - [x] Mapa mental interativo das peças (markmap), nos dois provedores
 - [x] Biblioteca de prompts do usuário (`/` no campo, sincronizada entre navegadores)
+- [x] Biblioteca de modelos de peças — a minuta segue a forma das **suas** peças
 - [ ] Compaction para conversas muito longas
 - [ ] Limpeza de uploads antigos na Files API
 - [x] Publicação na Chrome Web Store — v0.9.9 **aprovada e publicada**; atualização **v0.14.0** (rebrand TecJustiça PJe, Gemini, editor de minutas, mapa mental) em publicação

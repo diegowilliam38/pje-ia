@@ -397,6 +397,7 @@ var PjePanel = (function () {
                   <button class="btn-minuta" title="Liga o modo minuta: a instrução aparece no campo (edite à vontade) e o botão Enviar vira “Gerar minuta” — a resposta abre num editor de texto, em nova aba, de onde você copia para o PJe, baixa em Word (.docx) ou imprime.">📝 Minutar</button>
                   <button class="btn-mapa" title="Liga o modo mapa mental: a instrução aparece no campo (edite à vontade) e o botão Enviar vira “Gerar mapa” — a resposta abre num mapa mental interativo, em nova aba.">🧠 Mapa mental</button>
                   <button class="btn-plib" title="Seus prompts salvos: crie instruções reutilizáveis (título + texto) e insira-as na conversa digitando “/” no início do campo de mensagem. Sincronizam entre navegadores logados na mesma conta Google.">✦ Prompts</button>
+                  <button class="btn-mlib" title="Seus modelos de peças (sentenças, decisões, despachos, ofícios…): cadastre várias por categoria e, ao gerar uma minuta, escolha a categoria para o assistente seguir a estrutura e o estilo dos seus modelos — os fatos continuam saindo só das peças do processo.">📚 Modelos</button>
                 </div>
                 <div class="metarow">
                   <div class="gauge" hidden title="${GAUGE_TITLE}">
@@ -413,6 +414,10 @@ var PjePanel = (function () {
               <div class="minutabar" hidden>
                 <span class="docxbar-t">📝 <b>Modo minuta ligado</b> — revise a instrução abaixo e clique em <b>Gerar minuta</b>: a resposta abre num editor, em nova aba, pronta para revisar e levar ao PJe.</span>
                 <button class="minutabar-x" title="Cancelar a geração da minuta (Esc)">✕</button>
+                <label class="minuta-modelo" hidden>
+                  <span class="mm-lab">Seguir modelos:</span>
+                  <select class="minuta-modelo-sel" title="Escolha uma categoria: o assistente recebe as suas peças-modelo daquela espécie e segue a estrutura e o estilo da mais adequada ao caso — os fatos continuam vindo só das peças do processo."></select>
+                </label>
               </div>
               <div class="mapabar" hidden>
                 <span class="docxbar-t">🧠 <b>Modo mapa mental ligado</b> — revise a instrução abaixo e clique em <b>Gerar mapa</b>: a resposta vira um mapa mental interativo, que abre em nova aba.</span>
@@ -443,6 +448,28 @@ var PjePanel = (function () {
               <div class="plib-form-acts">
                 <button class="plib-cancel">Cancelar</button>
                 <button class="plib-save">Salvar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="mlib plib" hidden>
+          <div class="mlib-card plib-card" role="dialog" aria-modal="true" aria-label="Modelos de peças" tabindex="-1">
+            <div class="plib-hd">
+              <span class="t">📚 Modelos de peças</span>
+              <button class="mlib-new plib-new">✚ Novo</button>
+              <button class="mlib-close plib-close" title="Fechar (Esc)" aria-label="Fechar o gerenciador de modelos">✕</button>
+            </div>
+            <div class="mlib-list plib-list"></div>
+            <div class="mlib-form plib-form" hidden>
+              <input type="text" class="mlib-ft" maxlength="80" placeholder="Título do modelo (ex.: Sentença de improcedência — dano moral)" aria-label="Título do modelo">
+              <select class="mlib-fc" aria-label="Categoria do modelo"></select>
+              <input type="text" class="mlib-fd" maxlength="120" placeholder="Descrição — opcional (quando usar este modelo)" aria-label="Descrição do modelo">
+              <textarea class="mlib-fx" placeholder="Cole o texto da peça-modelo — o assistente imita a ESTRUTURA e o estilo; os fatos vêm sempre das peças do processo, nunca do modelo…" aria-label="Texto do modelo"></textarea>
+              <div class="mlib-cnt plib-cnt"></div>
+              <div class="mlib-err plib-err" role="alert"></div>
+              <div class="plib-form-acts">
+                <button class="mlib-cancel plib-cancel">Cancelar</button>
+                <button class="mlib-save plib-save">Salvar</button>
               </div>
             </div>
           </div>
@@ -884,6 +911,7 @@ var PjePanel = (function () {
         ? "Instrução da minuta — edite e clique em Gerar minuta…"
         : "Pergunte sobre as peças… (@ cita uma peça)";
       if (!on) statusEl.textContent = "";
+      atualizarSeletorMinuta(on); // popula/oculta o seletor de peça-modelo
     }
     btnMinuta.addEventListener("click", () => {
       if (minutaMode) return setMinutaMode(false); // segundo clique = cancelar
@@ -2021,6 +2049,353 @@ var PjePanel = (function () {
       abrirPlib(promptsLib.length ? {} : { form: true })
     );
 
+    // ----- Biblioteca de MODELOS (peças-modelo, MLIB/storage.local) ----------
+    // Irmã do PLIB, com dois papéis: (1) o modal .mlib faz o CRUD (título,
+    // categoria, descrição, texto); (2) o seletor da .minutabar escolhe uma
+    // CATEGORIA e, ao gerar a minuta, TODAS as peças-modelo daquela espécie
+    // (até um teto) vão ao request numa moldura XML (content.js): a IA analisa,
+    // escolhe a base mais adequada e pode aproveitar estrutura e linguajar das
+    // outras — mas os FATOS saem só das peças do processo, NUNCA dos modelos.
+    // Ao contrário do prompt, um modelo não é despejado no textarea: ele só
+    // acompanha o turno da minuta.
+    const btnMlib = $(".btn-mlib");
+    const BTN_MLIB_TITLE_ON = btnMlib ? btnMlib.title : ""; // título de HTML (reusado ao reabilitar)
+    const mlibEl = $(".mlib");
+    const mlibCard = $(".mlib-card");
+    const mlibListEl = $(".mlib-list");
+    const mlibForm = $(".mlib-form");
+    const mlibFT = $(".mlib-ft");
+    const mlibFC = $(".mlib-fc");
+    const mlibFD = $(".mlib-fd");
+    const mlibFX = $(".mlib-fx");
+    const mlibCnt = $(".mlib-cnt");
+    const mlibErr = $(".mlib-err");
+    const minutaModeloWrap = $(".minuta-modelo");
+    const minutaModeloSel = $(".minuta-modelo-sel");
+
+    let modelosLib = []; // espelho ordenado de MLIB.listar
+    let mlibEditId = null;
+    let mlibIdNovo = "";
+    let mlibDelArm = null;
+    // A biblioteca de modelos só faz sentido em modelos de 1M tokens (a minuta
+    // manda os autos inteiros + vários modelos): setModelosHabilitado, chamado
+    // pelo content.js quando as caps chegam, desliga a feature nos menores
+    // (Haiku). Começa true para não sumir no harness de teste (sem caps).
+    let modelosHabilitado = true;
+
+    // MLIB é content script carregado antes deste; o harness de teste pode não
+    // incluí-lo — sem ele a feature some em silêncio, nada quebra.
+    const temMlib = typeof MLIB !== "undefined";
+    if (temMlib) {
+      // popula o <select> de categoria do form uma única vez
+      for (const c of MLIB.CATEGORIAS) {
+        const op = document.createElement("option");
+        op.value = c.valor;
+        op.textContent = c.rotulo;
+        mlibFC.appendChild(op);
+      }
+      MLIB.listar((ms) => {
+        modelosLib = ms;
+        if (minutaMode) atualizarSeletorMinuta(true);
+      });
+      MLIB.aoMudar((ms) => {
+        modelosLib = ms;
+        if (!mlibEl.hidden) renderMlibList();
+        if (minutaMode) atualizarSeletorMinuta(true);
+      });
+    } else {
+      if (btnMlib) btnMlib.hidden = true;
+      if (minutaModeloWrap) minutaModeloWrap.hidden = true;
+    }
+
+    // Detecção da espécie a partir da instrução, para PRÉ-selecionar a
+    // categoria no seletor. Espelha o agrupamento de MINUTA_ESPECIE
+    // (content.js); é só uma conveniência de UI (o usuário pode trocar).
+    function detectarCategoria(texto) {
+      const s = norm(String(texto || ""));
+      if (/\bsentenc/.test(s)) return "sentenca";
+      if (/\bdespacho/.test(s)) return "despacho";
+      if (/\b(decisao|decisoes|voto|acordao|acordaos|liminar|tutela)\b/.test(s)) return "decisao";
+      if (/\b(ata|audiencia|termo de audiencia)\b/.test(s)) return "ata";
+      if (/\boficio/.test(s)) return "oficio";
+      if (/\b(mandado|alvara)\b/.test(s)) return "mandado";
+      return null;
+    }
+
+    // Reconstrói o <select> do modo minuta: uma opção por CATEGORIA que tenha
+    // modelos, com a contagem. Preserva a escolha MANUAL anterior; sem ela,
+    // pré-seleciona pela categoria detectada na instrução.
+    function popularSeletorModelos(preselCat) {
+      if (!minutaModeloSel) return;
+      const anterior = minutaModeloSel.value; // valor = categoria
+      minutaModeloSel.innerHTML = "";
+      const nenhum = document.createElement("option");
+      nenhum.value = "";
+      nenhum.textContent = "— nenhum (estilo padrão) —";
+      minutaModeloSel.appendChild(nenhum);
+      const comModelo = new Set();
+      for (const cat of MLIB.CATEGORIAS) {
+        const n = modelosLib.filter((m) => (m.categoria || "outro") === cat.valor).length;
+        if (!n) continue;
+        comModelo.add(cat.valor);
+        const op = document.createElement("option");
+        op.value = cat.valor;
+        op.textContent = cat.rotulo + " (" + n + ")";
+        minutaModeloSel.appendChild(op);
+      }
+      if (anterior && comModelo.has(anterior)) minutaModeloSel.value = anterior;
+      else if (preselCat && comModelo.has(preselCat)) minutaModeloSel.value = preselCat;
+      // sem categoria detectada e só UMA categoria com modelos: pré-seleciona
+      // essa — a feature "acontece" sem exigir um clique a mais (o usuário
+      // ainda pode voltar para "nenhum")
+      else if (comModelo.size === 1) minutaModeloSel.value = comModelo.values().next().value;
+      else minutaModeloSel.value = "";
+    }
+
+    // Modelos enviados por minuta: TODOS os da categoria escolhida, do mais
+    // recente ao mais antigo, até dois tetos — nº de modelos e total de
+    // caracteres (guarda de contexto: a minuta não tem pré-voo de tokens). O
+    // primeiro modelo sempre entra, mesmo acima do teto de caracteres.
+    const MODELOS_MAX_ENVIO = 12;
+    const MODELOS_TETO_CHARS = 180000; // ~45 mil tokens no total
+    function modelosMinutaSelecionados() {
+      if (!minutaModeloSel || !minutaModeloWrap || minutaModeloWrap.hidden) return [];
+      const cat = minutaModeloSel.value;
+      if (!cat) return [];
+      const doGrupo = modelosLib
+        .filter((m) => (m.categoria || "outro") === cat && m.texto)
+        .sort((a, b) => (b.atualizadoEm || 0) - (a.atualizadoEm || 0));
+      const out = [];
+      let chars = 0;
+      for (const m of doGrupo) {
+        if (out.length >= MODELOS_MAX_ENVIO) break;
+        const tam = String(m.texto).length;
+        if (out.length && chars + tam > MODELOS_TETO_CHARS) break;
+        out.push(m);
+        chars += tam;
+      }
+      // "sem cap silencioso": avisa no console quando corta modelos da categoria
+      if (doGrupo.length > out.length) {
+        try {
+          console.info(
+            "[PJe IA] minuta: enviando " + out.length + " de " + doGrupo.length +
+              " modelos da categoria (teto de contexto)."
+          );
+        } catch (e) {}
+      }
+      return out;
+    }
+
+    // Mostra/esconde e popula o seletor conforme o modo minuta, a existência de
+    // modelos e o modelo ativo (só 1M). Chamada por setMinutaMode, pelo aoMudar
+    // do MLIB e por setModelosHabilitado.
+    function atualizarSeletorMinuta(on) {
+      if (!minutaModeloWrap) return;
+      if (!on || !temMlib || !modelosHabilitado || !modelosLib.length) {
+        minutaModeloWrap.hidden = true;
+        return;
+      }
+      popularSeletorModelos(detectarCategoria(inEl.value));
+      minutaModeloWrap.hidden = false;
+    }
+
+    // Liga/desliga toda a feature de modelos conforme a janela do modelo ativo
+    // (1M tokens). Em vez de SUMIR nos menores (o usuário ficaria sem saber por
+    // quê), o botão do CRUD fica DESABILITADO com tooltip explicando; o seletor
+    // da minuta some (o botão já é a explicação) e o modal fecha se aberto.
+    // O texto NÃO lista modelos por nome de propósito: o gate é por capacidade
+    // (janela de 1M) e o catálogo muda — uma lista aqui envelheceria calada.
+    const BTN_MLIB_TITLE_OFF =
+      "A biblioteca de modelos precisa de uma janela de 1 milhão de tokens: a minuta " +
+      "manda os autos inteiros e ainda os seus modelos. O modelo de IA ativo tem uma " +
+      "janela menor — troque nas opções da extensão para usá-la.";
+    function setModelosHabilitado(on) {
+      modelosHabilitado = !!on;
+      if (btnMlib) {
+        btnMlib.hidden = !temMlib; // some só no harness sem MLIB
+        btnMlib.disabled = temMlib && !modelosHabilitado;
+        if (temMlib && !modelosHabilitado) btnMlib.title = BTN_MLIB_TITLE_OFF;
+        else if (temMlib) btnMlib.title = BTN_MLIB_TITLE_ON;
+      }
+      if (!modelosHabilitado && mlibEl && !mlibEl.hidden) fecharMlib();
+      if (minutaMode) atualizarSeletorMinuta(true);
+    }
+
+    // ----- Gerenciador de modelos (modal .mlib) -----
+    function abrirMlib(opts) {
+      opts = opts || {};
+      mlibEl.hidden = false;
+      mlibDelArm = null;
+      if (opts.form) abrirMlibForm(null);
+      else fecharMlibForm();
+      renderMlibList();
+      if (!opts.form) mlibCard.focus();
+    }
+
+    function fecharMlib() {
+      mlibEl.hidden = true;
+      fecharMlibForm();
+      inEl.focus();
+    }
+
+    function abrirMlibForm(m) {
+      mlibEditId = m ? m.id : null;
+      mlibIdNovo = m ? null : temMlib ? MLIB.novoId() : "";
+      mlibFT.value = m ? m.titulo : "";
+      mlibFC.value = m ? m.categoria || "outro" : "sentenca";
+      mlibFD.value = m ? m.descricao || "" : "";
+      mlibFX.value = m ? m.texto : "";
+      mlibErr.textContent = "";
+      mlibForm.hidden = false;
+      mlibListEl.hidden = true;
+      atualizarMlibCnt();
+      mlibFT.focus();
+    }
+
+    function fecharMlibForm() {
+      mlibEditId = null;
+      mlibForm.hidden = true;
+      mlibListEl.hidden = false;
+      mlibErr.textContent = "";
+    }
+
+    function modeloDoForm() {
+      const agora = Date.now();
+      const antigo = mlibEditId && modelosLib.find((x) => x.id === mlibEditId);
+      return {
+        id: mlibEditId || mlibIdNovo,
+        titulo: mlibFT.value.trim(),
+        categoria: mlibFC.value || "outro",
+        descricao: mlibFD.value.trim(),
+        texto: mlibFX.value.trim(),
+        criadoEm: antigo ? antigo.criadoEm : agora,
+        atualizadoEm: agora,
+      };
+    }
+
+    function atualizarMlibCnt() {
+      if (!temMlib) return;
+      const b = MLIB.bytesDe(modeloDoForm());
+      const pct = Math.min(999, Math.round((b / MLIB.TETO_BYTES) * 100));
+      mlibCnt.textContent = mlibFX.value.length + " caracteres — " + pct + "% do limite";
+      mlibCnt.classList.toggle("estouro", b > MLIB.TETO_BYTES);
+    }
+    if (temMlib) {
+      mlibFT.addEventListener("input", atualizarMlibCnt);
+      mlibFD.addEventListener("input", atualizarMlibCnt);
+      mlibFX.addEventListener("input", atualizarMlibCnt);
+      // Enter no título salva (o texto é multilinha e mantém o Enter próprio)
+      mlibFT.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          salvarMlibForm();
+        }
+      });
+    }
+
+    function renderMlibList() {
+      mlibDelArm = null;
+      mlibListEl.innerHTML = "";
+      if (!modelosLib.length) {
+        mlibListEl.innerHTML =
+          '<div class="plib-empty">Nenhum modelo cadastrado ainda.<br>Clique em <b>✚ Novo</b> para cadastrar sua primeira peça-modelo — depois, ao gerar uma minuta, escolha a categoria em <b>Seguir modelos</b>.</div>';
+        return;
+      }
+      for (const m of modelosLib) {
+        const row = document.createElement("div");
+        row.className = "plib-row";
+        row.dataset.id = m.id;
+        const prev = m.descricao || previaDe(m.texto);
+        row.innerHTML =
+          '<div class="plib-info"><span class="plib-t" title="' + escapeHtml(m.titulo) + '">' +
+          '<span class="mlib-cat">' + escapeHtml(MLIB.rotuloCategoria(m.categoria)) + "</span>" +
+          escapeHtml(m.titulo) +
+          '</span><span class="plib-prev">' + escapeHtml(prev) + "</span></div>" +
+          '<div class="plib-acts">' +
+          '<button class="mlib-edit" title="Editar este modelo">editar</button>' +
+          '<button class="mlib-del plib-del" title="Excluir este modelo">excluir</button></div>';
+        mlibListEl.appendChild(row);
+      }
+    }
+
+    // ações DELEGADAS na lista (as rows são recriadas a cada render)
+    mlibListEl.addEventListener("click", (e) => {
+      const btn = e.target.closest("button");
+      const row = e.target.closest(".plib-row");
+      if (!btn || !row) return;
+      const m = modelosLib.find((x) => x.id === row.dataset.id);
+      if (!m) return;
+      if (btn.classList.contains("mlib-edit")) {
+        abrirMlibForm(m);
+      } else if (btn.classList.contains("mlib-del")) {
+        // exclusão em DOIS cliques (nunca confirm() nativo — congela a página)
+        if (mlibDelArm !== m.id) {
+          mlibListEl.querySelectorAll(".mlib-del.arm").forEach((b) => {
+            b.textContent = "excluir";
+            b.classList.remove("arm");
+          });
+        }
+        if (mlibDelArm === m.id) {
+          mlibDelArm = null;
+          MLIB.excluir(m.id, () => {
+            modelosLib = modelosLib.filter((x) => x.id !== m.id);
+            renderMlibList();
+          });
+        } else {
+          mlibDelArm = m.id;
+          btn.textContent = "excluir?";
+          btn.classList.add("arm");
+        }
+      }
+    });
+
+    function salvarMlibForm() {
+      const m = modeloDoForm();
+      if (!m.titulo) {
+        mlibErr.textContent = "Dê um título ao modelo.";
+        mlibFT.focus();
+        return;
+      }
+      if (!m.texto) {
+        mlibErr.textContent = "Cole o texto da peça-modelo.";
+        mlibFX.focus();
+        return;
+      }
+      MLIB.salvar(m, (erro) => {
+        if (erro) {
+          mlibErr.textContent = "Não foi possível salvar: " + erro;
+          return;
+        }
+        modelosLib = modelosLib
+          .filter((x) => x.id !== m.id)
+          .concat(m)
+          .sort((a, b) => String(a.titulo).localeCompare(String(b.titulo), "pt-BR"));
+        fecharMlibForm();
+        renderMlibList();
+      });
+    }
+    if (temMlib) {
+      mlibCard.querySelector(".mlib-save").addEventListener("click", salvarMlibForm);
+      mlibCard.querySelector(".mlib-cancel").addEventListener("click", fecharMlibForm);
+      mlibCard.querySelector(".mlib-new").addEventListener("click", () => abrirMlibForm(null));
+      mlibCard.querySelector(".mlib-close").addEventListener("click", fecharMlib);
+      mlibEl.addEventListener("click", (e) => {
+        if (e.target === mlibEl) fecharMlib();
+      });
+      // Esc no modal: fecha o form (se aberto) ou o modal — e NÃO vaza para o
+      // Esc do painel (que cancelaria o modo minuta junto)
+      mlibCard.addEventListener("keydown", (e) => {
+        if (e.key !== "Escape") return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (!mlibForm.hidden) fecharMlibForm();
+        else fecharMlib();
+      });
+      btnMlib.addEventListener("click", () =>
+        abrirMlib(modelosLib.length ? {} : { form: true })
+      );
+    }
+
     inEl.addEventListener("input", () => {
       autoresize();
       updateMention();
@@ -2060,8 +2435,10 @@ var PjePanel = (function () {
           statusEl.textContent = "Marque as peças que devem embasar a minuta.";
           return;
         }
+        // lê os modelos da categoria ANTES de desligar o modo (o seletor some)
+        const modelos = modelosMinutaSelecionados();
         setMinutaMode(false);
-        minutaCb(t, sel);
+        minutaCb(t, sel, modelos);
         inEl.value = "";
         inEl.style.height = "auto";
         setPromptAtivo(null); // consumido no envio
@@ -2467,6 +2844,9 @@ var PjePanel = (function () {
       onMapa(cb) {
         mapaCb = cb;
       },
+      // Habilita a biblioteca de modelos só nos modelos de 1M tokens (chamada
+      // pelo content.js quando as caps chegam/mudam).
+      setModelosHabilitado,
       // Resultado do mapa mental: em vez do markdown cru (longo e repetitivo)
       // a bolha vira um card com as ações, e o texto fica num <details>
       // recolhido. O card é escrito no __body da bolha — depois disso NÃO se
