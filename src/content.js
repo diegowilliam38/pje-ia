@@ -149,10 +149,16 @@
   function toolsBusca() {
     if (!modelCaps) return [];
     if (modelCaps.provider === "gemini") return [{ type: "google_search" }];
-    // OpenAI: web_search embutida da Responses API. Não declara allowed_domains
-    // (a priorização de fontes .jus.br vai por instrução no system prompt, como
-    // no Gemini — SYSTEM_PROMPT_CIT_TEXTUAL).
-    if (modelCaps.provider === "openai") return [{ type: "web_search" }];
+    // OpenAI: web_search embutida da Responses API (o tipo antigo
+    // "web_search_preview" é legado e não aceita os controles novos). Aqui a
+    // restrição de domínios EXISTE — vai em `filters.allowed_domains` (teto de
+    // 100 domínios, nomes sem protocolo) —, ao contrário do Gemini, que não
+    // tem o recurso. Sem ela a busca de jurisprudência varreria a web inteira
+    // e devolveria blog no lugar de fonte oficial: num uso jurídico isso não é
+    // detalhe, e deixaria o GPT pior que o Claude sem motivo técnico.
+    if (modelCaps.provider === "openai") {
+      return [{ type: "web_search", filters: { allowed_domains: DOMINIOS_JURIDICOS } }];
+    }
     return [
       {
         type: modelCaps.webSearch,
