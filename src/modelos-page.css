@@ -27,7 +27,7 @@ body {
   align-items: center;
   gap: 12px;
   padding: 9px 16px;
-  background: linear-gradient(180deg, var(--pje), var(--pje-2));
+  background: linear-gradient(96deg, var(--hd-de) 0%, var(--hd-para) 100%);
   color: #fff;
   box-shadow: 0 1px 4px rgba(5, 32, 46, 0.25);
   flex: none;
@@ -61,7 +61,7 @@ button {
 }
 .topo button:hover { background: rgba(255, 255, 255, 0.26); }
 .primario {
-  background: linear-gradient(180deg, var(--pje), var(--pje-2));
+  background: linear-gradient(96deg, var(--hd-de) 0%, var(--hd-para) 100%);
   color: #fff;
   font-weight: 700;
   border-color: var(--pje-2);
@@ -131,7 +131,7 @@ body.editando .topo .acoes { visibility: hidden; }
   gap: 8px;
   margin: 0;
   padding: 9px 14px;
-  font-family: Georgia, serif;
+  font-family: var(--ff-serif);
   font-size: 13.5px;
   font-weight: 400;
   color: var(--pje-2);
@@ -223,7 +223,7 @@ body.editando .topo .acoes { visibility: hidden; }
   border-radius: 12px;
 }
 .vazio-pg svg { color: #b8c4cd; }
-.vazio-pg .vt { font-family: Georgia, serif; font-size: 17px; color: #1a2730; margin-top: 2px; }
+.vazio-pg .vt { font-family: var(--ff-serif); font-size: 17px; color: #1a2730; margin-top: 2px; }
 .vazio-pg .vd {
   font-size: 13.5px;
   color: var(--muted);
@@ -255,6 +255,23 @@ body.editando .topo .acoes { visibility: hidden; }
   letter-spacing: 0.02em;
 }
 .campo .rot i { font-weight: 400; font-style: normal; color: var(--muted); }
+/* ação secundária dentro do rótulo do campo (importar .docx) — fica junto do
+   que ela afeta, em vez de somar mais um botão à barra do formulário */
+.campo .rot { display: flex; align-items: center; gap: 10px; }
+.campo .rot .mini {
+  margin-left: auto;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: var(--r-sm, 7px);
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  color: var(--pje);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.campo .rot .mini:hover { background: var(--hover-2); border-color: var(--pje); }
+.campo .rot .mini:disabled { opacity: 0.6; cursor: default; }
 .campo input,
 .campo select,
 .campo textarea {
@@ -275,14 +292,14 @@ body.editando .topo .acoes { visibility: hidden; }
   resize: vertical;
   line-height: 1.55;
   /* o conteúdo é uma peça jurídica: serifada, como sairá na minuta */
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--ff-serif);
   font-size: 14.5px;
 }
 .campo input:focus,
 .campo select:focus,
 .campo textarea:focus {
   border-color: var(--pje);
-  box-shadow: 0 0 0 3px rgba(0, 120, 170, 0.15);
+  box-shadow: 0 0 0 3px rgba(18, 114, 159, 0.15);
 }
 .campo .dica { display: block; font-size: 11.5px; color: var(--muted); margin-top: 5px; }
 .campo .dica.estouro { color: #a5301f; font-weight: 700; }

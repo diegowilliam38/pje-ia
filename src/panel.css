@@ -7,21 +7,65 @@
 [hidden] { display: none !important; }
 
 .wrap {
-  --pje: #0078aa;      /* azul-petróleo da barra do PJe */
-  --pje-2: #005f88;    /* escurecido — gradientes, hover, texto de links */
-  --pje-soft: #62a9c7; /* azul claro da timeline do PJe */
-  --ink: #0a3d5c;      /* petróleo escuro — títulos */
-  --ink-2: #08314a;
+  /* ---------------------------------------------------------------------
+     TOKENS — ver DESIGN.md (raiz do repo) antes de mudar qualquer valor.
+     Estes nomes são espelhados em ui.css/editor.css/modelos-page.css: ao
+     alterar um token aqui, altere lá também (o painel vive em Shadow DOM e
+     não pode importar o CSS das páginas).
+     --------------------------------------------------------------------- */
+  --pje: #12729f;      /* primária — ações, links, foco, badges */
+  --pje-2: #0f5f85;    /* hover da primária, texto de link */
+  --pje-3: #0d5b80;    /* hover de link, pressionado */
+  --pje-soft: #8ba4b4; /* medidores, eyebrow */
+  --hd-de: #0f4d72;    /* gradiente do cabeçalho — 96deg */
+  --hd-para: #1a6d9c;
+  --ink: #0f3346;      /* títulos serifados */
+  --ink-2: #0b2a3a;
   --paper: #f6f9fb;
-  --line: #d9e4ea;
-  --text: #22303f;
-  --muted: #5d6b7a;
-  /* categorias de peças (destaque na lista, chips e popup @) */
-  --cat-decisao: #a8752f;   /* dourado queimado — atos do juízo */
-  --cat-audiencia: #2e7d4f; /* verde — atas e audiências */
-  --cat-peticao: #2f5583;   /* azul — peças das partes */
-  --cat-prova: #7a5c94;     /* violeta — laudos e pareceres */
-  --cat-outro: #b3bec8;     /* neutro — demais documentos */
+  --canvas: #e9eef3;   /* fundo atrás das páginas */
+  --text: #123240;
+  --text-2: #1b3d4f;   /* itens de lista */
+  --text-3: #2b566d;   /* rótulos de botão secundário */
+  --muted: #6b8494;
+  --muted-2: #7e97a8;  /* meta, contadores */
+  --muted-3: #93a9b8;  /* placeholders, ícones inativos */
+  --surface: #ffffff;
+  --surface-2: #fbfdfe; /* campos, rodapé da lista */
+  --surface-3: #f5f9fc; /* fundo da conversa */
+  --hover: #f3f8fb;
+  --hover-2: #f2f9fd;
+  --accent-bg: #e8f2f8; /* badges, número dos passos */
+  --line: #e1ebf2;
+  --line-2: #e8eff5;
+  --line-card: #e3edf3;
+  --line-input: #dbe6ee;
+  --line-strong: #cadcea;
+  --line-check: #c2d3de;
+  --ok: #1f9d6b;
+  --warn: #dd8b2c;
+  --erro: #a5301f;
+  --erro-hd: rgba(220, 80, 80, 0.85);
+  /* categorias de peças (lista, chips, popup @ e mapa mental).
+     Petições deixou de ser AZUL porque azul é a cor de AÇÃO do sistema: uma
+     categoria azul na lista competia com botões e links, e não dava para
+     saber se o azul queria dizer "petição" ou "clicável". */
+  --cat-decisao: #dd8b2c;   /* dourado — atos do juízo */
+  --cat-audiencia: #1f9d6b; /* verde — atas e audiências */
+  --cat-peticao: #6b57c8;   /* roxo — peças das partes */
+  --cat-prova: #b8479c;     /* magenta — laudos e pareceres */
+  --cat-outro: #b7c8d4;     /* neutro — demais documentos */
+  /* famílias — NUNCA carregar de CDN: o painel roda na página do tribunal
+     (CSP + vazamento de requisição). Ver a nota de tipografia no DESIGN.md. */
+  --ff-sans: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --ff-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --ff-mono: "IBM Plex Mono", "Cascadia Mono", Consolas, monospace;
+  /* raios e sombras */
+  --r-xs: 4px; --r-sm: 7px; --r-md: 8px; --r-lg: 11px; --r-xl: 12px;
+  --r-2xl: 14px; --r-pill: 999px;
+  --sh-card: 0 1px 2px rgba(16, 60, 85, 0.04);
+  --sh-btn: 0 1px 2px rgba(16, 60, 85, 0.18);
+  --sh-pop: 0 8px 28px -8px rgba(16, 60, 85, 0.35);
+  --sh-panel: 0 12px 30px rgba(16, 60, 85, 0.12);
   /* Escala tipográfica — ANTES eram 13 tamanhos distintos (9.5 a 18px, com
      meios-pixels); a variação sem intenção é o que faz a interface "parecer
      poluída" mesmo com cada elemento correto. Sete degraus, todos inteiros:
@@ -32,14 +76,15 @@
   --fs-ui: 13px;     /* lista de peças, formulários */
   --fs-body: 14px;   /* mensagens e campo de entrada */
   --fs-lg: 15px;     /* título do painel, mensagens no expandido */
-  --fs-lead: 17px;   /* "Como posso ajudar?" */
+  --fs-lead: 17px;   /* "Como posso ajudar?" no painel estreito */
+  --fs-hero: 26px;   /* "Como posso ajudar?" nos modos largos */
   /* ritmo vertical — mesma ideia: passos previsíveis em vez de valores ad hoc */
-  --sp-1: 4px; --sp-2: 6px; --sp-3: 10px; --sp-4: 14px;
+  --sp-1: 4px; --sp-2: 6px; --sp-3: 10px; --sp-4: 14px; --sp-5: 20px; --sp-6: 28px;
   position: fixed;
   right: 18px;
   bottom: 18px;
   z-index: 2147483647;
-  font-family: system-ui, "Segoe UI", Arial, sans-serif;
+  font-family: var(--ff-sans);
 }
 
 /* ---------- Launcher ---------- */
@@ -61,9 +106,9 @@
 .launcher:hover { filter: brightness(1.08); }
 .wrap.pulse .launcher { animation: pulse 1.8s ease-out 3; }
 @keyframes pulse {
-  0% { box-shadow: 0 6px 20px rgba(5, 48, 68, 0.32), 0 0 0 0 rgba(0, 120, 170, 0.55); }
-  70% { box-shadow: 0 6px 20px rgba(5, 48, 68, 0.32), 0 0 0 14px rgba(0, 120, 170, 0); }
-  100% { box-shadow: 0 6px 20px rgba(5, 48, 68, 0.32), 0 0 0 0 rgba(0, 120, 170, 0); }
+  0% { box-shadow: 0 6px 20px rgba(5, 48, 68, 0.32), 0 0 0 0 rgba(18, 114, 159, 0.55); }
+  70% { box-shadow: 0 6px 20px rgba(5, 48, 68, 0.32), 0 0 0 14px rgba(18, 114, 159, 0); }
+  100% { box-shadow: 0 6px 20px rgba(5, 48, 68, 0.32), 0 0 0 0 rgba(18, 114, 159, 0); }
 }
 .wrap.open .launcher { display: none; }
 
@@ -177,10 +222,28 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 14px;
-  background: linear-gradient(180deg, var(--pje), var(--pje-2));
+  padding: 10px 12px 10px 14px;
+  min-height: 54px;
+  /* gradiente DIAGONAL (96deg) — assinatura do produto; ver DESIGN.md */
+  background: linear-gradient(96deg, var(--hd-de) 0%, var(--hd-para) 100%);
   color: #fff;
 }
+/* Título em duas linhas: produto em cima, número do processo embaixo. Com
+   vários processos abertos em abas, não dava para saber a qual deles o painel
+   se referia sem olhar a página atrás. */
+.hd .tit-wrap {
+  display: flex; flex-direction: column; line-height: 1.1;
+  min-width: 0; flex: 1 1 auto;
+}
+.hd .cnj {
+  font-size: var(--fs-nano);
+  font-weight: 500;
+  letter-spacing: 0.4px;
+  color: rgba(255, 255, 255, 0.62);
+  text-transform: uppercase;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.hd .cnj:empty { display: none; }
 .hd .mark { width: 26px; height: 26px; border-radius: 7px; }
 .hd .ttl { font-family: Georgia, serif; font-size: var(--fs-lg); flex: 1; }
 .hd button {
@@ -348,7 +411,9 @@
   overflow: hidden;
 }
 .d-nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
-.d-id { flex: none; font-family: Consolas, monospace; font-size: var(--fs-nano); color: #8c9aa6; }
+/* id da peça em MONO: é numeral que o usuário compara e usa para reencontrar a
+   peça na timeline — tabular alinha na vertical e não se confunde com o nome. */
+.d-id { flex: none; font-family: var(--ff-mono); font-size: var(--fs-nano); color: var(--muted-3); }
 
 /* cores por categoria (dot da lista + legenda) */
 .docrow.cat-decisao .d-dot,   .l-dot.cat-decisao   { background: var(--cat-decisao); }
@@ -909,7 +974,7 @@
   border: 1px solid var(--line); border-radius: 12px; padding: 6px 6px 6px 10px;
   background: #fff; transition: border-color 0.15s, box-shadow 0.15s;
 }
-.inrow:focus-within { border-color: var(--pje); box-shadow: 0 0 0 3px rgba(0, 120, 170, 0.15); }
+.inrow:focus-within { border-color: var(--pje); box-shadow: 0 0 0 3px rgba(18, 114, 159, 0.15); }
 .in {
   flex: 1; resize: none; border: none; outline: none;
   font: inherit; font-size: var(--fs-body); line-height: 1.45; padding: 5px 0;
@@ -1055,7 +1120,7 @@
 .tgl-search:hover { border-color: var(--pje); color: var(--text); }
 .tgl-search.on {
   background: #e9f2f8; border-color: var(--pje); color: var(--text);
-  font-weight: 600; box-shadow: inset 0 0 0 1px rgba(0, 120, 170, 0.35);
+  font-weight: 600; box-shadow: inset 0 0 0 1px rgba(18, 114, 159, 0.35);
 }
 .btn-minuta, .btn-plib, .btn-mapa, .btn-mlib {
   border: 1px solid var(--line); background: #fff; color: var(--muted);
@@ -1065,7 +1130,7 @@
 .btn-minuta:hover, .btn-plib:hover, .btn-mapa:hover, .btn-mlib:not(:disabled):hover { border-color: var(--pje); color: var(--text); }
 .btn-minuta.on, .btn-mapa.on {
   background: #e9f2f8; border-color: var(--pje); color: var(--text);
-  font-weight: 600; box-shadow: inset 0 0 0 1px rgba(0, 120, 170, 0.35);
+  font-weight: 600; box-shadow: inset 0 0 0 1px rgba(18, 114, 159, 0.35);
 }
 /* Selo do modelo ativo (fica à direita na barra de ferramentas) */
 .modelo-badge {
@@ -1080,7 +1145,7 @@
    Faixa entre as ferramentas e o campo: explica que Enviar virou "Gerar". */
 .minutabar, .mapabar {
   display: flex; align-items: center; gap: 8px;
-  background: #eaf4fa; border: 1px solid rgba(0, 120, 170, 0.35);
+  background: #eaf4fa; border: 1px solid rgba(18, 114, 159, 0.35);
   border-left: 3px solid var(--pje);
   border-radius: 0 8px 8px 0; padding: 6px 10px; margin: 7px 0 5px;
   font-size: var(--fs-meta); color: #2b5568; animation: chip-in 0.18s ease-out;
@@ -1103,15 +1168,15 @@
 .minuta-modelo .mm-lab { flex: none; font-weight: 700; color: var(--pje-2); }
 .minuta-modelo-sel {
   flex: 1; min-width: 0; font: inherit; font-size: var(--fs-meta); color: var(--text);
-  border: 1px solid rgba(0, 120, 170, 0.35); border-radius: 7px;
+  border: 1px solid rgba(18, 114, 159, 0.35); border-radius: 7px;
   padding: 4px 8px; background: #fff; cursor: pointer;
 }
 .minuta-modelo-sel:focus {
-  outline: none; border-color: var(--pje); box-shadow: 0 0 0 3px rgba(0, 120, 170, 0.15);
+  outline: none; border-color: var(--pje); box-shadow: 0 0 0 3px rgba(18, 114, 159, 0.15);
 }
 /* o botão Enviar vira "✍️ Gerar minuta" / "🧠 Gerar mapa" — halo azul para
    marcar a mudança (a classe .docx é histórica; vale para os dois modos) */
-.send.docx { box-shadow: 0 0 0 3px rgba(0, 120, 170, 0.28); }
+.send.docx { box-shadow: 0 0 0 3px rgba(18, 114, 159, 0.28); }
 
 /* ---------- Card do mapa mental gerado (dentro da bolha do assistant) ----------
    O markdown de um mapa é longo e repetitivo: a bolha mostra as ações e
@@ -1230,7 +1295,7 @@
   outline: none; background: #fff;
 }
 .plib-form input:focus, .plib-form textarea:focus {
-  border-color: var(--pje); box-shadow: 0 0 0 3px rgba(0, 120, 170, 0.15);
+  border-color: var(--pje); box-shadow: 0 0 0 3px rgba(18, 114, 159, 0.15);
 }
 .plib-form textarea { min-height: 130px; resize: vertical; }
 .plib-cnt { font-size: var(--fs-micro); color: var(--muted); text-align: right; }
@@ -1255,7 +1320,7 @@
   outline: none; background: #fff; cursor: pointer;
 }
 .mlib-form select:focus {
-  border-color: var(--pje); box-shadow: 0 0 0 3px rgba(0, 120, 170, 0.15);
+  border-color: var(--pje); box-shadow: 0 0 0 3px rgba(18, 114, 159, 0.15);
 }
 /* etiqueta da categoria na linha do modelo */
 .mlib-cat {

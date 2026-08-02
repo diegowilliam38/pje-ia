@@ -70,13 +70,17 @@
           </div>
 
           <label class="campo">
-            <span class="rot">Texto da peça-modelo</span>
+            <span class="rot">
+              Texto da peça-modelo
+              <button type="button" id="importar" class="mini">⬆ Importar de .docx</button>
+            </span>
             <textarea
               id="fTexto"
-              placeholder="Cole aqui a peça inteira, do cabeçalho ao dispositivo…"
+              placeholder="Cole aqui a peça inteira, do cabeçalho ao dispositivo — ou importe um .docx que você já tenha."
             ></textarea>
             <span class="dica" id="contChars"></span>
           </label>
+          <input type="file" id="arquivo" accept=".docx" hidden />
 
           <div class="erro" id="formErro" role="alert" hidden></div>
 
@@ -94,6 +98,7 @@
     </p>
 
     <script src="modelos.js"></script>
+    <script src="docx-importar.js"></script>
     <script src="modelos-page.js"></script>
   </body>
 </html>

@@ -1,5 +1,10 @@
 # PJe IA — Extensão Chrome
 
+> **Mudança de frontend? Leia `DESIGN.md` (raiz do repo) ANTES.** Ele é a fonte
+> de verdade do visual — cores, tipografia, escala, raios, sombras e o
+> comportamento dos componentes —, derivado do sistema desenhado no Claude
+> Design. Valor novo no CSS entra primeiro como token lá, depois no código.
+
 Extensão Chrome (Manifest V3, JavaScript puro, **sem build step**) que adiciona um painel
 de chat com IA à tela de autos digitais do PJe. O usuário seleciona peças do
 processo e conversa sobre elas; os PDFs são enviados diretamente à API do provedor do
@@ -871,6 +876,10 @@ expandido.
 ## Convenções
 
 - Comentários e strings de UI em português do Brasil (com acentuação correta).
+- **Visual: `DESIGN.md` manda.** O parágrafo abaixo é histórico e os valores nele
+  estão desatualizados (a paleta migrou para `#12729f`, petições virou roxo e
+  provas magenta). Em qualquer conflito, vale o DESIGN.md — tokens, componentes,
+  restrições da plataforma e o porquê de as fontes não virem de CDN.
 - Identidade visual: paleta do próprio PJe — azul-petróleo `#0078aa` (`--pje`, cor
   da barra do PJe/TJCE), escurecido `#005f88` (`--pje-2`, gradientes/hover/balão do
   usuário — texto branco sobre `#0078aa` puro passa AA por pouco, por isso texto

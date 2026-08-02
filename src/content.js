@@ -377,6 +377,13 @@
           panel.setConfigured(configurado);
         }
       );
+      // Número do processo no cabeçalho: com vários processos abertos em abas,
+      // era impossível saber a qual deles o painel se referia (ver DESIGN.md).
+      try {
+        panel.setProcesso(PJE.getNumeroProcesso() || "");
+      } catch {
+        /* página sem número identificável — o cabeçalho fica só com o produto */
+      }
     } catch {
       avisarContextoPerdido();
     }

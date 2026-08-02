@@ -320,7 +320,10 @@ var PjePanel = (function () {
       <div class="panel">
         <div class="hd">
           <img class="mark" src="${iconUrl}" alt="">
-          <span class="ttl">Assistente dos Autos</span>
+          <span class="tit-wrap">
+            <span class="ttl">Assistente dos Autos</span>
+            <span class="cnj" title="Número do processo em análise"></span>
+          </span>
           <button class="dl" title="Baixar a conversa em arquivo (.md)" aria-label="Baixar a conversa em arquivo">${SVG.download}</button>
           <button class="reset" title="Nova conversa (zera o chat e o contexto)" aria-label="Nova conversa">${SVG.reset}</button>
           <button class="docsvis" title="Ocultar a lista de peças (mais espaço para o chat)" aria-label="Ocultar ou exibir a lista de peças" aria-pressed="false">${SVG.docshide}</button>
@@ -2847,6 +2850,11 @@ var PjePanel = (function () {
       // Habilita a biblioteca de modelos só nos modelos de 1M tokens (chamada
       // pelo content.js quando as caps chegam/mudam).
       setModelosHabilitado,
+      // Número CNJ do processo, exibido sob o nome do produto no cabeçalho.
+      setProcesso(num) {
+        const el = $(".cnj");
+        if (el) el.textContent = num || "";
+      },
       // Resultado do mapa mental: em vez do markdown cru (longo e repetitivo)
       // a bolha vira um card com as ações, e o texto fica num <details>
       // recolhido. O card é escrito no __body da bolha — depois disso NÃO se

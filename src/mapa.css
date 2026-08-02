@@ -99,7 +99,7 @@ body {
   /* o markmap monta o texto dos nós a partir destas variáveis; o padrão dele
      é peso 300, fino demais para o vocabulário jurídico */
   --markmap-font: 400 15px/1.35 system-ui, "Segoe UI", Arial, sans-serif;
-  --markmap-a-color: #005f88;
+  --markmap-a-color: #0f5f85;
   --markmap-code-bg: #eaf2f7;
   --markmap-code-color: #22303f;
 }
@@ -187,13 +187,13 @@ body {
   vertical-align: top;
 }
 #mapa .mm-tab th {
-  background: rgba(0, 120, 170, 0.1);
+  background: rgba(18, 114, 159, 0.1);
   font-weight: 700;
   font-size: 11.5px;
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
-#mapa .mm-tab tr:nth-child(even) td { background: rgba(0, 120, 170, 0.04); }
+#mapa .mm-tab tr:nth-child(even) td { background: rgba(18, 114, 159, 0.04); }
 
 /* ---------- Rodapé: legenda dos eixos + dica de uso ---------- */
 .rodape {

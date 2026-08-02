@@ -154,6 +154,7 @@
     elFC.value = m ? m.categoria || "outro" : "sentenca";
     elFD.value = m ? m.descricao || "" : "";
     elFX.value = m ? m.texto || "" : "";
+    delete elFX.dataset.importado; // form novo: a próxima importação substitui
     elErro.hidden = true;
     elTelaLista.hidden = true;
     elTelaForm.hidden = false;
@@ -289,6 +290,48 @@
     const m = modelos.find((x) => x.id === row.dataset.id);
     if (m) abrirForm(m);
   });
+
+  // ---------------------------------------------------- importar de .docx
+  // Cadastrar um modelo é colar uma peça inteira; quem já tem os modelos em
+  // arquivos do Word teria de abrir cada um, selecionar tudo e copiar. O
+  // importador lê o .docx aqui mesmo (sem upload, sem biblioteca — ver
+  // docx-importar.js) e preenche o campo, deixando o texto EDITÁVEL antes de
+  // salvar: nada é gravado sem o usuário conferir.
+  const elArquivo = $("#arquivo");
+  const btnImportar = $("#importar");
+  if (btnImportar && elArquivo && typeof DocxImport !== "undefined") {
+    btnImportar.addEventListener("click", () => {
+      elArquivo.value = ""; // permite reimportar o MESMO arquivo depois de editar
+      elArquivo.click();
+    });
+    elArquivo.addEventListener("change", async () => {
+      const file = elArquivo.files && elArquivo.files[0];
+      if (!file) return;
+      const rotulo = btnImportar.textContent;
+      btnImportar.textContent = "lendo…";
+      btnImportar.disabled = true;
+      try {
+        const texto = await DocxImport.lerArquivo(file);
+        // não sobrescreve trabalho já feito sem avisar
+        if (elFX.value.trim() && !elFX.dataset.importado) {
+          elFX.value = elFX.value.trim() + "\n\n" + texto;
+        } else {
+          elFX.value = texto;
+        }
+        elFX.dataset.importado = "1";
+        if (!elFT.value.trim()) elFT.value = DocxImport.tituloDe(file);
+        elErro.hidden = true;
+        atualizarChars();
+      } catch (e) {
+        mostrarErro("Não foi possível importar: " + ((e && e.message) || e), null);
+      } finally {
+        btnImportar.textContent = rotulo;
+        btnImportar.disabled = false;
+      }
+    });
+  } else if (btnImportar) {
+    btnImportar.hidden = true;
+  }
 
   $("#novo").addEventListener("click", () => abrirForm(null));
   $("#salvar").addEventListener("click", salvar);
