@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>TecJustiça PJe — Novidades e histórico de versões</title>
+    <link rel="stylesheet" href="ui.css" />
+    <style>
+      body { display: block; padding: 0 0 60px; }
+      .page { max-width: 760px; margin: 0 auto; padding: 0 20px; }
+      .brand { border-radius: 0; }
+      h1.serif { font-size: 26px; margin: 30px 0 6px; color: var(--ink); }
+      h1.serif:first-of-type { margin-top: 26px; }
+      .lead { color: var(--muted); font-size: 15px; margin: 0 0 24px; }
+      .card {
+        background: #fff; border: 1px solid var(--line); border-radius: 14px;
+        padding: 22px 24px; margin-bottom: 20px; box-shadow: 0 6px 22px rgba(5, 48, 68, 0.05);
+      }
+      .card h2 {
+        font-family: Georgia, serif; font-size: 18px; margin: 0 0 4px; color: var(--ink);
+        display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      }
+      .card p { margin: 8px 0; font-size: 14.5px; }
+      .card ul { margin: 8px 0 0; padding-left: 20px; font-size: 14.5px; }
+      .card li { margin: 6px 0; }
+      a.link { color: var(--pje-2); font-weight: 600; }
+
+      /* Selo de versão: numeral, então monoespaçado e tabular — alinha na
+         vertical na tabela do histórico e não se confunde com o texto. */
+      .v {
+        font-family: var(--ff-mono);
+        font-size: 11px; font-weight: 700; letter-spacing: 0.2px;
+        background: var(--accent-bg); color: var(--pje-2);
+        border-radius: 999px; padding: 2px 9px; white-space: nowrap;
+      }
+      .v.novo { background: var(--pje); color: #fff; }
+      .data { font-size: 12px; color: var(--muted-2); font-weight: 400; }
+
+      /* Faixa do destaque da versão atual */
+      .destaque {
+        background: linear-gradient(96deg, #0f4d72 0%, #1a6d9c 100%);
+        color: #fff; border: 0;
+      }
+      .destaque h2, .destaque p { color: #fff; }
+      .destaque .v { background: rgba(255, 255, 255, 0.18); color: #fff; }
+      .destaque .data { color: rgba(255, 255, 255, 0.7); }
+      .destaque code { background: rgba(255, 255, 255, 0.16); color: #fff; }
+      .destaque a { color: #fff; text-decoration: underline; }
+
+      code {
+        font-family: var(--ff-mono);
+        font-size: 12.5px; background: #eef4f8; border-radius: 5px; padding: 1px 5px;
+      }
+      .eyebrow {
+        font-size: 11px; font-weight: 600; letter-spacing: 1.4px;
+        text-transform: uppercase; color: var(--muted-2); margin: 0 0 4px;
+      }
+      .warn-box {
+        background: var(--warn-bg); border: 1px solid #f0dcae; border-radius: 10px;
+        padding: 12px 16px; font-size: 13.5px; color: var(--warn); margin-top: 12px;
+      }
+
+      /* Histórico completo */
+      table.hist { width: 100%; border-collapse: collapse; font-size: 13px; }
+      table.hist th, table.hist td {
+        border-bottom: 1px solid var(--line); padding: 7px 8px;
+        text-align: left; vertical-align: top;
+      }
+      table.hist th { background: #f2f7fa; font-weight: 700; border-bottom-width: 2px; }
+      table.hist td:first-child { width: 74px; white-space: nowrap; }
+      table.hist td:nth-child(2) { width: 84px; white-space: nowrap; color: var(--muted-2); }
+      table.hist tr.marco td { background: #fbfdfe; font-weight: 600; }
+      .legenda { font-size: 12px; color: var(--muted); margin-top: 10px; }
+      .dot-marco {
+        display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+        background: var(--pje); margin-right: 6px; vertical-align: middle;
+      }
+      .voltar { display: inline-block; margin-top: 10px; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <div class="brand">
+      <img src="../icons/icon48.png" alt="" />
+      <div>
+        <div class="t">TecJustiça PJe</div>
+        <div class="s">Novidades e histórico de versões</div>
+      </div>
+    </div>
+
+    <div class="page">
+      <h1 class="serif">O que mudou na extensão</h1>
+      <p class="lead">
+        Da primeira versão (19 de julho de 2026) até hoje foram <strong>42 versões</strong>. Esta
+        página agrupa o que foi feito <strong>por recurso</strong> — é assim que se usa a
+        extensão, não versão a versão. O
+        <a class="link" href="#historico">histórico completo</a>, com data e uma linha por
+        versão, está no fim.
+      </p>
+
+      <div class="card destaque">
+        <p class="eyebrow" style="color: rgba(255,255,255,0.7)">Versão atual</p>
+        <h2><span class="v novo">v0.20.0</span> Baixar o processo inteiro em um arquivo</h2>
+        <p>
+          O botão <strong>⬇ Baixar .zip</strong>, abaixo da lista de peças, monta
+          <strong>um único arquivo</strong> com as peças e um índice — para trabalhar os autos
+          fora da extensão: num editor, num script, ou com uma ferramenta de IA que leia pastas.
+        </p>
+        <p>
+          Os arquivos já saem <strong>na ordem do processo</strong> (<code>001_</code>,
+          <code>002_</code>…) e com o <strong>id da peça no nome</strong>, que é por onde ela é
+          reencontrada no PJe. Junto vão o <code>indice.txt</code> — com a ficha do processo
+          (classe, assunto, valor da causa, órgão julgador, partes e advogados) e uma linha por
+          peça — e um <code>LEIA-ME.md</code> que explica o pacote a quem abrir a pasta depois.
+        </p>
+      </div>
+
+      <h1 class="serif">Conversar com os autos</h1>
+
+      <div class="card">
+        <h2><span class="v">v0.1.0</span> O chat sobre as peças do processo</h2>
+        <p>
+          O ponto de partida: um painel dentro da tela de autos do PJe onde você
+          <strong>marca as peças</strong> e conversa sobre elas. Os documentos vão direto ao
+          provedor de IA escolhido; a resposta usa <strong>somente o que foi marcado</strong>.
+        </p>
+        <p>
+          Não é um agente autônomo: ele não navega no processo sozinho, e é essa fronteira que
+          torna a resposta verificável — você sabe exatamente o que ele leu.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2>
+          <span class="v">v0.2.0</span><span class="v">v0.9.8</span>
+          Achar a peça sem sair do campo de texto
+        </h2>
+        <p>
+          Digitar <strong>@</strong> no meio da mensagem abre a lista de peças e marca a que você
+          escolher. A busca ignora acentos, e um campo de busca visível espelha o que está sendo
+          digitado — sem ele ninguém descobria que dava para filtrar.
+        </p>
+        <p>
+          As peças marcadas viram <strong>chips</strong> acima do campo, e o preparo de cada uma
+          aparece peça a peça enquanto os documentos são baixados.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2><span class="v">v0.5.0</span> Adicionar e remover peças no meio da conversa</h2>
+        <p>
+          Adicionar uma peça é <strong>barato</strong>: ela entra uma única vez, ao final, e o
+          resto da conversa aproveita o cache. <strong>Desmarcar libera contexto na hora</strong> —
+          a peça deixa de ser enviada, o que salva conversas que encheram.
+        </p>
+      </div>
+
+      <h1 class="serif">Três provedores de IA</h1>
+
+      <div class="card">
+        <h2>
+          <span class="v">v0.1.0</span><span class="v">v0.9.0</span><span class="v">v0.16.0</span>
+          Claude, Gemini e GPT
+        </h2>
+        <p>
+          A extensão começou com os modelos <strong>Claude</strong> (Anthropic), ganhou o
+          <strong>Gemini</strong> (Google) e depois o <strong>GPT-5.6</strong> (OpenAI) — Sol,
+          Terra e Luna. Você usa a chave do provedor que escolher; nenhuma passa pela página do
+          tribunal.
+        </p>
+        <p>
+          <strong>Todos os recursos funcionam nos três</strong>: minutas, mapa mental, busca de
+          jurisprudência e exportação. A única diferença é técnica — Claude cita a
+          <strong>página exata</strong> do PDF; nos outros dois a origem vem escrita no texto da
+          resposta, e um <strong>ⓘ</strong> ao lado do nome do modelo avisa disso.
+        </p>
+        <p>
+          Um <strong>selo do modelo ativo</strong> fica sempre no rodapé, e trocar de modelo no
+          meio de uma conversa é bloqueado com aviso — o raciocínio de um provedor não roda no
+          outro.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2><span class="v">v0.3.0</span> Busca de jurisprudência em fontes oficiais</h2>
+        <p>
+          O botão <strong>🔍 Jurisprudência</strong> deixa o modelo consultar STF, STJ, Planalto e
+          o próprio site do tribunal em que você está, com os resultados citados na resposta.
+        </p>
+      </div>
+
+      <h1 class="serif">Encontrar todas as peças</h1>
+
+      <div class="card">
+        <h2><span class="v">v0.8.0</span><span class="v">v0.8.1</span> Carregar a linha do tempo inteira</h2>
+        <p>
+          O PJe só carrega as peças conforme você rola a linha do tempo — então a lista podia estar
+          incompleta sem avisar. O botão <strong>⟳ Carregar todas as peças</strong> passou a rolar a
+          timeline sozinho até o fim.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2><span class="v">v0.19.0</span> A lista oficial do processo, com prova de completude</h2>
+        <p>
+          A rolagem só consegue inferir que terminou porque a lista <em>parou de crescer</em> — o
+          que entrega lista parcial com cara de completa. Agora a extensão consulta a tela
+          <strong>“Documentos”</strong> do PJe, que informa o <strong>total de páginas</strong>.
+        </p>
+        <p>
+          Com isso ela consegue dizer <em>“leitura parcial, 3 de 6 páginas”</em> em vez de deixar
+          você concluir com meio processo. De quebra veio o <strong>tipo oficial</strong> de cada
+          peça — “Despacho de Mero Expediente” diz o que “Despachos / 2” não dizia.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2>
+          <span class="v">v0.9.1</span><span class="v">v0.9.2</span>
+          Categorias, busca e o atalho “principais”
+        </h2>
+        <p>
+          As peças são coloridas por espécie — <strong>decisões</strong>, <strong>audiências</strong>,
+          <strong>petições</strong> e <strong>provas</strong> — e o atalho
+          <strong>principais</strong> marca de uma vez tudo o que está destacado. O vocabulário
+          cobre processo criminal e cível (flagrante, corpo de delito, pronúncia, reconvenção,
+          estudo psicossocial…).
+        </p>
+      </div>
+
+      <h1 class="serif">Produzir a peça</h1>
+
+      <div class="card">
+        <h2><span class="v">v0.3.0</span><span class="v">v0.13.0</span> Do <code>.docx</code> ao editor de minutas</h2>
+        <p>
+          A geração de documento existia desde cedo, mas dependia de um recurso disponível em um
+          só provedor. Ela foi substituída por um <strong>editor de texto próprio</strong>, que
+          abre em nova aba com a formatação forense pronta (A4, margens 3/2 cm, Times 12,
+          entrelinha 1,5, parágrafos justificados).
+        </p>
+        <p>
+          No editor você edita à vontade, <strong>copia formatado</strong> para o PJe,
+          <strong>baixa em Word</strong> ou imprime. E como agora é um chat comum,
+          <strong>funciona em qualquer modelo</strong>. Os rascunhos ficam salvos e há uma lista
+          para reabri-los depois.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2><span class="v">v0.15.0</span><span class="v">v0.18.0</span> Suas peças-modelo guiam a forma</h2>
+        <p>
+          Cadastre suas sentenças, decisões, despachos e ofícios por categoria. Ao gerar uma
+          minuta, escolha a categoria e o assistente segue <strong>a sua estrutura e a sua
+          linguagem</strong> — mas <strong>nenhum fato</strong> dos modelos entra no texto: nomes,
+          valores, datas e dispositivos saem só das peças do processo em tela.
+        </p>
+        <p>
+          Dá para <strong>importar de um arquivo <code>.docx</code></strong>, o que dispensa
+          copiar e colar peça a peça.
+        </p>
+      </div>
+
+      <h1 class="serif">Ver o processo de outro jeito</h1>
+
+      <div class="card">
+        <h2><span class="v">v0.10.0</span> Mapa mental do processo</h2>
+        <p>
+          O botão <strong>🧠 Mapa mental</strong> monta um mapa interativo com partes, fatos,
+          pedidos, teses de cada lado, provas, decisões e situação atual — em nova aba, com os
+          ramos recolhíveis e cada item trazendo a peça e a folha de origem.
+        </p>
+      </div>
+
+      <h1 class="serif">Levar os autos para fora</h1>
+
+      <div class="card">
+        <h2><span class="v novo">v0.20.0</span> Exportar tudo em <code>.zip</code></h2>
+        <p>
+          Um arquivo com as peças na ordem do processo, um índice legível
+          (<code>indice.txt</code>), um índice para programas (<code>indice.json</code>) e um
+          <code>LEIA-ME.md</code> que explica a convenção de nomes e o formato de citação.
+        </p>
+        <p>
+          As peças digitalizadas saem em <code>.pdf</code>; as redigidas no editor do PJe saem em
+          <code>.txt</code>, com o texto já extraído.
+        </p>
+        <p class="warn-box">
+          <strong>O arquivo contém as peças integrais e dados pessoais das partes</strong>
+          (CPF/CNPJ, OAB dos advogados). Se o processo correr em segredo de justiça, o LEIA-ME e o
+          índice avisam no topo — mas a guarda do arquivo passa a ser sua.
+        </p>
+      </div>
+
+      <h1 class="serif">Saber de onde veio cada afirmação</h1>
+
+      <div class="card">
+        <h2><span class="v">v0.3.0</span><span class="v">v0.11.0</span> Peça, id e folha em toda saída</h2>
+        <p>
+          Toda afirmação vem com a origem: <strong>o nome da peça, o <em>id</em> e a folha</strong>.
+          O <em>id</em> é obrigatório porque processos têm várias peças com o mesmo nome — é ele que
+          permite reencontrar a peça na linha do tempo.
+        </p>
+        <p>
+          A regra vale igual no <strong>chat</strong>, na <strong>minuta</strong>, no
+          <strong>mapa mental</strong> e no <strong>.zip</strong>. E a citação no rodapé da resposta
+          é <strong>clicável</strong>: ela rola a página do PJe até a peça e a destaca.
+        </p>
+      </div>
+
+      <h1 class="serif">Custo e contexto sob controle</h1>
+
+      <div class="card">
+        <h2><span class="v">v0.5.0</span> Medidor de contexto</h2>
+        <p>
+          Um medidor no rodapé mostra o quanto da janela do modelo já foi usada, e ele reage
+          <strong>ao marcar e desmarcar peças</strong> — antes mesmo do primeiro envio. Se a
+          conversa não couber, o envio é barrado com um aviso que só some quando volta a caber.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2><span class="v">v0.3.0</span><span class="v">v0.16.0</span> Custo por resposta</h2>
+        <p>
+          Cada resposta mostra <strong>quanto custou</strong> e o acumulado da conversa, com o
+          detalhamento por tipo de token. O cálculo respeita o <strong>preço em degrau</strong> dos
+          modelos GPT-5.6, que cobram o dobro do input acima de 272 mil tokens — sem isso o valor
+          apareceria pela metade justamente nos processos volumosos, que são o motivo de existir um
+          modelo de 1M.
+        </p>
+      </div>
+
+      <h1 class="serif">A interface</h1>
+
+      <div class="card">
+        <h2>
+          <span class="v">v0.7.0</span><span class="v">v0.9.11</span><span class="v">v0.9.12</span>
+          Quatro modos de layout
+        </h2>
+        <p>
+          Painel <strong>flutuante</strong>, <strong>lateral</strong> (com a página do PJe visível e
+          clicável ao lado), <strong>expandido/tela cheia</strong> e <strong>janela livre</strong>,
+          que você arrasta e redimensiona onde quiser. A preferência fica salva, e a janela livre
+          larga vira automaticamente o layout de duas colunas.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2><span class="v">v0.7.0</span><span class="v">v0.9.13</span> Espiar a peça sem abrir</h2>
+        <p>
+          Passar o mouse sobre uma peça mostra o conteúdo num popover — com
+          <strong>zoom</strong> e <strong>redimensionável</strong>. E o botão “ver na timeline”
+          rola a página do PJe até a peça, destacando-a.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2><span class="v">v0.12.0</span><span class="v">v0.18.0</span> Menos ruído, mesma informação</h2>
+        <p>
+          A interface foi enxugada: orientações em camadas (aparecem conforme você precisa),
+          rodapé em uma linha, e a referência que envelhece — tabela de modelos, preços, dicas —
+          saiu do painel e passou a viver só na ajuda. O painel <strong>aponta, não recita</strong>.
+        </p>
+        <p>
+          Depois veio um <strong>sistema de design</strong> unificando cor, tipografia e
+          espaçamento em toda a extensão, e o <strong>número do processo (CNJ) no cabeçalho</strong>
+          do painel — que resolve não saber a qual aba o painel se refere quando há vários
+          processos abertos.
+        </p>
+      </div>
+
+      <h1 class="serif">Ajustar ao seu jeito de trabalhar</h1>
+
+      <div class="card">
+        <h2><span class="v">v0.9.4</span> Instruções personalizadas</h2>
+        <p>
+          Um campo nas opções diz ao modelo quem você é e como quer as respostas — por exemplo
+          <em>“sou assessor de vara criminal; destaque prazos prescricionais”</em>. Vale no chat, nas
+          minutas e no mapa, nos três provedores.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2><span class="v">v0.9.14</span> Biblioteca de prompts</h2>
+        <p>
+          Instruções reutilizáveis (título + texto) que você insere digitando <strong>/</strong> no
+          início da mensagem. Elas <strong>sincronizam</strong> entre navegadores logados na mesma
+          conta Google.
+        </p>
+      </div>
+
+      <h1 class="serif">Qualquer tribunal, sem configurar</h1>
+
+      <div class="card">
+        <h2><span class="v">v0.6.0</span> Multi-PJe</h2>
+        <p>
+          A extensão funciona em <strong>qualquer instalação do PJe</strong> em
+          <code>*.jus.br</code>, sem você precisar cadastrar o tribunal: ela deriva o endereço, o
+          grau e a sigla da própria URL. A busca de jurisprudência ganha automaticamente o domínio
+          do tribunal em que você está.
+        </p>
+      </div>
+
+      <h1 class="serif">Confiabilidade</h1>
+
+      <div class="card">
+        <h2><span class="v">v0.13.1</span> O chat não trava mais</h2>
+        <p>
+          O Chrome desliga o serviço da extensão quando ele fica quieto — e isso derrubava turnos
+          longos, com raciocínio extenso ou busca na web. Um <strong>watchdog</strong> mantém o
+          serviço vivo e reconecta sozinho, reenviando o turno se a conexão cair no meio.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2><span class="v">v0.19.1</span> Peças que voltavam vazias</h2>
+        <p>
+          A extensão usava só a rota curta de download do PJe, que <strong>funciona apenas para
+          PDF</strong>: em peça HTML o servidor devolve uma casca vazia. Agora ela tenta primeiro a
+          rota completa e aceita a primeira que traga conteúdo de verdade.
+        </p>
+        <p>
+          Na mesma versão, as peças em <strong>RTF</strong> (editor antigo do PJe, comuns em
+          processos migrados) passaram a virar texto legível — antes chegavam ao modelo como
+          marcação crua, milhares de tokens sem conteúdo nenhum.
+        </p>
+      </div>
+
+      <h1 class="serif" id="historico">Histórico completo</h1>
+      <p class="lead">
+        As 42 versões, da mais recente à primeira. As marcadas com
+        <span class="dot-marco"></span> mudaram o produto de forma visível.
+      </p>
+
+      <div class="card">
+        <table class="hist">
+          <thead>
+            <tr><th>Versão</th><th>Data</th><th>O que mudou</th></tr>
+          </thead>
+          <tbody>
+            <tr class="marco"><td><span class="v novo">0.20.0</span></td><td>02/08/2026</td><td><span class="dot-marco"></span>Exportação das peças em <code>.zip</code>, com índice, ficha do processo e metadados de cada peça</td></tr>
+            <tr><td><span class="v">0.19.1</span></td><td>02/08/2026</td><td>Peças RTF viram texto legível; rota de download completa (fim das “peças vazias”); 3 correções da leitura por grid</td></tr>
+            <tr class="marco"><td><span class="v">0.19.0</span></td><td>02/08/2026</td><td><span class="dot-marco"></span>Lista de peças pela tela “Documentos” do PJe, que informa o total de páginas — prova de completude</td></tr>
+            <tr><td><span class="v">0.18.1</span></td><td>02/08/2026</td><td>Correções do design system: tokens sem fallback oculto e título do painel no container certo</td></tr>
+            <tr class="marco"><td><span class="v">0.18.0</span></td><td>02/08/2026</td><td><span class="dot-marco"></span>Sistema de design unificado e importação de <code>.docx</code> na biblioteca de modelos</td></tr>
+            <tr><td><span class="v">0.17.0</span></td><td>02/08/2026</td><td>Minutas e modelos acessíveis direto pelas Configurações; telas de gestão redesenhadas</td></tr>
+            <tr class="marco"><td><span class="v">0.16.0</span></td><td>02/08/2026</td><td><span class="dot-marco"></span>Terceiro provedor: OpenAI GPT-5.6 (Sol, Terra e Luna), com preço em degrau tratado</td></tr>
+            <tr class="marco"><td><span class="v">0.15.0</span></td><td>02/08/2026</td><td><span class="dot-marco"></span>Biblioteca de modelos de peças: suas sentenças e decisões guiam a forma da minuta</td></tr>
+            <tr class="marco"><td><span class="v">0.14.0</span></td><td>23/07/2026</td><td><span class="dot-marco"></span>A extensão passa a se chamar <strong>TecJustiça PJe</strong> — nome, logo e identidade</td></tr>
+            <tr><td><span class="v">0.13.1</span></td><td>22/07/2026</td><td>Watchdog: o chat não trava mais quando o serviço da extensão adormece no meio do turno</td></tr>
+            <tr class="marco"><td><span class="v">0.13.0</span></td><td>22/07/2026</td><td><span class="dot-marco"></span>Editor de minutas próprio, em nova aba — substitui a geração de <code>.docx</code> e funciona em qualquer modelo</td></tr>
+            <tr><td><span class="v">0.12.1</span></td><td>22/07/2026</td><td>Popup de configuração mais largo e enxuto, com as chaves em blocos que abrem conforme a necessidade</td></tr>
+            <tr class="marco"><td><span class="v">0.12.0</span></td><td>22/07/2026</td><td><span class="dot-marco"></span>Interface enxuta: orientação em camadas e rodapé em uma linha</td></tr>
+            <tr class="marco"><td><span class="v">0.11.0</span></td><td>22/07/2026</td><td><span class="dot-marco"></span>Rastreabilidade peça · id · folha unificada nas quatro saídas, com citação clicável</td></tr>
+            <tr><td><span class="v">0.10.1</span></td><td>21/07/2026</td><td>Mapa mental: abrir um ramo traz o conteúdo para a tela</td></tr>
+            <tr class="marco"><td><span class="v">0.10.0</span></td><td>21/07/2026</td><td><span class="dot-marco"></span>Mapa mental interativo do processo, em nova aba</td></tr>
+            <tr class="marco"><td><span class="v">0.9.14</span></td><td>21/07/2026</td><td><span class="dot-marco"></span>Biblioteca de prompts, com gatilho “/” no campo de mensagem e sincronização entre navegadores</td></tr>
+            <tr><td><span class="v">0.9.13</span></td><td>21/07/2026</td><td>Zoom e redimensionamento no preview de peças</td></tr>
+            <tr><td><span class="v">0.9.12</span></td><td>21/07/2026</td><td>Janela livre larga adota o layout de coluna lateral</td></tr>
+            <tr class="marco"><td><span class="v">0.9.11</span></td><td>21/07/2026</td><td><span class="dot-marco"></span>Modo janela livre: arrastar, redimensionar e posicionar o painel</td></tr>
+            <tr><td><span class="v">0.9.10</span></td><td>21/07/2026</td><td>Cabeçalho da lista de peças em duas linhas (hierarquia e responsividade)</td></tr>
+            <tr><td><span class="v">0.9.9</span></td><td>21/07/2026</td><td>Preparação para a Chrome Web Store: política de privacidade e material da ficha</td></tr>
+            <tr><td><span class="v">0.9.8</span></td><td>21/07/2026</td><td>Busca visível no popup “@”, espelhando o que está sendo digitado</td></tr>
+            <tr><td><span class="v">0.9.7</span></td><td>21/07/2026</td><td>O botão de ocultar a lista de peças ficou achável (três affordances sincronizadas)</td></tr>
+            <tr><td><span class="v">0.9.6</span></td><td>21/07/2026</td><td>Teto de saída do Gemini garantido em 64k — resposta longa não é mais cortada</td></tr>
+            <tr><td><span class="v">0.9.5</span></td><td>21/07/2026</td><td>Revisão geral e polimento do texto da interface</td></tr>
+            <tr class="marco"><td><span class="v">0.9.4</span></td><td>21/07/2026</td><td><span class="dot-marco"></span>Instruções personalizadas: diga ao modelo quem você é e como quer as respostas</td></tr>
+            <tr><td><span class="v">0.9.3</span></td><td>21/07/2026</td><td>Ocultar a lista de peças nos modos largos, liberando espaço para a conversa</td></tr>
+            <tr><td><span class="v">0.9.2</span></td><td>21/07/2026</td><td>Detecção de peças relevantes ampliada para o vocabulário criminal e cível</td></tr>
+            <tr><td><span class="v">0.9.1</span></td><td>21/07/2026</td><td>Atalho “principais” e mais clareza sobre o estado da linha do tempo</td></tr>
+            <tr class="marco"><td><span class="v">0.9.0</span></td><td>21/07/2026</td><td><span class="dot-marco"></span>Segundo provedor: Google Gemini, com selo do modelo ativo no rodapé</td></tr>
+            <tr><td><span class="v">0.8.1</span></td><td>20/07/2026</td><td>Correção da rolagem da timeline em tribunais cujo container é descendente (caso TJCE)</td></tr>
+            <tr class="marco"><td><span class="v">0.8.0</span></td><td>20/07/2026</td><td><span class="dot-marco"></span>Botão “Carregar todas as peças” rola a linha do tempo sozinho até o fim</td></tr>
+            <tr><td><span class="v">0.7.1</span></td><td>20/07/2026</td><td>Tabelas nativas garantidas no documento gerado pelos modelos rápidos</td></tr>
+            <tr class="marco"><td><span class="v">0.7.0</span></td><td>20/07/2026</td><td><span class="dot-marco"></span>Modo lateral, preview da peça ao passar o mouse e “ver na timeline”</td></tr>
+            <tr class="marco"><td><span class="v">0.6.0</span></td><td>20/07/2026</td><td><span class="dot-marco"></span>Funciona em qualquer tribunal com PJe (<code>*.jus.br</code>), sem configuração</td></tr>
+            <tr class="marco"><td><span class="v">0.5.0</span></td><td>19/07/2026</td><td><span class="dot-marco"></span>Medidor de contexto dinâmico, busca na lista de peças e orientações no estado vazio</td></tr>
+            <tr><td><span class="v">0.4.1</span></td><td>19/07/2026</td><td>Geração de documento passa a ser um modo explícito, não um efeito colateral do envio</td></tr>
+            <tr><td><span class="v">0.4.0</span></td><td>19/07/2026</td><td>Download direto das peças e documentação inicial</td></tr>
+            <tr class="marco"><td><span class="v">0.3.0</span></td><td>19/07/2026</td><td><span class="dot-marco"></span>Envio por Files API, citações por página, busca de jurisprudência, <code>.docx</code> e nível de esforço</td></tr>
+            <tr class="marco"><td><span class="v">0.2.0</span></td><td>19/07/2026</td><td><span class="dot-marco"></span>Menção “@” para citar peças, chips de contexto e progresso por peça</td></tr>
+            <tr class="marco"><td><span class="v">0.1.0</span></td><td>19/07/2026</td><td><span class="dot-marco"></span>Primeira versão: chat com IA sobre as peças dos autos do PJe</td></tr>
+          </tbody>
+        </table>
+        <p class="legenda">
+          O código-fonte e as notas técnicas de cada versão estão no
+          <a class="link" href="https://github.com/marcosmarf27/pje-ia/releases" target="_blank" rel="noopener">repositório do projeto</a>.
+        </p>
+      </div>
+
+      <p class="voltar">
+        <a class="link" href="help.html">← Ajuda, modelos e preços</a>
+      </p>
+    </div>
+  </body>
+</html>
