@@ -271,11 +271,35 @@ Regras que NÃO podem quebrar:
   em duas linhas: título+pill+«, depois a busca + o segmented control
   `principais|todas`), popup `@` e mensagens são
   *projeções* desse estado — nunca guarde seleção em outro lugar.
+- **DUAS rotas de download, nesta ordem** (`urlsDownload` em pje.js):
+  1. **COMPLETA** — `.../download/{TRIBUNAL}/{grau}/{idProcesso}/{idDocumento}`, com a
+     sigla derivada do host (o rótulo antes de `jus.br`: `pje.tjce.jus.br` → `TJCE`).
+     Serve os **dois tipos** de peça.
+  2. **CURTA** — `.../download/{idDocumento}`: existe por retrocompatibilidade e **só
+     funciona para PDF**. Em peça HTML o servidor devolve **200 com casca vazia** —
+     sem o contexto do processo ele não sabe montar o documento. Era daí que vinha boa
+     parte das "peças vazias" que só a ativação resolvia.
+
+  `baixar()` aceita a primeira rota que devolva **corpo ÚTIL** — não basta HTTP 200,
+  justamente por causa da casca. Hosts sem sigla clara (`*.cloud.pje.jus.br`) usam só a
+  curta.
 - **Download do PJe é stateful**: o endpoint REST só libera peças já "abertas" na sessão
-  JSF. Em 404 **ou corpo vazio com HTTP 200**, `pje.js` simula o clique na timeline (A4J)
-  e faz poll com HEAD até liberar. As ativações são **serializadas** (`activationChain`) —
-  o JSF não tolera dois submits simultâneos na mesma view. Cada download loga
+  JSF. Quando nenhuma rota devolve corpo útil, `pje.js` simula o clique na timeline (A4J)
+  e faz poll com HEAD até liberar, e tenta as rotas de novo. As ativações são
+  **serializadas** (`activationChain`) — o JSF não tolera dois submits simultâneos na
+  mesma view. A ativação depende de a peça estar NA TIMELINE, o que pode não valer para
+  peças que só a grid conhece; a falha dela não interrompe o fluxo. Cada download loga
   `[PJe IA] peça …` no console da página (F12) para diagnóstico.
+- **TRÊS formatos de peça** (`lerCorpo`): **PDF** (digitalizados e anexos), **HTML**
+  (editor atual) e **RTF** (editor antigo, comum em processos migrados). O tipo é
+  decidido pelo content-type E pela **assinatura no binário** (`%PDF-` ou `{\rtf`),
+  porque o PJe legado serve os dois como `octet-stream` — confiar só no header mandaria
+  RTF/PDF para o ramo de texto. O RTF passa por `rtfParaTexto`, um extrator próprio (sem
+  biblioteca): poda os grupos que não são conteúdo (`\fonttbl`, `\colortbl`, `\info`,
+  destinos `\*`), resolve `\'XX` pela CP1252 (onde vivem os acentos e o travessão),
+  `\uN` com o fallback pulado, e converte `\par`/`\tab`. Sem isso a peça chegava ao
+  modelo como `{\rtf1\ansi\deff0{\fonttbl…` — milhares de tokens de marcação e nenhum
+  texto legível.
 - **Peças de encaminhamento são normais no PJe**: petições cujo conteúdo integral é algo
   como `<p>Em Anexo</p>` (o teor real está nos anexos "Documento de Comprovação"
   protocolados junto). Não é falha de download — o system prompt instrui o modelo a

@@ -96,33 +96,80 @@ var PJE = (function () {
     return activationChain;
   }
 
-  // Baixa uma peça pelo id. Endpoint REST autenticado por cookie de sessão.
-  // Retorna {kind:"pdf", b64, size} ou {kind:"text", text} — ver lerCorpo
-  // (content-type + assinatura %PDF- no binário).
-  // Corpo vazio com HTTP 200 é tratado como "peça não liberada na sessão":
-  // ativa a peça na timeline e tenta uma segunda vez antes de desistir.
+  // Sigla do tribunal a partir do host: o rótulo imediatamente antes de
+  // "jus.br" (pje.tjce.jus.br → TJCE; pje1g.trf5.jus.br → TRF5). Devolve null
+  // no que não casar (ex.: *.cloud.pje.jus.br) — aí só a rota curta é usada.
+  function siglaTribunal() {
+    const p = location.hostname.split(".");
+    const i = p.indexOf("jus");
+    return i > 0 && p[i - 1] && p[i - 1] !== "pje" ? p[i - 1].toUpperCase() : null;
+  }
+
+  function grauAtual() {
+    return /2grau|2g(?![a-z])/.test(getBase() + " " + location.hostname) ? "2g" : "1g";
+  }
+
+  // Rotas de download, da mais capaz para a mais antiga:
+  //  1. COMPLETA — .../download/{TRIBUNAL}/{grau}/{idProcesso}/{idDocumento}
+  //     serve os DOIS tipos de peça: as nascidas digitais (HTML — decisões,
+  //     despachos, petições do editor) e as com binário (PDF).
+  //  2. CURTA — .../download/{idDocumento}
+  //     existe por retrocompatibilidade e **só funciona para os PDFs**: para as
+  //     peças HTML o servidor devolve uma casca vazia, porque sem o contexto do
+  //     processo ele não sabe montar o documento. Era daí que vinha boa parte
+  //     das "peças vazias" que só a ativação na timeline resolvia.
+  function urlsDownload(id) {
+    const base = "/" + getBase() + "/seam/resource/rest/pje-legacy/documento/download/";
+    const trib = siglaTribunal();
+    const proc = getIdProcesso();
+    const urls = [];
+    if (trib && proc) urls.push(base + trib + "/" + grauAtual() + "/" + proc + "/" + id);
+    urls.push(base + id);
+    return urls;
+  }
+
+  // Baixa a peça tentando as rotas em ordem e aceitando a primeira que devolva
+  // CORPO ÚTIL — não basta HTTP 200: a rota curta responde 200 com uma casca
+  // vazia quando a peça é HTML, e é justamente esse caso que a rota completa
+  // resolve. Se nenhuma servir, ativa a peça na timeline (o endpoint REST só
+  // libera o que já foi "aberto" na sessão JSF) e repete.
   async function baixar(id) {
-    const url =
-      "/" + getBase() + "/seam/resource/rest/pje-legacy/documento/download/" + id;
-    let r = await fetch(url, { credentials: "include" });
-    if (r.status === 404) {
-      await ativarPeca(id); // registra a peça na sessão e aguarda liberar
-      r = await fetch(url, { credentials: "include" });
-    }
-    if (!r.ok) throw new Error("falha ao baixar a peça " + id + " (HTTP " + r.status + ")");
-    let corpo = await lerCorpo(r, id);
-    if (!corpo) {
-      await ativarPeca(id);
-      r = await fetch(url, { credentials: "include" });
-      if (!r.ok) throw new Error("falha ao baixar a peça " + id + " (HTTP " + r.status + ")");
-      corpo = await lerCorpo(r, id);
-      if (!corpo) {
-        throw new Error(
-          "a peça " + id + " retornou vazia — abra-a na linha do tempo do processo e tente novamente"
-        );
+    const urls = urlsDownload(id);
+    let ultimoStatus = 0;
+    const tentarRotas = async () => {
+      for (const u of urls) {
+        let r;
+        try {
+          r = await fetch(u, { credentials: "include" });
+        } catch {
+          continue; // falha de rede nesta rota: tenta a próxima
+        }
+        ultimoStatus = r.status;
+        if (!r.ok) continue;
+        const corpo = await lerCorpo(r, id);
+        if (corpo) return corpo;
       }
+      return null;
+    };
+
+    let corpo = await tentarRotas();
+    if (corpo) return corpo;
+
+    // Ativação é o caminho lento (~5,6 s e serializado na sessão JSF) e depende
+    // de a peça estar NA TIMELINE — peças que só a grid conhece podem não estar.
+    try {
+      await ativarPeca(id);
+    } catch {
+      /* sem link na timeline: ainda assim tentamos de novo abaixo */
     }
-    return corpo;
+    corpo = await tentarRotas();
+    if (corpo) return corpo;
+
+    throw new Error(
+      ultimoStatus && ultimoStatus !== 200
+        ? "falha ao baixar a peça " + id + " (HTTP " + ultimoStatus + ")"
+        : "a peça " + id + " retornou vazia — abra-a na linha do tempo do processo e tente novamente"
+    );
   }
 
   // Conta as páginas de um PDF por heurística no binário, em três passos:
@@ -193,14 +240,113 @@ var PJE = (function () {
   // do binário — o PJe pode servir PDF como application/octet-stream (ou sem
   // content-type), e sem o sniff a peça cairia no ramo de texto virando lixo
   // UTF-8 no contexto (até ~17 mil tokens desperdiçados por peça).
+  // ---------------------------------------------------------------- RTF ----
+  // O PJe serve peças em três formatos: PDF (digitalizados e anexos), HTML
+  // (nascidas do editor atual) e **RTF** (nascidas do editor antigo — comuns em
+  // processos migrados). Sem tratar o RTF, a peça chegava ao modelo como um
+  // despejo de marcação (`{\rtf1\ansi\deff0{\fonttbl…`), gastando milhares de
+  // tokens de lixo e sem o texto legível.
+  //
+  // Extrator próprio, sem biblioteca: RTF é ASCII com grupos entre chaves e
+  // "control words" (`\par`, `\tab`, `\'e7`…). Extraímos apenas o TEXTO.
+
+  // 0x80–0x9F do CP1252 não batem com Latin-1/Unicode (é onde ficam as aspas
+  // curvas e o travessão). Os acentos do português vivem em 0xC0–0xFF, que
+  // coincidem — por isso só estes precisam de mapa.
+  const CP1252_ALTO = {
+    128: "€", 130: "‚", 131: "ƒ", 132: "„", 133: "…", 134: "†", 135: "‡",
+    136: "ˆ", 137: "‰", 138: "Š", 139: "‹", 140: "Œ", 142: "Ž", 145: "‘",
+    146: "’", 147: "“", 148: "”", 149: "•", 150: "–", 151: "—", 152: "˜",
+    153: "™", 154: "š", 155: "›", 156: "œ", 158: "ž", 159: "Ÿ",
+  };
+
+  // Grupos cujo CONTEÚDO não é texto do documento. `\*` marca destinos
+  // ignoráveis por especificação; os demais são as tabelas de cabeçalho.
+  // O `\b` vale só para as PALAVRAS: depois de `\*` não existe boundary (nem
+  // `*` nem a `\` seguinte são caracteres de palavra), então um `\b` global
+  // fazia `{\*\generator …}` escapar da poda e o texto do grupo vazava.
+  const RTF_GRUPOS_MORTOS =
+    /^\\(?:\*|(?:fonttbl|colortbl|stylesheet|info|pntext|listtable|listoverridetable|rsidtbl|generator|themedata|datastore|xmlnstbl|latentstyles)\b)/;
+
+  function rtfParaTexto(rtf) {
+    const s = String(rtf || "");
+    let out = "";
+    let i = 0;
+    let pularUnicode = 0; // \ucN — quantos caracteres de fallback ignorar
+    while (i < s.length) {
+      const c = s[i];
+
+      if (c === "{") {
+        // grupo morto? pula o bloco inteiro, respeitando o balanceamento
+        const resto = s.slice(i + 1, i + 40);
+        if (RTF_GRUPOS_MORTOS.test(resto)) {
+          let nivel = 0;
+          while (i < s.length) {
+            if (s[i] === "\\" && (s[i + 1] === "{" || s[i + 1] === "}")) { i += 2; continue; }
+            if (s[i] === "{") nivel++;
+            else if (s[i] === "}") {
+              nivel--;
+              if (nivel === 0) { i++; break; }
+            }
+            i++;
+          }
+          continue;
+        }
+        i++;
+        continue;
+      }
+      if (c === "}") { i++; continue; }
+
+      if (c === "\\") {
+        const n = s[i + 1];
+        if (n === "\\" || n === "{" || n === "}") { out += n; i += 2; continue; }
+        if (n === "\n" || n === "\r") { out += "\n"; i += 2; continue; }
+        if (n === "'") {
+          const code = parseInt(s.substr(i + 2, 2), 16);
+          if (!isNaN(code)) {
+            if (pularUnicode > 0) pularUnicode--;
+            else out += CP1252_ALTO[code] || String.fromCharCode(code);
+          }
+          i += 4;
+          continue;
+        }
+        const m = /^\\([a-zA-Z]+)(-?\d+)?[ ]?/.exec(s.slice(i));
+        if (!m) { i += 2; continue; } // \<símbolo> desconhecido
+        const palavra = m[1];
+        const arg = m[2] != null ? parseInt(m[2], 10) : null;
+        if (palavra === "par" || palavra === "line" || palavra === "sect") out += "\n";
+        else if (palavra === "tab") out += "\t";
+        else if (palavra === "uc") pularUnicode = 0; // reinicia a contagem
+        else if (palavra === "u" && arg != null) {
+          out += String.fromCharCode(arg < 0 ? arg + 65536 : arg);
+          pularUnicode = 1; // o caractere seguinte é o fallback ANSI
+        }
+        i += m[0].length;
+        continue;
+      }
+
+      if (c === "\r" || c === "\n") { i++; continue; } // quebras do arquivo não são texto
+      if (pularUnicode > 0) { pularUnicode--; i++; continue; }
+      out += c;
+      i++;
+    }
+    return out.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  }
+
   async function lerCorpo(r, id) {
     const ct = (r.headers.get("content-type") || "").toLowerCase();
     const blob = await r.blob();
     let ehPdf = ct.includes("pdf");
-    if (!ehPdf && !ct.includes("html") && blob.size >= 5) {
-      // a spec permite lixo antes do %PDF- — procura nos primeiros 1024 bytes
+    let ehRtf = ct.includes("rtf");
+    // Assinatura no binário: o PJe legado serve tanto PDF quanto RTF como
+    // octet-stream, e confiar só no content-type mandaria RTF para o ramo de
+    // texto (o modelo receberia a marcação crua) ou PDF para o de texto (17 mil
+    // tokens de lixo binário).
+    if (!ehPdf && !ehRtf && !ct.includes("html") && blob.size >= 5) {
       const head = new Uint8Array(await blob.slice(0, 1024).arrayBuffer());
-      ehPdf = String.fromCharCode(...head).includes("%PDF-");
+      const inicio = String.fromCharCode(...head);
+      ehPdf = inicio.includes("%PDF-");
+      if (!ehPdf) ehRtf = /^\s*\{\\rtf/.test(inicio);
     }
     if (ehPdf) {
       if (!blob.size) {
@@ -225,8 +371,19 @@ var PJE = (function () {
     } else {
       raw = await blob.text();
     }
-    // Peças HTML: extrai só o texto legível (sem tags/scripts) para o modelo.
+    // Peças RTF (editor antigo do PJe, comuns em processos migrados): extrai o
+    // texto. Sem isto o modelo receberia `{\rtf1\ansi\deff0{\fonttbl…` inteiro.
     let text = raw;
+    if (ehRtf) {
+      const extraido = rtfParaTexto(raw);
+      console.debug(
+        "[PJe IA] peça", id, "RTF de", blob.size, "bytes →", extraido.length, "chars de texto"
+      );
+      text = extraido.trim();
+      if (!text) return null;
+      return { kind: "text", text };
+    }
+    // Peças HTML: extrai só o texto legível (sem tags/scripts) para o modelo.
     if (ct.includes("html")) {
       try {
         const doc = new DOMParser().parseFromString(raw, "text/html");
@@ -521,18 +678,40 @@ var PJE = (function () {
     }
   }
 
-  // Pronto = sem carimbo + carregado + grid presente + (se pedido) o slider na
-  // página esperada. Timeouts generosos: ~270 KB de HTML com <script> inline
-  // por linha deixam o renderer sem resposta por dezenas de segundos.
-  async function esperarGrid(iframe, pagina, tetoMs) {
-    const fim = Date.now() + (tetoMs || 30000);
+  // Assinatura do conteúdo da grid: os ids da 1ª e da última linha. Serve para
+  // detectar troca de página quando o carimbo não some (ver abaixo).
+  function assinaturaGrid(tb, mapa) {
+    const linhas = lerLinhas(tb, mapa || mapaColunas(tb) || {});
+    if (!linhas.length) return "";
+    return linhas[0].id + ":" + linhas[linhas.length - 1].id + ":" + linhas.length;
+  }
+
+  // Pronto = carregado + grid presente + (se pedido) o slider na página
+  // esperada + evidência de que o documento é NOVO.
+  //
+  // A evidência tem duas fontes porque o carimbo sozinho não basta: ele prova
+  // troca quando o A4J faz POST de página inteira (o documento novo nasce sem o
+  // atributo), mas se a resposta vier como AJAX PARCIAL o documento é o mesmo,
+  // o carimbo permanece e a espera nunca terminaria. Por isso aceitamos também
+  // "a grid mudou de conteúdo" — e, no primeiro acesso, a simples existência da
+  // grid já é a prova (antes do clique não havia nenhuma).
+  //
+  // Timeouts generosos: ~270 KB de HTML com <script> inline por linha deixam o
+  // renderer sem resposta por dezenas de segundos.
+  async function esperarGrid(iframe, opts) {
+    const { pagina = null, assinaturaAntes = null, tetoMs = 30000 } = opts || {};
+    const fim = Date.now() + tetoMs;
     while (Date.now() < fim) {
       await sleep(400);
       const doc = docDe(iframe);
       if (!doc || doc.readyState !== "complete") continue;
-      if (doc.documentElement.hasAttribute("data-pje-stale")) continue;
       const tb = acharGrid(doc);
       if (!tb) continue;
+      const semCarimbo = !doc.documentElement.hasAttribute("data-pje-stale");
+      const mudou =
+        assinaturaAntes != null && assinaturaGrid(tb) !== assinaturaAntes;
+      // primeiro acesso (sem assinatura anterior): achar a grid já é a prova
+      if (assinaturaAntes != null && !semCarimbo && !mudou) continue;
       if (pagina != null) {
         const inp = doc.querySelector("input.rich-inslider-field");
         if (!inp || String(inp.value).trim() !== String(pagina)) continue;
@@ -559,7 +738,9 @@ var PJE = (function () {
       } catch {
         return null;
       }
-      const tb = await esperarGrid(iframe, null, 25000);
+      // sem assinatura anterior: antes do clique não havia grid, então achá-la
+      // já prova que a tela trocou — não dependemos do carimbo aqui
+      const tb = await esperarGrid(iframe, { tetoMs: 25000 });
       if (tb) return tb;
     }
     return null;
@@ -624,14 +805,20 @@ var PJE = (function () {
       acumular(lerLinhas(tb, mapa));
 
       let lidas = 1;
+      let assinatura = assinaturaGrid(tb, mapa);
       for (let n = 2; n <= paginas; n++) {
         if (Date.now() - inicio > TETO_MS) break;
         const doc = docDe(iframe);
         if (!doc || !irParaPagina(doc, n)) break;
-        const tbn = await esperarGrid(iframe, n, 25000);
+        const tbn = await esperarGrid(iframe, {
+          pagina: n,
+          assinaturaAntes: assinatura,
+          tetoMs: 25000,
+        });
         if (!tbn) break; // conta como incompleto — não silencia
         const mn = mapaColunas(tbn) || mapa;
         acumular(lerLinhas(tbn, mn));
+        assinatura = assinaturaGrid(tbn, mn);
         lidas++;
       }
 
@@ -664,6 +851,8 @@ var PJE = (function () {
     _mapaColunas: mapaColunas,
     _lerLinhas: lerLinhas,
     _limparCelula: limparCelula,
+    _rtfParaTexto: rtfParaTexto,
+    _urlsDownload: urlsDownload,
     _totalPaginasGrid: totalPaginasGrid,
   };
 })();

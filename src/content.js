@@ -4,6 +4,15 @@
   if (window.__pjeIaLoaded) return;
   window.__pjeIaLoaded = true;
 
+  // SÓ no documento de topo. O guard acima é por CONTEXTO, e todo iframe é um
+  // contexto novo — sem esta linha o content script se injetaria também dentro
+  // dos iframes da página. Isso importa desde que `PJE.listarPelaGrid` passou a
+  // abrir um iframe com a PRÓPRIA URL dos autos: lá dentro existe #divTimeLine,
+  // então um painel inteiro (com observers, porta para o worker e requisição de
+  // caps) seria montado num frame invisível a cada leitura da grid. Vale também
+  // para os iframes do próprio PJe: o painel só faz sentido na janela de topo.
+  if (window.top !== window.self) return;
+
   // O content script roda em QUALQUER página *.jus.br (matches do manifest),
   // mas a maioria não é uma tela de autos do PJe (login SSO, portais,
   // consultas públicas…). Todo o boot do painel vive em iniciar(), chamada
