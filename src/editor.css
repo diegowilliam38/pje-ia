@@ -353,7 +353,7 @@ body {
   gap: 10px;
   padding: 46px 24px 50px;
   background: #fff;
-  border: 1px solid var(--linha, #d7dbdf);
+  border: 1px solid var(--line);
   border-radius: 12px;
 }
 .vazio-pg svg { color: #b8c4cd; }

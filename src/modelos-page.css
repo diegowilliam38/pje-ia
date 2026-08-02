@@ -263,7 +263,7 @@ body.editando .topo .acoes { visibility: hidden; }
   font-size: 11.5px;
   font-weight: 600;
   padding: 3px 9px;
-  border-radius: var(--r-sm, 7px);
+  border-radius: var(--r-sm);
   border: 1px solid var(--line-strong);
   background: #fff;
   color: var(--pje);

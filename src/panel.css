@@ -245,7 +245,13 @@
 }
 .hd .cnj:empty { display: none; }
 .hd .mark { width: 26px; height: 26px; border-radius: 7px; }
-.hd .ttl { font-family: Georgia, serif; font-size: var(--fs-lg); flex: 1; }
+/* o flex:1 saiu daqui e foi para o .tit-wrap: dentro de um container em COLUNA
+   o flex:1 esticaria a altura do título, não a largura do cabeçalho */
+.hd .ttl {
+  font-family: var(--ff-serif);
+  font-size: var(--fs-lg);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .hd button {
   background: rgba(255, 255, 255, 0.14);
   border: none;
