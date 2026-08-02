@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Meus modelos de peças — TecJustiça PJe</title>
+    <link rel="stylesheet" href="ui.css" />
+    <link rel="stylesheet" href="modelos-page.css" />
+  </head>
+  <body>
+    <header class="topo">
+      <img src="../icons/icon48.png" alt="" width="28" height="28" />
+      <div class="tit">
+        <span class="t serif">Meus modelos de peças</span>
+        <span class="s">guardados neste computador · usados ao gerar minutas</span>
+      </div>
+      <div class="acoes">
+        <button id="novo" class="primario">✚ Novo modelo</button>
+      </div>
+    </header>
+
+    <main class="mesa">
+      <!-- LISTA -->
+      <section id="telaLista" class="col">
+        <div class="barra-busca" id="barraBusca" hidden>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+            <circle cx="7" cy="7" r="4.5" /><path d="M10.6 10.6 14 14" />
+          </svg>
+          <input
+            id="busca"
+            type="search"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="Buscar por título, categoria ou descrição…"
+            aria-label="Buscar modelo"
+          />
+          <span id="contador" class="cnt"></span>
+        </div>
+        <div id="lista" class="lista"></div>
+      </section>
+
+      <!-- FORMULÁRIO -->
+      <section id="telaForm" class="col" hidden>
+        <div class="form-card">
+          <h2 class="serif" id="formTit">Novo modelo</h2>
+          <p class="form-sub">
+            O assistente imita a <b>estrutura</b> e o estilo do que você colar aqui — os
+            fatos da minuta continuam saindo apenas das peças do processo em tela.
+          </p>
+
+          <label class="campo">
+            <span class="rot">Título</span>
+            <input
+              id="fTitulo"
+              type="text"
+              maxlength="80"
+              placeholder="Ex.: Sentença de improcedência — dano moral"
+            />
+          </label>
+
+          <div class="dupla">
+            <label class="campo">
+              <span class="rot">Categoria</span>
+              <select id="fCategoria"></select>
+              <span class="dica">É por ela que a minuta encontra este modelo.</span>
+            </label>
+            <label class="campo">
+              <span class="rot">Descrição <i>(opcional)</i></span>
+              <input id="fDescricao" type="text" maxlength="120" placeholder="Quando usar este modelo" />
+            </label>
+          </div>
+
+          <label class="campo">
+            <span class="rot">Texto da peça-modelo</span>
+            <textarea
+              id="fTexto"
+              placeholder="Cole aqui a peça inteira, do cabeçalho ao dispositivo…"
+            ></textarea>
+            <span class="dica" id="contChars"></span>
+          </label>
+
+          <div class="erro" id="formErro" role="alert" hidden></div>
+
+          <div class="form-acoes">
+            <button id="cancelar" class="ghost">Cancelar</button>
+            <button id="salvar" class="primario">Salvar modelo</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <p class="rodape-nota">
+      Os modelos ficam <b>apenas neste computador</b> e não sincronizam. Se você colar uma
+      peça real, ela pode conter dados de outro processo — exclua quando não precisar mais.
+    </p>
+
+    <script src="modelos.js"></script>
+    <script src="modelos-page.js"></script>
+  </body>
+</html>

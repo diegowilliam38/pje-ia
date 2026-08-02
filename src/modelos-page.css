@@ -1,0 +1,319 @@
+/* Página "Meus modelos de peças" — irmã de editor.css, mesma direção "Word
+   clean": conteúdo branco sobre canvas cinza neutro, sem textura nem cor
+   decorativa. A cor entra só onde carrega informação (categoria, foco, erro).
+
+   As variáveis de identidade (--pje, --pje-2, --line…) vêm de ui.css. */
+
+:root {
+  --canvas: #eceef1;
+  --canvas-2: #e3e6e9;
+  --linha: #d7dbdf;
+}
+
+html, body { height: 100%; }
+body {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--canvas-2);
+  overflow: hidden;
+}
+[hidden] { display: none !important; }
+
+/* ---------------------------------------------------------------- cabeçalho */
+/* Mesmo cabeçalho do editor: quem chega de uma tela reconhece a outra. */
+.topo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 16px;
+  background: linear-gradient(180deg, var(--pje), var(--pje-2));
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(5, 32, 46, 0.25);
+  flex: none;
+  z-index: 3;
+}
+.topo img { border-radius: 7px; flex: none; }
+.topo .tit { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.topo .tit .t { font-size: 16px; line-height: 1.2; color: #fff; }
+.topo .tit .s {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.72);
+  letter-spacing: 0.2px;
+}
+.topo .acoes { display: flex; gap: 8px; flex: none; }
+
+/* ------------------------------------------------------------------ botões */
+button {
+  font: inherit;
+  font-size: 13px;
+  border-radius: 7px;
+  padding: 7px 13px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.12s, border-color 0.12s;
+}
+.topo button {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #fff;
+  font-weight: 600;
+}
+.topo button:hover { background: rgba(255, 255, 255, 0.26); }
+.primario {
+  background: linear-gradient(180deg, var(--pje), var(--pje-2));
+  color: #fff;
+  font-weight: 700;
+  border-color: var(--pje-2);
+}
+.primario:hover { filter: brightness(1.07); }
+.ghost {
+  background: #fff;
+  border-color: var(--linha);
+  color: var(--text);
+}
+.ghost:hover { background: #f2f5f7; }
+
+/* -------------------------------------------------------------------- mesa */
+.mesa {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--canvas);
+  padding: 26px 18px 40px;
+}
+.col { width: 100%; max-width: 720px; margin: 0 auto; }
+
+/* ------------------------------------------------------------------- busca */
+.barra-busca {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border: 1px solid var(--linha);
+  border-radius: 8px;
+  padding: 9px 12px;
+  margin-bottom: 14px;
+}
+.barra-busca > svg { color: var(--muted); flex: none; }
+.barra-busca input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: transparent;
+}
+.barra-busca input::placeholder { color: #93a1ae; }
+.barra-busca input::-webkit-search-cancel-button { cursor: pointer; }
+.cnt { font-size: 11.5px; color: var(--muted); flex: none; }
+
+/* com o formulário aberto o botão do cabeçalho sairia por baixo do que está
+   sendo digitado — some enquanto se edita */
+body.editando .topo .acoes { visibility: hidden; }
+
+/* -------------------------------------------------------------------- lista */
+/* Agrupada por categoria: um cartão branco por espécie, com o nome dela como
+   cabeçalho da seção. Ver o comentário de render() em modelos-page.js. */
+.lista { display: flex; flex-direction: column; gap: 14px; }
+.lista.solta { display: block; }
+.grupo {
+  background: #fff;
+  border: 1px solid var(--linha);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.ghd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 9px 14px;
+  font-family: Georgia, serif;
+  font-size: 13.5px;
+  font-weight: 400;
+  color: var(--pje-2);
+  background: #f4f9fc;
+  border-bottom: 1px solid #e4edf2;
+}
+.ghd .gn {
+  font-family: system-ui, sans-serif;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--pje-2);
+  background: #dceaf2;
+  border-radius: 20px;
+  padding: 1px 7px;
+}
+.mrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #eef1f3;
+  cursor: pointer;
+  outline: none;
+}
+.mrow:last-child { border-bottom: none; }
+.mrow:hover { background: #f7fafc; }
+.mrow:focus-visible { background: #f2f8fb; box-shadow: inset 3px 0 0 var(--pje); }
+.mrow .info { flex: 1; min-width: 0; }
+.mrow .mt {
+  display: block;
+  font-size: 14px;
+  color: #1a2730;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mrow .mm {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+/* etiqueta da categoria: mesma linguagem do .mlib-cat do painel */
+.cat {
+  display: inline-block;
+  margin-right: 7px;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: #e2eef5;
+  color: var(--pje-2);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  vertical-align: 1px;
+}
+.mrow .acts { display: flex; gap: 6px; flex: none; opacity: 0; transition: opacity 0.12s; }
+.mrow:hover .acts, .mrow:focus-within .acts { opacity: 1; }
+.mrow .acts button {
+  font-size: 12px;
+  padding: 5px 10px;
+  background: #fff;
+  border-color: var(--linha);
+  color: var(--muted);
+}
+.mrow .acts button:hover { background: #f0f4f7; color: var(--text); }
+/* exclusão em dois cliques (nunca confirm() nativo — trava a página) */
+.mrow .acts .del.arm {
+  background: #a5301f;
+  border-color: #a5301f;
+  color: #fff;
+  font-weight: 700;
+}
+
+/* -------------------------------------------------------------- vazio */
+.vazio-pg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: 46px 24px 50px;
+  background: #fff;
+  border: 1px solid var(--linha);
+  border-radius: 12px;
+}
+.vazio-pg svg { color: #b8c4cd; }
+.vazio-pg .vt { font-family: Georgia, serif; font-size: 17px; color: #1a2730; margin-top: 2px; }
+.vazio-pg .vd {
+  font-size: 13.5px;
+  color: var(--muted);
+  line-height: 1.55;
+  max-width: 48ch;
+  text-wrap: pretty; /* evita a última linha sobrando com duas palavras */
+}
+.vazio-pg .vd b { color: #33424f; }
+.sem-res { padding: 24px 14px; text-align: center; font-size: 13px; color: var(--muted); }
+
+/* ------------------------------------------------------------- formulário */
+.form-card {
+  background: #fff;
+  border: 1px solid var(--linha);
+  border-radius: 12px;
+  padding: 22px 24px 20px;
+}
+.form-card h2 { font-size: 19px; color: var(--ink); margin: 0 0 4px; }
+.form-sub { font-size: 13px; color: var(--muted); line-height: 1.5; margin: 0 0 18px; }
+.form-sub b { color: #33424f; }
+
+.campo { display: block; margin-bottom: 15px; }
+.campo .rot {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 5px;
+  letter-spacing: 0.02em;
+}
+.campo .rot i { font-weight: 400; font-style: normal; color: var(--muted); }
+.campo input,
+.campo select,
+.campo textarea {
+  width: 100%;
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: #fff;
+  border: 1px solid var(--linha);
+  border-radius: 8px;
+  padding: 9px 11px;
+  outline: none;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.campo select { cursor: pointer; }
+.campo textarea {
+  min-height: 300px;
+  resize: vertical;
+  line-height: 1.55;
+  /* o conteúdo é uma peça jurídica: serifada, como sairá na minuta */
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 14.5px;
+}
+.campo input:focus,
+.campo select:focus,
+.campo textarea:focus {
+  border-color: var(--pje);
+  box-shadow: 0 0 0 3px rgba(0, 120, 170, 0.15);
+}
+.campo .dica { display: block; font-size: 11.5px; color: var(--muted); margin-top: 5px; }
+.campo .dica.estouro { color: #a5301f; font-weight: 700; }
+.dupla { display: flex; gap: 14px; }
+.dupla .campo { flex: 1; min-width: 0; }
+
+.erro {
+  background: #fdecea;
+  border: 1px solid #f0c4bd;
+  color: #8c2a1b;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+.form-acoes { display: flex; justify-content: flex-end; gap: 9px; }
+
+/* ------------------------------------------------------------------ rodapé */
+.rodape-nota {
+  flex: none;
+  margin: 0;
+  padding: 8px 16px;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  background: #f4f6f8;
+  border-top: 1px solid var(--linha);
+}
+.rodape-nota b { color: #4a5a68; }
+
+@media (max-width: 620px) {
+  .dupla { flex-direction: column; gap: 0; }
+  .mrow .acts { opacity: 1; }
+}

@@ -176,10 +176,13 @@ body {
 .drop {
   position: absolute;
   top: calc(100% + 6px);
-  left: 0;
+  /* Ancorado à DIREITA: o .drop-wrap fica no canto direito do cabeçalho, então
+     abrir a partir da borda esquerda jogava os 280px de largura para fora da
+     janela — o painel aparecia cortado pela borda da tela. */
+  right: 0;
   z-index: 20;
   min-width: 280px;
-  max-width: 360px;
+  max-width: min(360px, calc(100vw - 24px));
   max-height: 62vh;
   overflow: auto;
   background: #fff;
@@ -337,6 +340,59 @@ body {
   text-align: center;
 }
 
+/* Estado vazio da PÁGINA (modo lista). O do dropdown continua sendo a linha
+   compacta acima — ali cabe uma frase; aqui a tela inteira estava ocupada por
+   um cartão de 640px com uma única linha cinza dentro, o que fazia a página
+   parecer quebrada em vez de vazia. Este bloco explica o que aconteceu, como
+   gerar a primeira minuta e para onde ir. */
+.vazio-pg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: 46px 24px 50px;
+  background: #fff;
+  border: 1px solid var(--linha, #d7dbdf);
+  border-radius: 12px;
+}
+.vazio-pg svg { color: #b8c4cd; }
+.vazio-pg .vt {
+  font-family: Georgia, serif;
+  font-size: 17px;
+  color: #1a2730;
+  margin-top: 2px;
+}
+.vazio-pg .vd {
+  font-size: 13.5px;
+  color: #5d6b7a;
+  line-height: 1.55;
+  max-width: 46ch;
+  /* texto centralizado e curto quebra em linhas de comprimento muito desigual
+     (a última sobrando com duas palavras); o balanceamento do próprio navegador
+     resolve sem precisar quebrar na mão */
+  text-wrap: pretty;
+}
+/* o emoji não pode ficar órfão no fim de uma linha, longe do rótulo do botão */
+.vazio-pg .vd b { white-space: nowrap; }
+.vazio-pg .vd b { color: #33424f; }
+.vazio-pg .vlinks {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 6px;
+  font-size: 13px;
+}
+.vazio-pg .vlinks a {
+  color: var(--pje-2, #005f88);
+  font-weight: 600;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(0, 95, 136, 0.3);
+  padding-bottom: 1px;
+}
+.vazio-pg .vlinks a:hover { border-bottom-color: currentColor; }
+
 /* ------------------------------------------------------- barra do editor */
 
 .barra {
@@ -492,15 +548,17 @@ body {
 }
 
 /* modo lista (página sem ?id): a tela inteira vira a lista de rascunhos, e a
-   barra do editor e os botões de exportar não fazem sentido — somem. */
+   barra do editor e os botões de exportar não fazem sentido — somem. O botão
+   "🗂 Rascunhos" sai JUNTO: aqui a página inteira já é a lista, e abrir um
+   dropdown com exatamente o mesmo conteúdo em cima dela era só ruído. */
 .modo-lista .barra,
-.modo-lista .acoes .grupo:not(.drop-wrap) {
+.modo-lista .acoes .grupo {
   display: none !important;
 }
 .modo-lista .aviso {
   justify-content: flex-start;
   align-items: stretch;
-  padding: 30px 18px;
+  padding: 34px 18px 40px;
   overflow: auto;
   background: var(--canvas);
 }

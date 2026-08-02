@@ -230,3 +230,50 @@ input:focus, select:focus, textarea:focus {
   background: transparent; border: none; border-left: 3px solid #e2c98e;
   border-radius: 0;
 }
+
+/* ------------------------------------------------------ Suas bibliotecas
+   Acessos às duas coleções que o usuário constrói ao longo do tempo (modelos
+   de peças e rascunhos de minuta). Ficam na página de opções porque nenhuma
+   das duas depende de ter autos abertos — antes só se chegava a elas de dentro
+   do painel, o que obrigava a abrir um processo qualquer para cadastrar um
+   modelo. Linhas, não cartões coloridos: é navegação, não chamada para ação. */
+.sec-tit {
+  font-size: 17px;
+  color: var(--ink);
+  margin: 26px 0 10px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.libs { display: flex; flex-direction: column; gap: 8px; }
+.lib {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.12s, background 0.12s, transform 0.12s;
+}
+.lib:hover {
+  border-color: var(--pje);
+  background: #fbfdfe;
+  transform: translateX(2px);
+}
+.lib .ic { font-size: 20px; flex: none; line-height: 1; }
+.lib .tx { flex: 1; min-width: 0; }
+.lib .tx b { display: block; font-size: 14px; color: var(--ink); }
+.lib .tx i {
+  display: block;
+  font-style: normal;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.45;
+  margin-top: 2px;
+}
+.lib .arrow { flex: none; color: var(--pje); font-size: 15px; opacity: 0.55; }
+.lib:hover .arrow { opacity: 1; }
+.libs-nota { font-size: 11.5px; color: var(--muted); margin: 9px 2px 0; }
+.libs-nota b { color: #4a5a68; }

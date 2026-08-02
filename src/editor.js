@@ -137,10 +137,32 @@
     });
   }
 
+  // Estado vazio COMPACTO — usado no dropdown, onde só cabe uma frase.
   function vazioHtml() {
     return (
       '<div class="vazio">Nenhuma minuta guardada. Gere uma pelo botão ' +
       "“📝 Minutar” no painel do processo.</div>"
+    );
+  }
+
+  // Estado vazio da PÁGINA. A tela cheia com uma única linha cinza parecia
+  // defeito; aqui a mesma informação vira orientação — o que é esta tela, como
+  // criar a primeira minuta e para onde ir agora.
+  function vazioPaginaHtml() {
+    return (
+      '<div class="vazio-pg">' +
+      '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+      'stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/>' +
+      '<path d="M14 3v5h5M9 13h6M9 17h4"/></svg>' +
+      '<div class="vt">Nenhuma minuta guardada ainda</div>' +
+      '<div class="vd">As minutas que você gerar aparecem aqui para reabrir e continuar ' +
+      "depois. Para criar a primeira, abra os autos de um processo no PJe, marque as peças " +
+      "e clique em <b>✍️ Minutar</b> no painel da extensão.</div>" +
+      '<div class="vlinks">' +
+      '<a href="modelos.html">📚 Meus modelos de peças</a>' +
+      '<a href="help.html" target="_blank">Como usar a extensão →</a>' +
+      "</div></div>"
     );
   }
 
@@ -320,13 +342,23 @@
     elTitulo.value = "Minhas minutas";
     elTitulo.readOnly = true;
     elSub.textContent = "guardadas neste computador · apagadas após 7 dias";
+    // O rodapé padrão fala de "Descartar" e de conferir citações — instruções
+    // do EDITOR, sem sentido numa tela que só lista. Troca pelo que vale aqui.
+    const nota = document.querySelector(".rodape-nota");
+    if (nota) {
+      nota.innerHTML =
+        "As minutas ficam guardadas <b>apenas neste computador</b> e são apagadas " +
+        "automaticamente após 7 dias (no máximo as 10 mais recentes).";
+    }
     listarRascunhos((lista) => {
       mostrarAviso(
         '<div class="lista-box">' +
           (aviso ? '<div class="lista-aviso">' + aviso + "</div>" : "") +
-          '<div class="lista-h">Suas minutas recentes</div>' +
-          (lista.length ? campoBusca(lista.length) : "") +
-          '<div class="lista-b">' + linhasRascunhos(lista, null) + "</div>" +
+          (lista.length
+            ? '<div class="lista-h">Suas minutas recentes</div>' +
+              campoBusca(lista.length) +
+              '<div class="lista-b">' + linhasRascunhos(lista, null) + "</div>"
+            : vazioPaginaHtml()) +
           "</div>"
       );
       const box = elAviso.querySelector(".lista-box");

@@ -641,8 +641,16 @@ comum** (sem tools/skills/`container`) — por isso funciona nos dois provedores
   content script) na 1ª abertura; o HTML editado é gravado de volta e reusado depois.
 - **Recuperação de rascunhos** (`listarRascunhos` em editor.js): sem uma lista, o rascunho
   ficaria órfão no disco. O botão "🗂 Rascunhos" abre um dropdown com os `minuta:*` (mais
-  recente primeiro); `editor.html` SEM `?id` vira a própria lista (modo-lista); o popup tem
-  a porta de entrada "📝 Minhas minutas".
+  recente primeiro); `editor.html` SEM `?id` vira a própria lista (modo-lista); o popup e
+  **Configurações → Suas bibliotecas** têm a porta de entrada "📝 Minhas minutas".
+  No modo-lista some a barra de ferramentas E o próprio botão "🗂 Rascunhos"
+  (`.modo-lista .acoes .grupo`): a página inteira já É a lista, e o dropdown repetia o
+  mesmo conteúdo por cima dela. O `.drop` é ancorado à **direita** (`right: 0`) porque o
+  `.drop-wrap` fica no canto direito do cabeçalho — com `left: 0` os 280px de largura
+  saíam da janela e o painel aparecia cortado. O estado vazio da PÁGINA é próprio
+  (`vazioPaginaHtml`, com orientação e links), diferente do compacto do dropdown, e o
+  texto do rodapé é reescrito: o padrão fala de "Descartar" e de conferir citações,
+  instruções do editor que não existem numa tela que só lista.
 - **Card no chat, aba no clique** (`panel.mostrarCardMinuta`, clone do `mostrarCardMapa`): a
   bolha vira card "Minuta gerada" com "Abrir no editor" (`window.open` no clique — a resposta
   demora e o gesto do "Gerar" já expirou; navegação de topo é imune à CSP do tribunal) e
@@ -717,6 +725,16 @@ irmão do `PLIB`, com diferenças de propósito:
   faltar vira `[COMPLETAR: …]`. Tags `<modelo…>` acidentais no texto do usuário são
   removidas (regex `limpar`) para não quebrar a moldura — o `<` comum do texto jurídico é
   preservado.
+- **Página própria `src/modelos.html`** (+ `modelos-page.js`/`.css`), alcançável por
+  **Configurações → Suas bibliotecas**, pelo rodapé do popup e pelo estado vazio de
+  `editor.html`: cadastrar modelos é tarefa de PREPARAÇÃO e não deveria exigir uma aba
+  de autos aberta só para chegar ao modal do painel. A camada de dados é a MESMA
+  (`MLIB`), então o que se cadastra ali aparece no painel na hora (`aoMudar`), e não há
+  esquema novo. A página **não** precisa entrar em `web_accessible_resources`: só é
+  aberta de contextos de extensão (options/popup/editor), nunca de uma página `jus.br`.
+  A lista é **agrupada por categoria** (a etiqueta repetida em cada linha competia com
+  o título, e a categoria é o eixo em que se pensa aqui — é por ela que a minuta
+  seleciona); a linha inteira abre a edição; excluir segue em dois cliques.
 - **Funciona nos DOIS provedores** (a minuta é chat comum, sem gating por nome de
   modelo) e grava **trecho de outros processos no disco** (como os rascunhos de minuta):
   daí a nota no `PRIVACY.md`/`help.html` e a exclusão fácil na biblioteca (dois cliques,
