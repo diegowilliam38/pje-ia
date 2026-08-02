@@ -14,6 +14,11 @@ Desktop.ini
 *.crx
 *.pem
 dist/
+# Pacote descompactado para testar no Chrome. O nome NÃO pode começar com "_":
+# o Chrome reserva esse prefixo (só aceita _locales e _metadata) e recusa
+# carregar a extensão inteira se achar um na árvore — inclusive numa pasta que
+# nada tem a ver com o manifest. O melhor é descompactar FORA do repositório.
+teste-pacote-*/
 
 # dependências (se algum dia houver build)
 node_modules/
