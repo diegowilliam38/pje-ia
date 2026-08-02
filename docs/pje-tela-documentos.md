@@ -2,8 +2,12 @@
 
 > Engenharia reversa do PJe 1º grau. Testado no TJCE (`pje.tjce.jus.br/pje1grau`);
 > como a base de código é a do CNJ, trocando o host tende a valer para os demais
-> tribunais. **Ainda não implementado na extensão** — este documento registra o
-> achado e a arquitetura recomendada.
+> tribunais.
+>
+> **IMPLEMENTADO** em `PJE.listarPelaGrid` (`src/pje.js`), com uma diferença de
+> arquitetura em relação ao proposto: **iframe oculto same-origin em vez de aba
+> em segundo plano**, o que evita as permissões `tabs`+`scripting` — ver
+> "Iframe em vez de aba", abaixo. O scroll continua como fallback.
 
 ## O problema com os Autos Digitais
 
@@ -134,13 +138,50 @@ tribunal X.
 O mapeamento pelo cabeçalho importa: se um tribunal reordenar ou acrescentar uma
 coluna, o parser acompanha em vez de silenciosamente ler o campo errado.
 
-## O que isto custaria na extensão
+## Iframe em vez de aba (o que foi implementado)
 
-| Item | Impacto |
-|---|---|
-| Permissões | `tabs` + `scripting` no `manifest.json` — **muda o aviso de instalação** da Web Store ("Ler o histórico de navegação"/"acessar suas guias"), o que pede uma revisão nova e é visível ao usuário |
-| Código | Uma rota nova em `pje.js` + orquestração no worker (a aba em segundo plano não pode ser dirigida do content script) |
-| Ganho direto | Tipo oficial substitui o palpite das `CATEGORIAS` por regex; `juntadoPor` permite distinguir peça da parte × ato do juízo com precisão; **e o oráculo de completude** |
+A proposta original era abrir uma aba em segundo plano e dirigi-la por
+`chrome.scripting`. O motivo é correto — a armadilha 4 (POST de página inteira
+que recria o documento) exige um documento descartável que não seja o do usuário.
+Mas um **iframe oculto same-origin** satisfaz a mesma exigência sem custar
+permissão alguma:
 
-O ganho maior é o item 3: hoje a lista pode estar incompleta e a extensão não
-tem como saber. Com o total de páginas, ela passa a poder **avisar**.
+| | Aba + `chrome.scripting` | **Iframe oculto** |
+|---|---|---|
+| Permissões | `tabs` + `scripting` — **muda o aviso de instalação** e obriga nova revisão na Web Store | nenhuma: o content script já roda na origem |
+| Documento destruído pelo POST | o da aba auxiliar | o do iframe |
+| Onde vive o estado da paginação | no worker | no content script, fora do iframe |
+| Quem monta o POST do RichFaces | o `A4J.AJAX.Submit` da aba | o `A4J.AJAX.Submit` do iframe — igual |
+| Risco | — | `X-Frame-Options: DENY` no tribunal X; renderer compartilhado (armadilha 7) |
+
+Os dois riscos do iframe são tratados: `contentDocument` inacessível devolve
+`null` (e o chamador cai no scroll), o frame fica fora da tela e com
+`visibility:hidden` para não pagar paint, e há teto global de 120 s.
+
+Detalhe que importa: dentro do iframe **clicamos no link real**, deixando o
+próprio A4J do PJe montar o POST. Replicar os parâmetros do RichFaces na mão
+(`AJAXREQUEST`, `javax.faces.ViewState`, o id do componente) funcionaria, mas
+seria mais uma superfície de quebra a cada versão do PJe.
+
+## Como está integrado
+
+`panel.onCarregarTimeline` (content.js) tenta a grid primeiro e cai no scroll se
+ela devolver `null`. Quando a grid responde:
+
+- as peças são **mescladas** com as da timeline (`mesclarDocs`): a timeline manda
+  na ORDEM (é a cronologia que o usuário vê) e a grid acrescenta as que o scroll
+  não alcançou, além do `tipo` oficial de cada uma;
+- `categoriaDe` (panel.js) passou a aceitar o objeto da peça e classifica pelo
+  **`tipo` antes do título** — "Despachos / 2" não diz nada, "Despacho de Mero
+  Expediente" diz tudo;
+- a dica da timeline informa **quantas páginas de quantas** foram lidas, e diz
+  "leitura PARCIAL" quando `paginasLidas < paginas`. É este o ganho central: a
+  rota por scroll entrega lista parcial com cara de completa.
+
+## Testes
+
+26 asserções em `teste-grid.mjs` (scratchpad), sobre um HTML que reproduz as
+armadilhas: tabelas aninhadas do RichFaces (confere que pega a **interna**),
+`<th>` com CDATA, ausência do id `processoDocumentoGridList`, colunas
+**reordenadas**, linha de rodapé com `colspan` e tabela que não é a grid.
+Falta o smoke test num processo real.

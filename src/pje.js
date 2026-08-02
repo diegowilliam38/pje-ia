@@ -374,6 +374,282 @@ var PJE = (function () {
     });
   }
 
+  // ==========================================================================
+  // Rota alternativa de listagem: a tela "Documentos" (grid paginada)
+  //
+  // Os Autos Digitais listam por SCROLL INFINITO, e "parou de crescer" é um
+  // heurístico temporal, não uma garantia: se o servidor demorar mais que a
+  // janela de espera, `carregarTimelineCompleta` para cedo e devolve uma lista
+  // parcial SEM ERRO NENHUM. A tela "Documentos" (menu ☰ → Documentos) é uma
+  // grid tabular paginada que resolve isso — ela informa o TOTAL de páginas, o
+  // que dá um oráculo de completude: dá para AFIRMAR que leu tudo, e avisar
+  // quando não leu. De quebra traz o TIPO oficial da peça ("Despacho de Mero
+  // Expediente", "Certidão de Intimação"), a data da juntada e quem juntou —
+  // nada disso existe na timeline, onde a categoria é adivinhada por regex.
+  //
+  // POR QUE UM IFRAME e não uma aba em segundo plano: a paginação faz POST de
+  // página INTEIRA e recria o documento, então não dá para segurar estado nele
+  // — e fazer isso na aba do usuário tiraria da tela o documento que ele está
+  // lendo. Um iframe oculto same-origin isola o documento destruído sem custar
+  // as permissões `tabs`+`scripting` (que mudariam o aviso de instalação da
+  // Web Store), e o estado da paginação fica aqui, no content script. Dentro do
+  // iframe clicamos no link REAL: quem monta o POST do RichFaces é o próprio
+  // A4J do PJe, então não replicamos parâmetros de JSF na mão.
+  //
+  // Tudo aqui é BEST-EFFORT: qualquer falha devolve null e o chamador cai no
+  // scroll de sempre. Nunca lançar para o content script.
+  // ==========================================================================
+
+  const semAcento = (s) =>
+    String(s == null ? "" : s).normalize("NFD").replace(/\p{Mn}/gu, "").toLowerCase();
+
+  // Os <th> do RichFaces vêm com <script> CDATA embutido no texto.
+  function limparCelula(t) {
+    return String(t == null ? "" : t)
+      .replace(/\/\/<!\[CDATA\[[\s\S]*?\/\/\]\]>/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  // Assinatura mínima da grid de documentos: uma tabela com Id + Juntado em +
+  // Tipo só pode ser essa. É o segundo critério porque o id
+  // `processoDocumentoGridList` some conforme o A4J re-renderiza.
+  const GRID_ASSINATURA = ["id", "juntado em", "tipo"];
+
+  function acharGrid(doc) {
+    const cands = [];
+    const porId = doc.querySelector("#processoDocumentoGridList");
+    if (porId) {
+      const t = porId.tagName === "TABLE" ? porId : porId.querySelector("table");
+      if (t) cands.push(t);
+    }
+    for (const tb of doc.querySelectorAll("table")) {
+      const ths = [...tb.querySelectorAll("th")].map((th) => semAcento(limparCelula(th.textContent)));
+      if (ths.length < 3) continue;
+      const casa = GRID_ASSINATURA.every((c) =>
+        ths.some((t) => t === semAcento(c) || t.indexOf(semAcento(c)) === 0)
+      );
+      if (casa && cands.indexOf(tb) < 0) cands.push(tb);
+    }
+    if (!cands.length) return null;
+    // As tabelas do RichFaces são ANINHADAS e o ancestral aparece antes na
+    // ordem do documento. Queremos a mais INTERNA: se pegássemos a de fora, os
+    // <th> de tudo o que ela embrulha desalinhariam o mapa de colunas.
+    return cands.find((t) => !cands.some((o) => o !== t && t.contains(o))) || cands[cands.length - 1];
+  }
+
+  // Mapa nome-da-coluna -> índice, lido do CABEÇALHO. Se um tribunal reordenar
+  // ou acrescentar coluna, o parser acompanha em vez de ler o campo errado.
+  function mapaColunas(tb) {
+    for (const tr of tb.querySelectorAll("tr")) {
+      const ths = [...tr.children].filter((c) => c.tagName === "TH");
+      if (ths.length < 3) continue;
+      const mapa = {};
+      ths.forEach((th, i) => {
+        const nome = semAcento(limparCelula(th.textContent));
+        if (nome && !(nome in mapa)) mapa[nome] = i;
+      });
+      if ("id" in mapa) return mapa;
+    }
+    return null;
+  }
+
+  function lerLinhas(tb, mapa) {
+    const out = [];
+    const cel = (tds, nome) => {
+      const i = mapa[semAcento(nome)];
+      return i == null || !tds[i] ? "" : limparCelula(tds[i].textContent);
+    };
+    for (const tr of tb.querySelectorAll("tr")) {
+      const tds = [...tr.children].filter((c) => c.tagName === "TD");
+      if (tds.length < 3) continue;
+      const id = cel(tds, "id");
+      if (!/^\d{4,}$/.test(id)) continue; // cabeçalho, rodapé ou linha de controle
+      const documento = cel(tds, "documento");
+      const tipo = cel(tds, "tipo");
+      out.push({
+        id,
+        // MESMO formato da timeline ("123456 - Nome"): é por ele que o id
+        // viaja até o modelo, no `title` do bloco document.
+        titulo: (id + " - " + (documento || tipo || "Documento")).slice(0, 140),
+        tipo,
+        juntadoEm: cel(tds, "juntado em"),
+        juntadoPor: cel(tds, "juntado por"),
+      });
+    }
+    return out;
+  }
+
+  function totalPaginasGrid(doc) {
+    const el = doc.querySelector(".rich-inslider-right-num");
+    const v = parseInt(limparCelula(el && el.textContent), 10);
+    return Number.isFinite(v) && v > 0 ? v : 1;
+  }
+
+  // Carimba o documento ANTES de submeter: o documento novo nasce sem o
+  // atributo. Sem isso não há como saber que a página trocou — o valor do
+  // slider foi escrito por nós, então testá-lo passa na página velha.
+  function carimbar(doc) {
+    try {
+      doc.documentElement.setAttribute("data-pje-stale", "1");
+    } catch {
+      /* documento já substituído */
+    }
+  }
+
+  function irParaPagina(doc, n) {
+    const inp = doc.querySelector("input.rich-inslider-field");
+    if (!inp) return false;
+    const W = doc.defaultView; // eventos precisam ser do realm do IFRAME
+    carimbar(doc);
+    inp.value = String(n);
+    for (const ev of ["input", "change", "blur"]) {
+      inp.dispatchEvent(new W.Event(ev, { bubbles: true }));
+    }
+    inp.dispatchEvent(
+      new W.KeyboardEvent("keyup", { bubbles: true, key: "Enter", keyCode: 13 })
+    );
+    return true;
+  }
+
+  // Documento do iframe, ou null se a origem estiver bloqueada (X-Frame-Options).
+  function docDe(iframe) {
+    try {
+      return iframe.contentDocument || null;
+    } catch {
+      return null; // cross-origin: o tribunal barrou o enquadramento
+    }
+  }
+
+  // Pronto = sem carimbo + carregado + grid presente + (se pedido) o slider na
+  // página esperada. Timeouts generosos: ~270 KB de HTML com <script> inline
+  // por linha deixam o renderer sem resposta por dezenas de segundos.
+  async function esperarGrid(iframe, pagina, tetoMs) {
+    const fim = Date.now() + (tetoMs || 30000);
+    while (Date.now() < fim) {
+      await sleep(400);
+      const doc = docDe(iframe);
+      if (!doc || doc.readyState !== "complete") continue;
+      if (doc.documentElement.hasAttribute("data-pje-stale")) continue;
+      const tb = acharGrid(doc);
+      if (!tb) continue;
+      if (pagina != null) {
+        const inp = doc.querySelector("input.rich-inslider-field");
+        if (!inp || String(inp.value).trim() !== String(pagina)) continue;
+      }
+      return tb;
+    }
+    return null;
+  }
+
+  // O clique pode ser engolido em silêncio: o A4J.AJAX.Submit sai, o servidor
+  // devolve a mesma tela e nada muda, sem erro (provável relação com a
+  // conversação Seam ainda se estabelecendo). Daí as re-tentativas.
+  async function abrirAbaDocumentos(iframe) {
+    for (let tentativa = 0; tentativa < 3; tentativa++) {
+      const doc = docDe(iframe);
+      if (!doc) return null;
+      const link =
+        doc.querySelector('a[id$="linkAbaDocumentos"]') ||
+        doc.querySelector('a[onclick*="linkAbaDocumentos"]');
+      if (!link) return null;
+      carimbar(doc);
+      try {
+        link.click();
+      } catch {
+        return null;
+      }
+      const tb = await esperarGrid(iframe, null, 25000);
+      if (tb) return tb;
+    }
+    return null;
+  }
+
+  /**
+   * Lista os documentos pela grid. Devolve
+   *   {docs, total, paginas, paginasLidas, incompleto}
+   * ou `null` quando a rota não está disponível (aí o chamador usa o scroll).
+   *
+   * `incompleto` é o ponto da coisa toda: quando páginas lidas < total, a
+   * lista É parcial e dá para AVISAR — ao contrário do scroll, que entrega
+   * parcial com cara de completo.
+   */
+  async function listarPelaGrid(onProgress) {
+    if (!getIdProcesso()) return null;
+    if (!document.body) return null;
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute("aria-hidden", "true");
+    iframe.setAttribute("tabindex", "-1");
+    iframe.setAttribute("title", "");
+    // Fora da tela em vez de display:none — o RichFaces mede componentes no
+    // carregamento e um frame sem caixa pode render nada.
+    iframe.style.cssText =
+      "position:fixed;left:-20000px;top:0;width:1280px;height:900px;border:0;opacity:0;pointer-events:none;visibility:hidden;";
+    const inicio = Date.now();
+    const TETO_MS = 120000;
+    try {
+      iframe.src = location.href; // mesma URL: leva idProcesso, ca e a sessão
+      document.body.appendChild(iframe);
+      await new Promise((res) => {
+        let feito = false;
+        const ok = () => {
+          if (!feito) {
+            feito = true;
+            res();
+          }
+        };
+        iframe.addEventListener("load", ok, { once: true });
+        setTimeout(ok, 30000);
+      });
+      if (!docDe(iframe)) return null; // X-Frame-Options / origem bloqueada
+
+      let tb = await abrirAbaDocumentos(iframe);
+      if (!tb) return null;
+
+      const doc0 = docDe(iframe);
+      const paginas = totalPaginasGrid(doc0);
+      const mapa = mapaColunas(tb);
+      if (!mapa) return null;
+
+      const vistos = new Set();
+      const docs = [];
+      const acumular = (linhas) => {
+        for (const l of linhas) {
+          if (vistos.has(l.id)) continue;
+          vistos.add(l.id);
+          docs.push(l);
+        }
+        if (onProgress) onProgress(docs.length);
+      };
+      acumular(lerLinhas(tb, mapa));
+
+      let lidas = 1;
+      for (let n = 2; n <= paginas; n++) {
+        if (Date.now() - inicio > TETO_MS) break;
+        const doc = docDe(iframe);
+        if (!doc || !irParaPagina(doc, n)) break;
+        const tbn = await esperarGrid(iframe, n, 25000);
+        if (!tbn) break; // conta como incompleto — não silencia
+        const mn = mapaColunas(tbn) || mapa;
+        acumular(lerLinhas(tbn, mn));
+        lidas++;
+      }
+
+      if (!docs.length) return null;
+      return {
+        docs,
+        total: docs.length,
+        paginas,
+        paginasLidas: lidas,
+        incompleto: lidas < paginas,
+      };
+    } catch {
+      return null; // qualquer falha: o chamador usa o scroll
+    } finally {
+      iframe.remove(); // SEMPRE, inclusive em erro
+    }
+  }
+
   return {
     getBase,
     getIdProcesso,
@@ -382,5 +658,12 @@ var PJE = (function () {
     baixar,
     scrollAte,
     carregarTimelineCompleta,
+    listarPelaGrid,
+    // expostos para teste fora do navegador
+    _acharGrid: acharGrid,
+    _mapaColunas: mapaColunas,
+    _lerLinhas: lerLinhas,
+    _limparCelula: limparCelula,
+    _totalPaginasGrid: totalPaginasGrid,
   };
 })();

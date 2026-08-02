@@ -447,11 +447,53 @@
   // repovoando a lista sozinho durante o processo; aqui só cuidamos do
   // feedback na dica. Sem guarda de busy: a rolagem não clica em nada (zero
   // efeito JSF) — é o mesmo gesto que o usuário faria à mão a qualquer hora.
+  // Peças vindas da GRID (tela "Documentos"): mescladas às da timeline em
+  // `setDocs`. Guardamos o `tipo` oficial de cada uma — a timeline não tem esse
+  // dado e a categoria acaba adivinhada por regex sobre o título.
+  let docsDaGrid = null;
+
   let carregandoTimeline = false;
   panel.onCarregarTimeline(async () => {
     if (carregandoTimeline) return;
     carregandoTimeline = true;
     try {
+      // ROTA 1 — grid da tela "Documentos" (ver docs/pje-tela-documentos.md).
+      // Ela sabe o TOTAL de páginas, então dá para afirmar que leu tudo; o
+      // scroll só consegue inferir pelo "parou de crescer" e entrega lista
+      // parcial sem avisar. Best-effort: null = indisponível, cai na rota 2.
+      panel.setTimelineTip({
+        texto: "Consultando a lista oficial de documentos do processo…",
+        carregando: true,
+      });
+      const grid = await PJE.listarPelaGrid((n) =>
+        panel.setTimelineTip({
+          texto: "Lendo a lista oficial… " + n + " documento(s).",
+          carregando: true,
+        })
+      );
+      if (grid && grid.docs.length) {
+        docsDaGrid = grid.docs;
+        atualizarListaPecas();
+        panel.setTimelineTip({
+          texto: grid.incompleto
+            ? grid.total +
+              " documento(s) — leitura PARCIAL (" +
+              grid.paginasLidas +
+              " de " +
+              grid.paginas +
+              " páginas). Clique de novo para tentar o resto."
+            : "Lista completa: " +
+              grid.total +
+              " documento(s) (" +
+              grid.paginas +
+              " de " +
+              grid.paginas +
+              " páginas lidas).",
+        });
+        return;
+      }
+
+      // ROTA 2 — fallback: rolar a timeline até o fim, como sempre.
       const res = await PJE.carregarTimelineCompleta((n) =>
         panel.setTimelineTip({
           texto: "Carregando a linha do tempo… " + n + " peça(s) na lista.",
@@ -486,11 +528,34 @@
   });
 
   let docsIndex = new Map(); // id -> {id, titulo} (para chips e card de progresso)
-  function refresh() {
-    const docs = PJE.listarDocumentos();
+
+  // Une as duas fontes de listagem. A GRID (tela "Documentos") é a boa quando
+  // existe — ela é completa e traz o TIPO oficial da peça —, mas a timeline
+  // segue mandando na ORDEM (é a ordem cronológica que o usuário vê na tela) e
+  // é a única fonte enquanto a grid não foi consultada. Peças que só a grid
+  // conhece entram no fim: são justamente as que o scroll não tinha alcançado.
+  function mesclarDocs() {
+    const daTimeline = PJE.listarDocumentos();
+    if (!docsDaGrid || !docsDaGrid.length) return daTimeline;
+    const porId = new Map(docsDaGrid.map((d) => [d.id, d]));
+    const out = [];
+    const vistos = new Set();
+    for (const d of daTimeline) {
+      const g = porId.get(d.id);
+      vistos.add(d.id);
+      // título da timeline (o usuário reconhece) + tipo oficial da grid
+      out.push(g ? Object.assign({}, d, { tipo: g.tipo }) : d);
+    }
+    for (const g of docsDaGrid) if (!vistos.has(g.id)) out.push(g);
+    return out;
+  }
+
+  function atualizarListaPecas() {
+    const docs = mesclarDocs();
     docsIndex = new Map(docs.map((d) => [d.id, d]));
     panel.setDocs(docs);
   }
+  const refresh = atualizarListaPecas;
   refresh();
 
   function metaDe(id) {

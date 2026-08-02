@@ -226,9 +226,19 @@ var PjePanel = (function () {
     // provas técnicas e atos de investigação (criminal: IP, APF, exames…)
     { cls: "cat-prova", re: /\b(laudo|pericia|parecer|ata notarial|auto de|flagrante|inquerito|boletim de ocorrencia|exame|corpo de delito|midia|interceptacao|relatorio|estudo social|estudo psicossocial|antecedentes)\b/ },
   ];
-  function categoriaDe(titulo) {
-    const t = norm(titulo);
-    for (const c of CATEGORIAS) if (c.re.test(t)) return c.cls;
+  // Classifica pelo texto. Quando a peça vem da tela "Documentos" do PJe ela
+  // traz o TIPO OFICIAL ("Despacho de Mero Expediente", "Certidão de
+  // Intimação"), que é muito melhor que o título para isto — o título costuma
+  // ser o nome do arquivo ("Despachos / 2"), enquanto o tipo é o vocabulário
+  // controlado do sistema. Aceita string (título) ou o objeto da peça.
+  function categoriaDe(docOuTitulo) {
+    const d = docOuTitulo && typeof docOuTitulo === "object" ? docOuTitulo : null;
+    const alvos = d ? [d.tipo, d.titulo] : [docOuTitulo];
+    for (const alvo of alvos) {
+      if (!alvo) continue;
+      const t = norm(alvo);
+      for (const c of CATEGORIAS) if (c.re.test(t)) return c.cls;
+    }
     return "cat-outro";
   }
   // Normaliza para busca sem acentos/caixa (ex.: "peticao" acha "Petição").
@@ -1113,7 +1123,7 @@ var PjePanel = (function () {
       for (const d of sel) {
         const chip = document.createElement("span");
         chip.className =
-          "chip " + categoriaDe(d.titulo) + (prevChipIds.has(d.id) ? "" : " new");
+          "chip " + categoriaDe(d) + (prevChipIds.has(d.id) ? "" : " new");
         chip.innerHTML =
           SVG.doc +
           '<span class="chip-t" title="' + escapeHtml(d.titulo) + '">' +
@@ -1293,7 +1303,7 @@ var PjePanel = (function () {
       };
 
       const hd = document.createElement("div");
-      hd.className = "preview-hd " + (d ? categoriaDe(d.titulo) : "cat-outro");
+      hd.className = "preview-hd " + (d ? categoriaDe(d) : "cat-outro");
       hd.innerHTML =
         '<span class="d-dot"></span><span class="t" title="' +
         escapeHtml(d ? d.titulo : id) + '">' +
@@ -1598,7 +1608,7 @@ var PjePanel = (function () {
         row.setAttribute("role", "option");
         row.setAttribute("aria-selected", i === mention.idx ? "true" : "false");
         row.className =
-          "mrow " + categoriaDe(d.titulo) +
+          "mrow " + categoriaDe(d) +
           (i === mention.idx ? " active" : "") + (ids.has(d.id) ? " on" : "");
         row.innerHTML =
           SVG.doc +
@@ -2704,7 +2714,7 @@ var PjePanel = (function () {
         for (const d of docs) {
           const p = partesTitulo(d.titulo);
           const row = document.createElement("label");
-          row.className = "docrow " + categoriaDe(d.titulo);
+          row.className = "docrow " + categoriaDe(d);
           row.dataset.busca = norm(d.titulo); // índice da busca (sem acentos)
           row.dataset.id = d.id; // usado pelo preview e pelo "ver na timeline"
           row.innerHTML =

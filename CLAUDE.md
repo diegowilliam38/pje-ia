@@ -391,10 +391,26 @@ Regras que NÃO podem quebrar:
 
 ## Busca de peças e orientações (panel.js)
 
-- **"Carregar todas as peças"** (botão `.tip-load` na `.docs-tip` +
-  `PJE.carregarTimelineCompleta`): a timeline do PJe carrega as peças sob
-  demanda (scroll infinito) — em processos maiores, só o trecho já rolado
-  existe no DOM e, portanto, na lista do painel. O botão rola o container da
+- **"Carregar todas as peças" tenta DUAS rotas, nesta ordem** (detalhes e
+  armadilhas em `docs/pje-tela-documentos.md`):
+  1. **`PJE.listarPelaGrid`** — a tela "Documentos" do PJe, uma grid tabular
+     paginada, lida num **iframe oculto same-origin** (nunca uma aba: isso
+     custaria as permissões `tabs`+`scripting`, que mudam o aviso de instalação
+     da Web Store). Dentro do iframe clicamos no link real e deixamos o próprio
+     `A4J.AJAX.Submit` do PJe montar o POST. Ela traz o **tipo oficial** da peça,
+     data e autor da juntada e — o ponto principal — o **total de páginas**, que
+     é o oráculo de completude: `incompleto = paginasLidas < paginas`. Tudo é
+     best-effort e devolve `null` em qualquer falha, inclusive
+     `X-Frame-Options`. A grid é mesclada à timeline por `mesclarDocs`
+     (content.js): a timeline manda na ORDEM, a grid acrescenta o que faltou e o
+     `tipo`. `categoriaDe` (panel.js) classifica pelo **`tipo` antes do título**.
+  2. **`PJE.carregarTimelineCompleta`** (fallback) — a rota por scroll descrita
+     abaixo. Ela continua indispensável: é a única quando a grid não existe ou
+     mudou de layout no tribunal X. Mas note que o "parou de crescer" dela é um
+     heurístico TEMPORAL — lista parcial passa por completa sem erro.
+- **A rota por scroll** (`PJE.carregarTimelineCompleta`): a timeline do PJe
+  carrega as peças sob demanda (scroll infinito) — em processos maiores, só o
+  trecho já rolado existe no DOM e, portanto, na lista do painel. O botão rola o container da
   timeline programaticamente até o fim. Scroller por heurística em 3 níveis:
   (1) primeiro DESCENDENTE rolável da timeline que contenha links — o caso
   real do TJCE (`div.eventos-timeline.scroll-y`; o `#divTimeLine` e TODOS os
