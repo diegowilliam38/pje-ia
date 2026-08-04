@@ -467,6 +467,16 @@
   let carregandoTimeline = false;
   panel.onCarregarTimeline(async () => {
     if (carregandoTimeline) return;
+    // A ROTA 1 (grid) faz submits A4J dentro do iframe, e a exportação está
+    // ativando peças na timeline — duas frentes na MESMA sessão JSF, que o
+    // PJe serializa. É a outra ponta da guarda `bloqueadoPelaExportacao`: sem
+    // ela, o único caminho que mexe no JSF sem passar por lá seria este.
+    if (exportando) {
+      panel.setTimelineTip({
+        texto: "Exportação em andamento — aguarde o .zip terminar para recarregar a lista.",
+      });
+      return;
+    }
     carregandoTimeline = true;
     try {
       // ROTA 1 — grid da tela "Documentos" (ver docs/pje-tela-documentos.md).
@@ -541,6 +551,10 @@
     if (exportando) return;
     if (busy) {
       panel.setStatus("Aguarde a resposta atual terminar para exportar as peças.");
+      return;
+    }
+    if (carregandoTimeline) {
+      panel.setStatus("Aguarde a leitura da lista de peças terminar para exportar.");
       return;
     }
     if (typeof PjeExport === "undefined" || typeof ZipW === "undefined") {
@@ -668,14 +682,19 @@
       const g = porId.get(d.id);
       vistos.add(d.id);
       // título da timeline (o usuário reconhece) + os dados que só a grid tem:
-      // tipo oficial (usado por `categoriaDe`) e a procedência da juntada
-      // (data e autor), que alimentam o índice da exportação em ZIP.
+      // tipo oficial (usado por `categoriaDe`), a procedência da juntada (data
+      // e autor) e as colunas `extras` daquele tribunal — todos alimentam o
+      // índice da exportação em ZIP. `extras` PRECISA vir junto: ele existe
+      // justamente para preservar o que só aquela grid tem, e a peça que está
+      // nas DUAS fontes é o caso comum — deixá-lo de fora aqui faria o campo
+      // sobreviver só nas peças que a timeline não alcançou.
       out.push(
         g
           ? Object.assign({}, d, {
               tipo: g.tipo,
               juntadoEm: g.juntadoEm,
               juntadoPor: g.juntadoPor,
+              extras: g.extras,
             })
           : d
       );

@@ -607,6 +607,10 @@ Code, num script, num arquivo de caso. Regras que não podem quebrar:
   autos; o `ID` fica no nome porque **o nome do arquivo é o único metadado que
   sobrevive a sair da ferramenta**. O prefixo `123456 - ` do título é removido
   (`\d{6,}`, mesmo limiar do regex da timeline) para o id não aparecer duas vezes.
+  **Peça que falha CONSOME o seu número** e a pasta fica com um salto (…002,
+  004…). O salto é mantido de propósito — renumerar desalinharia a ordem —, mas
+  não pode ficar mudo: a falha é gravada COM a `ordem`, e o `indice.txt` e o
+  `LEIA-ME.md` dizem que o salto é a peça que faltou, não erro de contagem.
 - **A ordem cronológica tem duas fontes e o critério vai ESCRITO no índice**: a data
   de juntada (só existe quando a grid foi lida) é dado; a inversa da ordem da tela é
   PREMISSA (o PJe lista do mais recente para o mais antigo). Peça sem data mantém a
@@ -629,6 +633,10 @@ Code, num script, num arquivo de caso. Regras que não podem quebrar:
 - **`lerLinhas` guarda as colunas desconhecidas em `extras`**: a grid varia por
   tribunal (sigilo, matéria, órgão…) e um parser que só lê as cinco colunas
   conhecidas joga fora exatamente o que aquele tribunal tem de particular.
+  `mesclarDocs` (content.js) **precisa repassar `extras`** junto de
+  `tipo`/`juntadoEm`/`juntadoPor`: a peça que está nas DUAS fontes é o caso
+  comum, e deixar o campo de fora ali fazia ele sobreviver só nas peças que a
+  timeline não alcançou — o inverso do que ele existe para resolver.
 - **Segredo de justiça vira banner no topo** do `LEIA-ME.md` e do `indice.txt`, e
   `segredoDeJustica` no JSON — muda como o pacote deve ser tratado, então não pode
   ser mais uma linha no meio da ficha.
@@ -637,9 +645,16 @@ Code, num script, num arquivo de caso. Regras que não podem quebrar:
   (`bloqueadoPelaExportacao`), o download do preview e — o caso não óbvio — a
   **camada 2 da estimativa dinâmica**: as ativações da exportação mexem na timeline,
   o que dispara `syncSelection` o tempo todo, e o refinamento sairia baixando peças
-  em paralelo. A camada 1 (estimativa local) continua, que é de graça.
+  em paralelo. A camada 1 (estimativa local) continua, que é de graça. A guarda é
+  **recíproca com "⟳ Carregar todas as peças"**: a rota 1 (grid) faz submits A4J
+  dentro do iframe, então ela recusa enquanto `exportando` e a exportação recusa
+  enquanto `carregandoTimeline` — é o único outro caminho que mexe no JSF sem
+  passar por `bloqueadoPelaExportacao`.
 - **Cancelável**: `startPrep(items, {titulo, fim, onCancelar})` ganha um botão
-  Cancelar quando há `onCancelar` (300 peças a ~5,6 s são ~28 min). No
+  Cancelar quando há `onCancelar` (300 peças a ~5,6 s são ~28 min). O
+  `sinal.cancelado` é conferido no topo de cada peça **e uma vez depois do
+  laço**: cancelar durante a ÚLTIMA peça escaparia da guarda do topo e entregaria
+  o download assim mesmo. No
   `setPrepState`, o estado **`erro` também adianta o contador** — sem isso a barra
   de uma exportação com falhas nunca chegaria ao fim. Sem `opts`, o card é byte a
   byte o do preparo de envio.

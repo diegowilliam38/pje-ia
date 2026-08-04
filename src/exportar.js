@@ -258,7 +258,10 @@
           ? [
               "- **" +
                 falhas.length +
-                " peça(s) não puderam ser baixadas** — a relação está no fim do `indice.txt`.",
+                " peça(s) não puderam ser baixadas** — a relação está no fim do `indice.txt`,",
+              "  com o número de ordem de cada uma. Como esses números foram consumidos, a",
+              "  numeração da pasta salta neles (…002, 004…): o salto é a peça que faltou,",
+              "  não um erro de contagem.",
             ]
           : [],
         ["", "Total exportado: **" + itens.length + " peça(s)**.", ""]
@@ -319,7 +322,13 @@
     }
     if (falhas.length) {
       linhas.push("", REGUA, "PEÇAS QUE NÃO PUDERAM SER BAIXADAS (" + falhas.length + ")", REGUA, "");
-      for (const f of falhas) linhas.push("id " + f.id + " | " + f.titulo + " | " + f.motivo);
+      linhas.push(
+        "Cada uma consumiu o seu número de ordem, que por isso NÃO aparece na",
+        "pasta “pecas/” — é daí que vêm os saltos na numeração.",
+        ""
+      );
+      for (const f of falhas)
+        linhas.push(String(f.ordem).padStart(3, "0") + " | id " + f.id + " | " + f.titulo + " | " + f.motivo);
       linhas.push(
         "",
         "O download do PJe depende da sessão: uma peça pode falhar por ainda não ter",
@@ -399,7 +408,13 @@
         c = await obter(d.id);
         if (!c) throw new Error("peça vazia");
       } catch (e) {
+        // A `ordem` vai junto de propósito: ela foi CONSUMIDA por esta peça e
+        // não será reaproveitada, então a pasta fica com um buraco na
+        // numeração (…002, 004…). Sem registrar o número aqui, esse buraco
+        // seria um mistério para quem abre o pacote — e o pacote existe para
+        // se explicar sozinho no destino.
         falhas.push({
+          ordem,
           id: d.id,
           titulo: semIdInicial(d.titulo) || String(d.id),
           motivo: (e && e.message) || String(e),
@@ -442,6 +457,11 @@
       });
       if (onEtapa) onEtapa(d.id, "done");
     }
+
+    // Cancelar durante a ÚLTIMA peça escaparia da guarda do topo do laço e
+    // entregaria o arquivo mesmo assim. Quem clicou em Cancelar não espera um
+    // download.
+    if (sinal && sinal.cancelado) throw new Error("cancelado");
 
     const info = {
       cnj,
