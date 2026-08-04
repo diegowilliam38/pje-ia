@@ -283,80 +283,32 @@ var PJE = (function () {
   //    aparece no cru; descomprime os streams /ObjStm (FlateDecode) com a API
   //    nativa do navegador e conta os objetos de página lá dentro.
   const RE_PAGINA = /\/Type\s*\/Page(?![a-zA-Z])/g;
-  // Sinais estruturais colhidos NA MESMA varredura (a string latin1 já existe,
-  // então contá-los é de graça): fontes declaradas, imagens, e os filtros de
-  // compressão típicos de digitalização.
-  const RE_FONTE = /\/Font(?![a-zA-Z])/g;
-  const RE_IMAGEM = /\/Subtype\s*\/Image(?![a-zA-Z])/g;
-  const RE_FILTRO_SCAN = /\/(DCTDecode|JPXDecode|CCITTFaxDecode|JBIG2Decode)(?![a-zA-Z])/g;
-  // Acima disto a página quase certamente é uma imagem: peça com texto nativo
-  // fica em 5–30 KB/página; digitalização a 200 dpi vai de 80 a 400 KB/página.
-  // ÚNICO ponto de calibragem da classificação — mexer aqui muda a decisão toda.
-  const PDF_KB_PAGINA_SCAN = 80;
-
   function contarRe(s, re) {
     const m = s.match(re);
     return m ? m.length : 0;
   }
 
-  // Analisa o binário do PDF: número de páginas + os sinais que dizem se a peça
-  // é texto nativo ou digitalização. Devolve sempre um objeto (nunca lança).
-  //
-  // A classificação existe para rotear a extração de texto: PDF nativo tem a
-  // camada de texto lida DE GRAÇA pelo pdf.js local; digitalização precisa de
-  // OCR pago. Errar para o lado "nativo" é barato (o pdf.js devolve pouco texto
-  // e a peça cai no OCR); errar para "escaneado" gastaria dinheiro à toa — por
-  // isso os sinais fortes vêm primeiro e o peso por página é o último recurso.
-  async function analisarPdf(blob) {
+  async function contarPaginas(blob) {
     try {
       const bytes = new Uint8Array(await blob.arrayBuffer());
       const s = new TextDecoder("latin1").decode(bytes);
-      let pages = contarRe(s, RE_PAGINA);
-      let fontes = contarRe(s, RE_FONTE);
-      let imagens = contarRe(s, RE_IMAGEM);
-      let scans = contarRe(s, RE_FILTRO_SCAN);
-      if (!pages) {
-        let max = 0;
-        const re = /\/Count\s+(\d+)/g;
-        let mm;
-        while ((mm = re.exec(s))) max = Math.max(max, parseInt(mm[1], 10));
-        pages = max;
-      }
-      // Objetos em ObjStm não aparecem no cru — nem as páginas, nem as fontes.
-      // Só inflamos quando a contagem de páginas falhou (é o gatilho original):
-      // inflar 400 streams só para procurar /Font custaria caro em toda peça, e
-      // o peso por página já responde a pergunta nesses casos.
-      if (!pages) {
-        const obj = await varrerObjStm(bytes, s);
-        pages = obj.pages;
-        fontes += obj.fontes;
-        imagens += obj.imagens;
-        scans += obj.scans;
-      }
-      if (!pages) pages = 1;
-      const kbPagina = blob.size / 1024 / pages;
-      // Três sinais, do mais confiável para o mais fraco:
-      //  1. nenhuma fonte declarada e há imagem → pilha de digitalizações;
-      //  2. ~uma imagem de scan por página E página pesada → digitalizado COM
-      //     camada de OCR do scanner (aqui o /Font existe, mas vem do carimbo de
-      //     assinatura eletrônica do PJe, não do conteúdo — por isso /Font
-      //     sozinho NUNCA basta para concluir que a peça é nativa);
-      //  3. só o peso por página — único sinal quando os objetos ficaram em
-      //     ObjStm e não foram inflados.
-      let escaneado;
-      if (!fontes && imagens) escaneado = true;
-      else if (scans >= pages * 0.8 && kbPagina > PDF_KB_PAGINA_SCAN) escaneado = true;
-      else escaneado = kbPagina > PDF_KB_PAGINA_SCAN * 2;
-      return { pages, fontes, imagens, scans, kbPagina, escaneado };
+      const pages = contarRe(s, RE_PAGINA);
+      if (pages) return pages;
+      let max = 0;
+      const re = /\/Count\s+(\d+)/g;
+      let mm;
+      while ((mm = re.exec(s))) max = Math.max(max, parseInt(mm[1], 10));
+      if (max) return max;
+      return (await contarPaginasObjStm(bytes, s)) || 1;
     } catch {
-      return { pages: 1, fontes: 0, imagens: 0, scans: 0, kbPagina: 0, escaneado: false };
+      return 1;
     }
   }
 
   // Latin1 preserva a relação 1:1 entre índice na string e offset no binário —
   // por isso dá para achar "stream"/"endstream" na string e fatiar os bytes.
-  async function varrerObjStm(bytes, s) {
-    const out = { pages: 0, fontes: 0, imagens: 0, scans: 0 };
+  async function contarPaginasObjStm(bytes, s) {
+    let total = 0;
     let lidos = 0;
     const re = /\/Type\s*\/ObjStm/g;
     let m;
@@ -374,15 +326,12 @@ var PJE = (function () {
       lidos++;
       try {
         const txt = new TextDecoder("latin1").decode(await inflar(bytes.subarray(ini, fim)));
-        out.pages += contarRe(txt, RE_PAGINA);
-        out.fontes += contarRe(txt, RE_FONTE);
-        out.imagens += contarRe(txt, RE_IMAGEM);
-        out.scans += contarRe(txt, RE_FILTRO_SCAN);
+        total += contarRe(txt, RE_PAGINA);
       } catch {
         /* stream com outro filtro ou corrompido: ignora e segue */
       }
     }
-    return out;
+    return total;
   }
 
   // Descomprime um stream FlateDecode (formato zlib) com DecompressionStream.
@@ -491,6 +440,125 @@ var PJE = (function () {
     return out.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   }
 
+  // Assinaturas de arquivo que NÃO são documento de texto nem PDF/RTF. O PJe
+  // aceita anexo de qualquer tipo: foto de celular, print de conversa, planilha,
+  // áudio da audiência. Sem esta tabela todos eles caíam no ramo de texto lá
+  // embaixo — `blob.text()` decodifica QUALQUER byte — e a peça chegava ao
+  // modelo como `����JFIF���...`: milhares de tokens de lixo no lugar do
+  // conteúdo, com o selo da lista dizendo TEXTO. É o mesmo defeito que a
+  // assinatura do PDF já corrigia (17 mil tokens de lixo binário), nos formatos
+  // que faltavam.
+  //
+  // Duas famílias, e a diferença é o que dá para fazer com elas:
+  //
+  //   IMAGENS  — os três provedores enxergam (visão). Um Boletim de Ocorrência
+  //              fotografado ou um print de conversa é PROVA, e é justamente o
+  //              anexo que mais aparece: viram bloco de imagem no request.
+  //   O RESTO  — .docx, .zip, áudio da audiência, formato de scanner exótico:
+  //              nada a fazer, a peça é recusada com o motivo.
+  //
+  // Só os quatro formatos que Anthropic, Google e OpenAI aceitam em COMUM
+  // entram como imagem. TIFF e BMP (que aparecem em scanner de cartório) não
+  // são aceitos por nenhum dos três e ficam na lista de recusa — mandar e
+  // tomar 400 seria pior que dizer o motivo.
+  const IMAGENS = [
+    { fmt: "jpeg", mime: "image/jpeg", teste: (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
+    { fmt: "png", mime: "image/png", teste: (b) => b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47 },
+    { fmt: "gif", mime: "image/gif", teste: (b, s) => s.startsWith("GIF8") },
+    { fmt: "webp", mime: "image/webp", teste: (b, s) => s.startsWith("RIFF") && s.slice(8, 12) === "WEBP" },
+  ];
+  // O rótulo é o que o usuário lê no relatório de falhas — daí ser o nome do
+  // arquivo, não o mime.
+  const ASSINATURAS = [
+    { rot: "imagem BMP (formato que os modelos não leem)", teste: (b, s) => s.startsWith("BM") },
+    { rot: "imagem TIFF (formato que os modelos não leem)", teste: (b, s) => s.startsWith("II*\0") || s.startsWith("MM\0*") },
+    { rot: "arquivo de áudio/vídeo", teste: (b, s) => s.startsWith("RIFF") && /WAVE|AVI /.test(s.slice(8, 12)) },
+    { rot: "arquivo de áudio/vídeo", teste: (b, s) => s.slice(4, 8) === "ftyp" || s.startsWith("OggS") || s.startsWith("ID3") },
+    { rot: "arquivo de vídeo", teste: (b) => b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3 },
+    // PK = ZIP e tudo que é ZIP por dentro: .docx, .xlsx, .odt
+    { rot: "arquivo compactado ou do Office (ZIP)", teste: (b, s) => s.startsWith("PK\x03\x04") || s.startsWith("PK\x05\x06") },
+    // OLE2: .doc/.xls/.msg antigos
+    { rot: "arquivo do Office antigo (.doc/.xls)", teste: (b) => b[0] === 0xd0 && b[1] === 0xcf && b[2] === 0x11 && b[3] === 0xe0 },
+  ];
+  function casa(lista, bytes, inicio) {
+    for (const a of lista) {
+      try {
+        if (a.teste(bytes, inicio)) return a;
+      } catch {
+        /* assinatura mais curta que o cabeçalho lido: só ignora */
+      }
+    }
+    return null;
+  }
+  function tipoImagem(bytes, inicio) {
+    return casa(IMAGENS, bytes, inicio);
+  }
+  function tipoBinario(bytes, inicio) {
+    const a = casa(ASSINATURAS, bytes, inicio);
+    return a ? a.rot : null;
+  }
+
+  // Lado máximo recomendado pela Anthropic: acima disso a imagem é reduzida do
+  // lado deles ANTES de ser tokenizada, então mandar maior só gasta payload.
+  const IMG_LADO_MAX = 1568;
+  // Acima disto a Anthropic recusa a imagem (5 MB por imagem). O teto aqui é
+  // menor porque a conta que importa é a do base64, ~1,33× os bytes.
+  const IMG_BYTES_MAX = 3_500_000;
+
+  // Foto de celular anexada ao processo tem rotina de 4-12 MP: reduzir é o que
+  // separa "a peça entra na análise" de um 400 da API. Roda no navegador
+  // (createImageBitmap + OffscreenCanvas), sem biblioteca e sem upload.
+  // Falha aqui NÃO é fatal: devolve o blob original e quem decide é o teto.
+  async function normalizarImagem(blob, mime) {
+    try {
+      if (blob.size <= IMG_BYTES_MAX) {
+        const bm0 = await createImageBitmap(blob);
+        const cabe = Math.max(bm0.width, bm0.height) <= IMG_LADO_MAX;
+        const w0 = bm0.width;
+        const h0 = bm0.height;
+        bm0.close();
+        // as dimensões voltam junto: é delas que sai a estimativa de tokens da
+        // imagem (largura × altura / 750), sem precisar decodificar de novo
+        if (cabe) return { blob, mime, w: w0, h: h0 };
+      }
+      const bm = await createImageBitmap(blob);
+      const escala = Math.min(1, IMG_LADO_MAX / Math.max(bm.width, bm.height));
+      const w = Math.max(1, Math.round(bm.width * escala));
+      const h = Math.max(1, Math.round(bm.height * escala));
+      const canvas = new OffscreenCanvas(w, h);
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(bm, 0, 0, w, h);
+      bm.close();
+      // JPEG mesmo quando a origem é PNG: print de tela em PNG de 8 MP vira
+      // ~300 KB sem perda perceptível de legibilidade, que é o que importa num
+      // documento. GIF animado perde a animação — nenhum modelo a lê mesmo.
+      const out = await canvas.convertToBlob({ type: "image/jpeg", quality: 0.85 });
+      return { blob: out, mime: "image/jpeg", w, h };
+    } catch (e) {
+      console.debug("[PJe IA] não foi possível redimensionar a imagem:", e && e.message);
+      return { blob, mime };
+    }
+  }
+
+  // Rede de segurança para o binário SEM assinatura conhecida (o PJe serve
+  // formatos de scanner que ninguém catalogou). Texto de verdade não tem bytes
+  // de controle C0 — e é justamente isso que enche um binário decodificado.
+  //
+  // O limiar não pode ser rígido: HTML servido em ISO-8859-1 sem charset no
+  // header chega com um U+FFFD POR ACENTO (petição → peti�ão), e isso é texto
+  // legítimo que a extensão lê há tempos. Por isso o critério é o caractere de
+  // CONTROLE, que a acentuação mal decodificada não produz.
+  function pareceBinario(texto) {
+    const amostra = texto.slice(0, 4000);
+    if (!amostra) return false;
+    let controle = 0;
+    for (let i = 0; i < amostra.length; i++) {
+      const c = amostra.charCodeAt(i);
+      if ((c < 32 && c !== 9 && c !== 10 && c !== 13) || c === 127) controle++;
+    }
+    return controle / amostra.length > 0.02;
+  }
+
   async function lerCorpo(r, id) {
     const ct = (r.headers.get("content-type") || "").toLowerCase();
     const blob = await r.blob();
@@ -505,34 +573,59 @@ var PJE = (function () {
       const inicio = String.fromCharCode(...head);
       ehPdf = inicio.includes("%PDF-");
       if (!ehPdf) ehRtf = /^\s*\{\\rtf/.test(inicio);
+      // Nem PDF, nem RTF, nem HTML. Antes de aceitar como texto: é imagem (vai
+      // para o modelo como imagem) ou outro binário (recusado com o motivo)?
+      if (!ehPdf && !ehRtf) {
+        const img = tipoImagem(head, inicio);
+        if (img) {
+          const norm = await normalizarImagem(blob, img.mime);
+          if (norm.blob.size > IMG_BYTES_MAX) {
+            throw new Error(
+              "a peça " + id + " é uma imagem grande demais para a análise (" +
+                Math.round(norm.blob.size / 1e6) + " MB). Abra-a no PJe para ver o conteúdo."
+            );
+          }
+          const b64 = await blobToB64(norm.blob);
+          console.debug(
+            "[PJe IA] peça", id, "imagem", img.fmt.toUpperCase(), "—", blob.size,
+            "bytes" + (norm.blob.size !== blob.size ? " → " + norm.blob.size + " após reduzir" : "")
+          );
+          // `fmt` guarda o formato de ORIGEM (o selo da lista e o nome do
+          // arquivo no .zip saem daí); `mime` é o que vai no request. Quando a
+          // redução converte para JPEG, os dois divergem de propósito.
+          return {
+            kind: "img", fmt: img.fmt, mime: norm.mime, b64, size: norm.blob.size,
+            w: norm.w || 0, h: norm.h || 0,
+          };
+        }
+        // LANÇA em vez de devolver null de propósito — `null` significa "esta
+        // rota não serviu" e faria `baixar` gastar a ativação JSF (~5,6 s,
+        // serializada) para no fim dizer "a peça retornou vazia", que é falso:
+        // ela veio inteira, só não é um documento que a extensão saiba ler. O
+        // erro sobe para o relatório de peças que não entraram, no chat.
+        const bin = tipoBinario(head, inicio);
+        if (bin) {
+          console.debug("[PJe IA] peça", id, "é", bin, "—", blob.size, "bytes, fora do envio");
+          throw new Error(
+            "a peça " + id + " é " + bin + ": a extensão lê PDF, HTML, RTF e imagens. " +
+              "Abra-a no PJe para ver o conteúdo."
+          );
+        }
+      }
     }
     if (ehPdf) {
       if (!blob.size) {
         console.debug("[PJe IA] peça", id, "PDF de 0 bytes");
         return null;
       }
-      const an = await analisarPdf(blob);
-      const pages = an.pages;
-      console.debug(
-        "[PJe IA] peça", id, "PDF de", blob.size, "bytes,", pages, "página(s),",
-        an.escaneado ? "digitalizada" : "texto nativo",
-        "(" + Math.round(an.kbPagina) + " KB/pág, " + an.fontes + " fonte(s), " +
-          an.imagens + " imagem(ns))"
-      );
+      const pages = await contarPaginas(blob);
+      console.debug("[PJe IA] peça", id, "PDF de", blob.size, "bytes,", pages, "página(s)");
       const b64 = await blobToB64(blob);
       // `fmt` guarda o formato de ORIGEM da peça. `kind` diz como o conteúdo
       // viaja daqui em diante (pdf x texto) e é o que o envio usa; `fmt`
       // preserva a distinção que o `kind` achata — HTML e RTF viram ambos
       // "text" — e é o que a exportação em ZIP registra no índice.
-      //
-      // `escaneado` e `imagens` são ADITIVOS: roteiam a extração de texto
-      // (nativo → pdf.js local e grátis; digitalizado → OCR pago) e alimentam o
-      // aviso de que extrair apaga o canal visual. Quem não usa a extração não
-      // enxerga diferença nenhuma neste objeto.
-      return {
-        kind: "pdf", fmt: "pdf", b64, size: blob.size, pages,
-        escaneado: an.escaneado, imagens: an.imagens,
-      };
+      return { kind: "pdf", fmt: "pdf", b64, size: blob.size, pages };
     }
     // blob.text() decodifica sempre UTF-8; honra o charset do header quando
     // outro (PJe legado pode servir HTML em ISO-8859-1 — acentuação).
@@ -570,6 +663,17 @@ var PJE = (function () {
       }
     }
     text = text.trim();
+    // Última barreira antes de o conteúdo virar contexto: formato binário sem
+    // assinatura na tabela (scanners de tribunal produzem os mais variados).
+    // Não vale para HTML — página com um caractere de controle solto continua
+    // sendo página.
+    if (!ct.includes("html") && pareceBinario(text)) {
+      console.debug("[PJe IA] peça", id, "parece binário (" + ct + "):", blob.size, "bytes, fora do envio");
+      throw new Error(
+        "a peça " + id + " está num formato que a extensão não sabe ler (ela lê PDF, HTML, RTF e imagens). " +
+          "Abra-a no PJe para ver o conteúdo."
+      );
+    }
     console.debug("[PJe IA] peça", id, "texto de", text.length, "chars (" + ct + ")");
     if (!text) return null;
     return { kind: "text", fmt: ct.includes("html") ? "html" : "texto", text };
@@ -1052,6 +1156,10 @@ var PJE = (function () {
     _parsePessoa: parsePessoa,
     _urlsDownload: urlsDownload,
     _totalPaginasGrid: totalPaginasGrid,
-    _analisarPdf: analisarPdf,
+    _contarPaginas: contarPaginas,
+    _lerCorpo: lerCorpo,
+    _tipoBinario: tipoBinario,
+    _tipoImagem: tipoImagem,
+    _pareceBinario: pareceBinario,
   };
 })();

@@ -108,6 +108,20 @@ function traduzirHistorico(messages) {
               text: "=== Peça: " + t + " ===\n" + (src.data || ""),
             });
           }
+        } else if (b.type === "image") {
+          // Anexo em imagem (foto do BO, print de conversa). O content part da
+          // Interactions API é `{type:"image", data, mime_type}` — irmão do
+          // `document`, e não uma variante dele (Data Model da API, seção
+          // "Content types"). O rótulo com título e id vai no bloco de texto
+          // que `montarBlocos` emite ao lado deste.
+          const src = b.source || {};
+          if (src.type === "base64") {
+            content.push({
+              type: "image",
+              data: src.data,
+              mime_type: src.media_type || "image/jpeg",
+            });
+          }
         } else if (b.type === "text") {
           content.push({ type: "text", text: b.text || "" });
         }
@@ -486,6 +500,15 @@ export async function countTokensGemini({ apiKey, model, system, messages }) {
           });
         } else if (src.type === "text") {
           parts.push({ text: src.data || "" });
+        }
+      } else if (b.type === "image") {
+        // countTokens usa o endpoint do generateContent, cujo vocabulário é
+        // `inline_data` — a imagem entra aqui como qualquer outra mídia.
+        const src = b.source || {};
+        if (src.type === "base64") {
+          parts.push({
+            inline_data: { mime_type: src.media_type || "image/jpeg", data: src.data },
+          });
         }
       } else if (b.type === "x-gemini-item") {
         // aproximação: o conteúdo textual do step (ou o JSON, limitado)

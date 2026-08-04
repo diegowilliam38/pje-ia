@@ -98,39 +98,33 @@
 
       <div class="card destaque">
         <p class="eyebrow" style="color: rgba(255,255,255,0.7)">A novidade mais recente</p>
-        <h2><span class="v novo">v0.21.0</span> Ler as peças como texto — e nunca mais perder um envio</h2>
+        <h2><span class="v novo">v0.22.0</span> Anexo em foto vai como imagem — e a extração de texto sai de cena</h2>
         <p>
-          Passe o mouse sobre uma peça e use <strong>Extrair o texto</strong>. A peça passa a ir
-          para a IA como texto, deixa de contar para o limite de páginas do modelo — um processo
-          de 300 páginas passa a caber até no modelo padrão — e peça digitalizada, que antes ia
-          como imagem, passa a ser <strong>lida de verdade</strong>.
+          O PJe aceita anexo de qualquer tipo, e o mais comum depois do PDF é a
+          <strong>foto</strong>: o boletim de ocorrência fotografado, o print da conversa, o
+          comprovante. Até aqui esses arquivos chegavam ao modelo como <em>lixo binário</em> —
+          milhares de caracteres sem sentido no lugar do conteúdo. Agora eles vão como
+          <strong>imagem de verdade</strong>, que os três provedores enxergam, já reduzidos no seu
+          navegador para caber no envio. O que nenhum modelo lê (<code>.docx</code>, áudio da
+          audiência, planilha) é <strong>recusado com o motivo</strong>, em vez de entrar mudo na
+          conversa.
         </p>
         <p>
-          Com a chave da <strong>Mistral</strong> configurada, a leitura é feita por
-          <strong>OCR</strong> e o botão diz isso, com o custo estimado ao lado
-          (<em>Extrair com OCR · ≈ US$ 0,28</em>) — sem segunda opção para escolher. Sem a chave,
-          a leitura acontece <strong>dentro do seu próprio navegador</strong>, sem custo e sem
-          enviar nada a ninguém; ali ela só funciona em peças que já têm texto próprio.
+          E a <strong>extração de texto das peças</strong>, lançada na v0.21.0, foi
+          <strong>removida</strong>. Ela prometia economia e, na prática, entregava o contrário
+          com frequência demais: nos modelos que contam a página do PDF por tabela o texto ocupa
+          <em>mais</em> contexto que o documento, e a decisão de quando valia a pena virou um
+          emaranhado de avisos que ninguém deveria precisar interpretar. As peças voltam a ir para
+          a IA como o PJe as entrega — <strong>PDF e imagem, do jeito que sempre foram</strong> —,
+          com as citações por página que só o documento permite. O texto que ficou guardado no seu
+          computador é apagado na atualização.
         </p>
         <p>
-          Dá para extrair <strong>uma peça de cada vez</strong> (o ícone na linha dela) ou todas
-          as marcadas de uma vez, e cada peça mostra o <strong>formato</strong> (PDF, HTML, RTF) —
-          só PDF precisa de extração. A peça extraída ganha uma <strong>marca verde</strong>, e ao
-          fim um resumo no chat diz quantas peças foram lidas, por qual via e quanto custou, o que
-          já era texto e não precisou de nada, e o que não deu — com o motivo. As citações
-          continuam trazendo a <strong>folha</strong> de origem.
-        </p>
-        <p>
-          Para conferir, o botão <strong>Comparar</strong> abre o <strong>PDF original e o texto
-          extraído lado a lado</strong> numa aba só. <strong>Voltar ao documento</strong> desfaz a
-          qualquer momento, e <strong>Refazer com OCR</strong> tenta de novo quando a leitura não
-          deu conta.
-        </p>
-        <p>
-          Duas correções que mudam o dia a dia: <strong>uma peça que falha ao baixar não derruba
-          mais a análise inteira</strong> — o envio segue com as demais e um relatório mostra o
-          que ficou de fora; e agora dá para <strong>marcar várias peças arrastando</strong>, com
-          Shift+clique ou pelo menu do botão direito.
+          Ficam as duas correções que vieram junto na v0.21.0 e não dependiam da extração:
+          <strong>uma peça que falha ao baixar não derruba mais a análise inteira</strong> — o
+          envio segue com as demais e um relatório mostra o que ficou de fora — e a
+          <strong>seleção em faixa</strong>, para marcar várias peças arrastando, com Shift+clique
+          ou pelo menu do botão direito.
         </p>
       </div>
 
@@ -309,7 +303,7 @@
       <h1 class="serif">Levar os autos para fora</h1>
 
       <div class="card">
-        <h2><span class="v novo">v0.20.0</span> Exportar tudo em <code>.zip</code></h2>
+        <h2><span class="v">v0.20.0</span> Exportar tudo em <code>.zip</code></h2>
         <p>
           Um arquivo com as peças na ordem do processo, um índice legível
           (<code>indice.txt</code>), um índice para programas (<code>indice.json</code>) e um
@@ -472,7 +466,9 @@
             <tr><th>Versão</th><th>Data</th><th>O que mudou</th></tr>
           </thead>
           <tbody>
-            <tr><td><span class="v novo">0.20.2</span></td><td>03/08/2026</td><td>Correções da exportação em <code>.zip</code>: colunas próprias do tribunal no índice, saltos na numeração explicados e disputa pela sessão do PJe</td></tr>
+            <tr class="marco"><td><span class="v novo">0.22.0</span></td><td>04/08/2026</td><td><span class="dot-marco"></span>Anexo em foto/print vai ao modelo como <strong>imagem</strong> (antes virava lixo binário); arquivo ilegível é recusado com o motivo; a extração de texto das peças foi removida</td></tr>
+            <tr><td><span class="v">0.21.0</span></td><td>04/08/2026</td><td>Peça que falha ao baixar não derruba mais o envio, com relatório do que ficou de fora; seleção em faixa na lista (arrastar, Shift+clique, botão direito)</td></tr>
+            <tr><td><span class="v">0.20.2</span></td><td>03/08/2026</td><td>Correções da exportação em <code>.zip</code>: colunas próprias do tribunal no índice, saltos na numeração explicados e disputa pela sessão do PJe</td></tr>
             <tr><td><span class="v">0.20.1</span></td><td>02/08/2026</td><td>Esta página: novidades e histórico de versões, alcançável pelo popup, pelas opções e pela ajuda</td></tr>
             <tr class="marco"><td><span class="v">0.20.0</span></td><td>02/08/2026</td><td><span class="dot-marco"></span>Exportação das peças em <code>.zip</code>, com índice, ficha do processo e metadados de cada peça</td></tr>
             <tr><td><span class="v">0.19.1</span></td><td>02/08/2026</td><td>Peças RTF viram texto legível; rota de download completa (fim das “peças vazias”); 3 correções da leitura por grid</td></tr>

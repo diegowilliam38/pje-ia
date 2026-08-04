@@ -106,6 +106,16 @@ function traduzirHistorico(messages) {
               text: "=== Peça: " + t + " ===\n" + (src.data || ""),
             });
           }
+        } else if (b.type === "image") {
+          // Anexo em imagem: na Responses API a parte é `input_image` com um
+          // data URI (o mesmo formato do `file_data` que o PDF já usa aqui).
+          const src = b.source || {};
+          if (src.type === "base64") {
+            content.push({
+              type: "input_image",
+              image_url: "data:" + (src.media_type || "image/jpeg") + ";base64," + src.data,
+            });
+          }
         } else if (b.type === "text") {
           content.push({ type: "input_text", text: b.text || "" });
         }

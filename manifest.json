@@ -1,15 +1,14 @@
 {
   "manifest_version": 3,
   "name": "TecJustiça PJe — Análise de Processos",
-  "version": "0.21.0",
+  "version": "0.22.0",
   "description": "Chat com IA (Claude, Gemini ou GPT) sobre os autos do PJe de qualquer tribunal: selecione peças e converse. Por TecJustiça.",
   "permissions": ["storage", "clipboardWrite"],
   "host_permissions": [
     "https://*.jus.br/*",
     "https://api.anthropic.com/*",
     "https://generativelanguage.googleapis.com/*",
-    "https://api.openai.com/*",
-    "https://api.mistral.ai/*"
+    "https://api.openai.com/*"
   ],
   "icons": {
     "16": "icons/icon16.png",
@@ -31,7 +30,6 @@
         "src/exportar.js",
         "src/prompts.js",
         "src/modelos.js",
-        "src/texto.js",
         "src/panel.js",
         "src/content.js"
       ],
@@ -45,9 +43,7 @@
         "icons/icon48.png",
         "src/mapa.html",
         "src/editor.html",
-        "src/help.html",
-        "src/extrator.html",
-        "src/texto.html"
+        "src/help.html"
       ],
       "matches": ["https://*.jus.br/*"]
     }
