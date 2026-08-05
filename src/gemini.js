@@ -579,6 +579,18 @@ export async function friendlyHttpErrorGemini(resp) {
       /* corpo já consumido ou vazio */
     }
   }
+  // O erro é CAPTURADO e vira texto para o usuário — sem este log ele nunca
+  // aparece no console do service worker, e um 400 de corpo vazio (rejeição no
+  // edge, antes de chegar ao modelo) fica indistinguível de um erro do modelo.
+  // A URL e o status são a única pista de QUAL endpoint recusou: o stream
+  // (/interactions) e o pré-voo (:countTokens) usam este mesmo handler.
+  try {
+    console.error(
+      "[PJe IA] Gemini HTTP " + resp.status + " em " + resp.url + " — corpo: " + (apiMsg || "(vazio)")
+    );
+  } catch {
+    /* console indisponível */
+  }
   const low = apiMsg.toLowerCase();
 
   if (resp.status === 400 && (low.includes("api key not valid") || low.includes("api_key_invalid"))) {
