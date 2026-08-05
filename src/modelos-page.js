@@ -17,6 +17,7 @@
   const elLista = $("#lista");
   const elTelaLista = $("#telaLista");
   const elTelaForm = $("#telaForm");
+  const elTelaImportar = $("#telaImportar");
   const elBarraBusca = $("#barraBusca");
   const elBusca = $("#busca");
   const elCont = $("#contador");
@@ -32,6 +33,35 @@
   let editId = null;
   let idNovo = "";
   let delArm = null; // id com exclusão "armada" (dois cliques)
+  let aposForm = null; // callback ao sair do formulário (usado pela importação)
+
+  // --- estado e nós da IMPORTAÇÃO EM LOTE (o bloco de código está lá embaixo) ---
+  // Declarados AQUI, junto do resto do estado, e não no bloco que os usa:
+  // `mostrarTela`/`fecharForm` correm antes dele no arquivo, e um `let` lido por
+  // callback antes de ser inicializado lança "Cannot access before
+  // initialization" — a armadilha da zona morta temporal do CLAUDE.md.
+  const elArquivos = $("#arquivos");
+  const elDrop = $("#impDrop");
+  const elProg = $("#impProg");
+  const elProgTxt = $("#impProgTxt");
+  const elBarraI = $("#impBarraI");
+  const elFichas = $("#impFichas");
+  const elImpAcoes = $("#impAcoes");
+  const elImpAcoesFim = $("#impAcoesFim");
+  const elImpCadastrar = $("#impCadastrar");
+  const elImpCancelar = $("#impCancelar");
+  const elImpRes = $("#impRes");
+  const btnImportarLote = $("#importarLote");
+  const temDocx = typeof DocxImport !== "undefined";
+  let impFichas = [];
+  let impFalhas = []; // {nome, erro} — arquivos que não puderam ser lidos
+  let impSinal = null;
+  let impLendo = false;
+  let impDescarteArm = false;
+  // `dragleave` dispara ao cruzar CADA filho da zona; contar entradas e saídas
+  // é o único jeito confiável de saber quando o ponteiro realmente saiu.
+  let profundidade = 0;
+  let guardaLigada = false;
 
   // ------------------------------------------------------------- utilidades
   function escapar(s) {
@@ -67,7 +97,9 @@
       '<div class="vt">Nenhum modelo cadastrado ainda</div>' +
       '<div class="vd">Cadastre as suas peças-modelo — sentenças, decisões, despachos, ' +
       "ofícios — e, ao gerar uma minuta, o assistente segue a <b>estrutura</b> e o estilo " +
-      "delas. Os fatos continuam saindo apenas das peças do processo em tela.</div>" +
+      "delas. Os fatos continuam saindo apenas das peças do processo em tela.<br><br>" +
+      "Se você já tem essas peças no Word, <b>Importar .docx</b> lê várias de uma vez " +
+      "e deixa tudo preenchido para você conferir.</div>" +
       "</div>"
     );
   }
@@ -146,32 +178,50 @@
   }
 
   // ------------------------------------------------------------ formulário
-  function abrirForm(m) {
-    editId = m ? m.id : null;
-    idNovo = m ? null : temMlib ? MLIB.novoId() : "";
-    elFormTit.textContent = m ? "Editar modelo" : "Novo modelo";
+  // São TRÊS telas irmãs (lista, formulário, importação) e elas são
+  // mutuamente exclusivas: um único ponto liga uma e desliga as outras duas,
+  // senão sobra tela visível por baixo de tela.
+  function mostrarTela(qual) {
+    elTelaLista.hidden = qual !== "lista";
+    elTelaForm.hidden = qual !== "form";
+    elTelaImportar.hidden = qual !== "importar";
+    // as ações do cabeçalho ("Importar", "Novo modelo") descartariam sem aviso
+    // o que está sendo digitado ou conferido — somem fora da lista
+    document.body.classList.toggle("editando", qual !== "lista");
+    const mesa = document.querySelector(".mesa");
+    if (mesa) mesa.scrollTop = 0;
+  }
+
+  // opts.novo: `m` é um RASCUNHO que ainda não está gravado (vem da importação
+  // em lote, quando a peça passou do teto e o usuário vai encurtá-la aqui).
+  // Salvar cria o item; não atualiza um existente.
+  function abrirForm(m, opts) {
+    const o = opts || {};
+    const rascunho = !!(m && o.novo);
+    editId = m && !rascunho ? m.id : null;
+    idNovo = rascunho ? m.id : m ? null : temMlib ? MLIB.novoId() : "";
+    elFormTit.textContent = o.titulo || (m && !rascunho ? "Editar modelo" : "Novo modelo");
     elFT.value = m ? m.titulo || "" : "";
     elFC.value = m ? m.categoria || "outro" : "sentenca";
     elFD.value = m ? m.descricao || "" : "";
     elFX.value = m ? m.texto || "" : "";
     delete elFX.dataset.importado; // form novo: a próxima importação substitui
     elErro.hidden = true;
-    elTelaLista.hidden = true;
-    elTelaForm.hidden = false;
-    // "✚ Novo modelo" no cabeçalho não faz sentido com o formulário aberto —
-    // clicá-lo descartaria o que está sendo digitado sem aviso nenhum
-    document.body.classList.add("editando");
+    mostrarTela("form");
     atualizarChars();
     elFT.focus();
-    document.querySelector(".mesa").scrollTop = 0;
   }
 
-  function fecharForm() {
+  // `salvou` diz ao callback de saída (usado pela importação) se o rascunho
+  // virou modelo ou foi abandonado. Nunca ligar direto num addEventListener:
+  // o MouseEvent chegaria como `salvou` e seria truthy.
+  function fecharForm(salvou) {
     editId = null;
-    elTelaForm.hidden = true;
-    elTelaLista.hidden = false;
     elErro.hidden = true;
-    document.body.classList.remove("editando");
+    const volta = aposForm;
+    aposForm = null;
+    if (volta) volta(!!salvou);
+    else mostrarTela("lista");
   }
 
   function doForm() {
@@ -213,7 +263,7 @@
         .filter((x) => x.id !== m.id)
         .concat(m)
         .sort((a, b) => String(a.titulo).localeCompare(String(b.titulo), "pt-BR"));
-      fecharForm();
+      fecharForm(true);
       render();
     });
   }
@@ -337,9 +387,505 @@
     btnImportar.hidden = true;
   }
 
+  // ------------------------------------------- importar .docx EM LOTE
+  // Cadastrar dez modelos não pode custar dez formulários. Aqui o usuário
+  // solta os arquivos de uma vez, cada um vira uma FICHA já preenchida
+  // (título do nome do arquivo, espécie adivinhada do conteúdo, prévia do
+  // texto lido) e um clique cadastra todas. A conferência existe porque
+  // errar a CATEGORIA é o erro caro: a minuta busca modelos por categoria,
+  // então um modelo mal classificado fica invisível — e o usuário não
+  // descobre por quê.
+  const nFmt = (n) => Number(n || 0).toLocaleString("pt-BR");
+
+  function svgIc(paths, tam, esp) {
+    return (
+      '<svg width="' + tam + '" height="' + tam + '" viewBox="0 0 24 24" fill="none" ' +
+      'stroke="currentColor" stroke-width="' + esp + '" stroke-linecap="round" ' +
+      'stroke-linejoin="round" aria-hidden="true">' + paths + "</svg>"
+    );
+  }
+
+  // --- guarda do arrasto ---------------------------------------------------
+  // Por padrão o Chrome NAVEGA para o file:// de um arquivo solto em qualquer
+  // ponto da página — aqui isso descartaria o lote inteiro em conferência.
+  // Os DOIS eventos precisam de preventDefault: é o `dragover` que declara a
+  // área como alvo válido e cancela a navegação; só o `drop` não basta.
+  // Funções NOMEADAS porque arrow inline não pode ser removida depois.
+  function guardaOver(e) {
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "none";
+  }
+  function guardaDrop(e) {
+    e.preventDefault();
+  }
+  function ligarGuarda() {
+    if (guardaLigada) return; // idempotente: abrir duas vezes não empilha
+    window.addEventListener("dragover", guardaOver, true);
+    window.addEventListener("drop", guardaDrop, true);
+    guardaLigada = true;
+  }
+  function desligarGuarda() {
+    if (!guardaLigada) return;
+    window.removeEventListener("dragover", guardaOver, true);
+    window.removeEventListener("drop", guardaDrop, true);
+    guardaLigada = false;
+    profundidade = 0;
+    if (elDrop) elDrop.classList.remove("arrastando");
+  }
+
+  // --- estados -------------------------------------------------------------
+  function impEstado(qual) {
+    const conferindo = qual === "conferindo";
+    const vazio = qual === "vazio";
+    elDrop.hidden = !vazio && !conferindo;
+    elDrop.classList.toggle("compacta", conferindo);
+    elDrop.querySelector(".imp-drop-t").innerHTML = conferindo
+      ? "Arraste ou clique para <b>adicionar mais</b> arquivos"
+      : "Arraste seus arquivos <b>.docx</b> até aqui";
+    elProg.hidden = qual !== "lendo";
+    elFichas.hidden = qual === "resultado";
+    // O rodapé aparece também no VAZIO, com só o "Voltar": sem ele, quem abriu
+    // a importação sem querer ficava sem caminho de volta para a lista.
+    elImpAcoes.hidden = !conferindo && !vazio;
+    elImpCadastrar.hidden = !conferindo;
+    if (vazio) elImpCancelar.textContent = "Voltar";
+    elImpRes.hidden = qual !== "resultado";
+    elImpAcoesFim.hidden = qual !== "resultado";
+  }
+
+  function abrirImportar() {
+    if (!temDocx) return;
+    impFichas = [];
+    impFalhas = [];
+    impDescarteArm = false;
+    elFichas.textContent = "";
+    elImpRes.textContent = "";
+    resetCancelar();
+    impEstado("vazio");
+    mostrarTela("importar");
+    ligarGuarda();
+    elDrop.focus();
+  }
+
+  function fecharImportar() {
+    impSinal = null;
+    impLendo = false;
+    desligarGuarda();
+    impFichas = [];
+    impFalhas = [];
+    mostrarTela("lista");
+  }
+
+  // Descarte SEMPRE em dois cliques (confirm() nativo trava a página). Sem
+  // fichas em conferência não há o que confirmar: sai direto.
+  function pedirDescarte() {
+    if (!impFichas.length && !impFalhas.length) return fecharImportar();
+    if (impDescarteArm) return fecharImportar();
+    impDescarteArm = true;
+    elImpCancelar.textContent =
+      "Descartar " + impFichas.length + (impFichas.length === 1 ? " ficha?" : " fichas?");
+    elImpCancelar.classList.add("arm");
+  }
+  function resetCancelar() {
+    impDescarteArm = false;
+    elImpCancelar.textContent = "Cancelar";
+    elImpCancelar.classList.remove("arm");
+  }
+
+  // --- leitura -------------------------------------------------------------
+  async function impLer(arquivos) {
+    const lista = Array.from(arquivos || []).filter(Boolean);
+    if (!lista.length || impLendo) return;
+    impLendo = true;
+    resetCancelar();
+    impSinal = { cancelado: false };
+    impEstado("lendo");
+    elProgTxt.textContent = "lendo 1 de " + lista.length + "…";
+    elBarraI.style.width = "0%";
+
+    const res = await DocxImport.lerLote(lista, {
+      sinal: impSinal,
+      onItem: (r, i, n) => {
+        elProgTxt.textContent = i < n ? "lendo " + (i + 1) + " de " + n + "…" : "lido.";
+        elBarraI.style.width = Math.round((i / n) * 100) + "%";
+      },
+    });
+
+    const interrompido = impSinal.cancelado && res.length < lista.length;
+    impLendo = false;
+    impSinal = null;
+
+    for (const r of res) {
+      if (r.ok) impFichas.push(MLIB.fichaImportada(r));
+      else impFalhas.push({ nome: r.nome, erro: r.erro });
+    }
+    // cancelar NÃO descarta o que já foi lido — o estado nunca fica pior
+    if (interrompido) {
+      impFalhas.push({
+        nome: "leitura interrompida",
+        erro:
+          res.length + " de " + lista.length +
+          " arquivos foram lidos. Os demais não entraram — arraste-os de novo se quiser.",
+      });
+    }
+    MLIB.marcarDuplicados(impFichas, modelos);
+    impRender();
+    impEstado(impFichas.length || impFalhas.length ? "conferindo" : "vazio");
+  }
+
+  // --- desenho das fichas --------------------------------------------------
+  // Construído com createElement e .value/.textContent, NUNCA innerHTML: o
+  // título e o texto vêm de um arquivo externo, e o escapeHtml do projeto não
+  // escapa aspa simples (o que basta para quebrar um atributo).
+  function impFichaEl(f, i) {
+    const box = document.createElement("div");
+    box.className = "imp-ficha" + (f.incluir ? "" : " fora");
+    box.dataset.i = String(i);
+
+    const lab = document.createElement("label");
+    lab.className = "imp-inc";
+    const chk = document.createElement("input");
+    chk.type = "checkbox";
+    chk.className = "imp-chk";
+    chk.checked = !!f.incluir;
+    chk.setAttribute("aria-label", "Cadastrar este modelo");
+    const arq = document.createElement("span");
+    arq.className = "imp-arq";
+    arq.textContent = f.arquivo;
+    arq.title = f.arquivo;
+    lab.appendChild(chk);
+    lab.appendChild(arq);
+    box.appendChild(lab);
+
+    const campos = document.createElement("div");
+    campos.className = "imp-campos";
+    const tit = document.createElement("input");
+    tit.type = "text";
+    tit.className = "imp-tit";
+    tit.maxLength = 80;
+    tit.value = f.modelo.titulo;
+    tit.setAttribute("aria-label", "Título do modelo");
+    campos.appendChild(tit);
+
+    const catwrap = document.createElement("div");
+    catwrap.className = "imp-catwrap";
+    const sel = document.createElement("select");
+    sel.className = "imp-cat";
+    sel.setAttribute("aria-label", "Categoria do modelo");
+    for (const c of MLIB.CATEGORIAS) {
+      const op = document.createElement("option");
+      op.value = c.valor;
+      op.textContent = c.rotulo;
+      sel.appendChild(op);
+    }
+    sel.value = f.modelo.categoria;
+    catwrap.appendChild(sel);
+    const sug = document.createElement("span");
+    sug.className = "imp-sug";
+    catwrap.appendChild(sug);
+    campos.appendChild(catwrap);
+    box.appendChild(campos);
+
+    const meta = document.createElement("div");
+    meta.className = "imp-meta";
+    const chars = document.createElement("span");
+    chars.className = "imp-chars";
+    meta.appendChild(chars);
+    const prevB = document.createElement("button");
+    prevB.type = "button";
+    prevB.className = "imp-prev-b";
+    prevB.textContent = "ver as primeiras linhas";
+    prevB.setAttribute("aria-expanded", "false");
+    meta.appendChild(prevB);
+    box.appendChild(meta);
+
+    const prev = document.createElement("pre");
+    prev.className = "imp-prev";
+    prev.hidden = true;
+    prev.textContent = primeirasLinhas(f.modelo.texto);
+    box.appendChild(prev);
+
+    const nota = document.createElement("div");
+    nota.className = "imp-nota";
+    nota.hidden = true;
+    box.appendChild(nota);
+
+    pintarFicha(box, f);
+    return box;
+  }
+
+  function primeirasLinhas(texto) {
+    const ls = String(texto || "").split("\n").filter((l) => l.trim());
+    const corte = ls.slice(0, 8).join("\n");
+    return ls.length > 8 ? corte + "\n…" : corte;
+  }
+
+  // Atualiza só os pedaços que MUDAM. Re-renderizar a ficha inteira a cada
+  // tecla digitada no título arrancaria o foco do campo.
+  function pintarFicha(box, f) {
+    box.classList.toggle("fora", !f.incluir);
+    const sug = box.querySelector(".imp-sug");
+    const nada = f.sugerida.confianca === "nenhuma";
+    sug.hidden = f.catTocada;
+    sug.textContent = nada ? "confira" : "sugerida";
+    sug.classList.toggle("fraca", nada);
+    sug.title = nada
+      ? "Não foi possível reconhecer a espécie — escolha a categoria."
+      : "Categoria sugerida " +
+        (f.sugerida.sinal === "nome"
+          ? "pelo nome do arquivo"
+          : f.sugerida.sinal === "cabecalho"
+            ? "pelo cabeçalho do documento"
+            : "pelo dispositivo da peça") +
+        ".";
+
+    const pct = Math.round((f.bytes / MLIB.TETO_BYTES) * 100);
+    const chars = box.querySelector(".imp-chars");
+    chars.textContent = nFmt(f.modelo.texto.length) + " caracteres · " + pct + "% do limite";
+    chars.classList.toggle("estouro", f.acimaDoTeto);
+
+    const nota = box.querySelector(".imp-nota");
+    const avisos = [];
+    if (f.acimaDoTeto) {
+      avisos.push(
+        "Passa do limite de " + nFmt(MLIB.TETO_BYTES) +
+          " caracteres por modelo, então não entra no lote. Depois de cadastrar os outros, você poderá abri-lo para encurtar."
+      );
+    }
+    if (f.duplicado) avisos.push("Já existe um modelo com este título — mude o título se não quiser dois.");
+    nota.textContent = avisos.join(" ");
+    nota.hidden = !avisos.length;
+  }
+
+  function impFalhaEl(fa) {
+    const box = document.createElement("div");
+    box.className = "imp-ficha erro";
+    const arq = document.createElement("span");
+    arq.className = "imp-arq";
+    arq.textContent = fa.nome;
+    arq.title = fa.nome;
+    box.appendChild(arq);
+    const err = document.createElement("div");
+    err.className = "imp-erro";
+    err.textContent = fa.erro;
+    box.appendChild(err);
+    return box;
+  }
+
+  function impRender() {
+    elFichas.textContent = "";
+    // As falhas vêm PRIMEIRO: são a informação excepcional, e é o que explica
+    // por que o botão diz "Cadastrar 7" quando foram soltos 8 arquivos.
+    for (const fa of impFalhas) elFichas.appendChild(impFalhaEl(fa));
+    impFichas.forEach((f, i) => elFichas.appendChild(impFichaEl(f, i)));
+    impAtualizarAcao();
+  }
+
+  function impAtualizarAcao() {
+    const n = impFichas.filter((f) => f.incluir).length;
+    elImpCadastrar.textContent = n
+      ? "Cadastrar " + n + (n === 1 ? " modelo" : " modelos")
+      : "Cadastrar";
+    elImpCadastrar.disabled = !n;
+  }
+
+  // Duplicidade é relativa ao CONJUNTO: mudar um título pode resolver (ou
+  // criar) o aviso de outra ficha, então as notas de todas são repintadas.
+  function impRepintarTodas() {
+    MLIB.marcarDuplicados(impFichas, modelos);
+    elFichas.querySelectorAll(".imp-ficha:not(.erro)").forEach((box) => {
+      const f = impFichas[Number(box.dataset.i)];
+      if (f) pintarFicha(box, f);
+    });
+    impAtualizarAcao();
+  }
+
+  // --- gravação e resultado ------------------------------------------------
+  function impCadastrar() {
+    const escolhidas = impFichas.filter((f) => f.incluir);
+    if (!escolhidas.length) return;
+    const semTitulo = escolhidas.find((f) => !f.modelo.titulo.trim());
+    if (semTitulo) {
+      const box = elFichas.querySelector('.imp-ficha[data-i="' + impFichas.indexOf(semTitulo) + '"]');
+      if (box) box.querySelector(".imp-tit").focus();
+      return;
+    }
+    elImpCadastrar.disabled = true;
+    MLIB.salvarLote(
+      escolhidas.map((f) => f.modelo),
+      (r) => impMostrarResultado(r, escolhidas)
+    );
+  }
+
+  // "Sem cap silencioso": o resultado diz quantos entraram E nomeia, um a um,
+  // tudo o que ficou de fora com o motivo.
+  function impMostrarResultado(r, escolhidas) {
+    const comErro = new Set((r.erros || []).map((e) => e.id));
+    const gravadas = escolhidas.filter((f) => !comErro.has(f.modelo.id));
+    elImpRes.textContent = "";
+
+    const ok = document.createElement("div");
+    ok.className = "imp-res-ok";
+    ok.innerHTML = svgIc('<path d="M20 6 9 17l-5-5"/>', 18, 2);
+    const okT = document.createElement("span");
+    okT.textContent = r.ok
+      ? r.ok + (r.ok === 1 ? " modelo cadastrado" : " modelos cadastrados")
+      : "Nenhum modelo foi cadastrado";
+    ok.appendChild(okT);
+    elImpRes.appendChild(ok);
+
+    const fora = [];
+    for (const e of r.erros || []) {
+      fora.push({ rotulo: e.titulo, motivo: e.erro, ficha: null });
+    }
+    for (const f of impFichas) {
+      if (gravadas.indexOf(f) >= 0) continue;
+      if (comErro.has(f.modelo.id)) continue;
+      if (f.acimaDoTeto) {
+        fora.push({
+          rotulo: f.modelo.titulo,
+          motivo: "passa do limite de " + nFmt(MLIB.TETO_BYTES) + " caracteres por modelo",
+          ficha: f,
+        });
+      } else {
+        fora.push({ rotulo: f.modelo.titulo, motivo: "desmarcado por você", ficha: null });
+      }
+    }
+    for (const fa of impFalhas) fora.push({ rotulo: fa.nome, motivo: fa.erro, ficha: null });
+
+    if (fora.length) {
+      const bloco = document.createElement("div");
+      bloco.className = "imp-res-fora";
+      const h = document.createElement("h3");
+      h.textContent = "não entraram (" + fora.length + ")";
+      bloco.appendChild(h);
+      for (const item of fora) {
+        const l = document.createElement("div");
+        l.className = "imp-res-l";
+        const t = document.createElement("span");
+        const b = document.createElement("b");
+        b.textContent = item.rotulo;
+        t.appendChild(b);
+        t.appendChild(document.createTextNode(" — " + item.motivo));
+        l.appendChild(t);
+        if (item.ficha) {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.textContent = "Abrir para encurtar";
+          btn.addEventListener("click", () => abrirParaEncurtar(item.ficha, l));
+          l.appendChild(btn);
+        }
+        bloco.appendChild(l);
+      }
+      elImpRes.appendChild(bloco);
+    }
+
+    // as gravadas saem da conferência; o que sobra continua disponível
+    impFichas = impFichas.filter((f) => gravadas.indexOf(f) < 0);
+    impEstado("resultado");
+  }
+
+  // O texto lido não pode se perder: leva o rascunho ao formulário normal,
+  // onde o contador mostra ao vivo quanto falta cortar. Ao voltar, a linha
+  // some do resultado se o modelo foi salvo.
+  function abrirParaEncurtar(f, linha) {
+    aposForm = (salvou) => {
+      if (salvou && linha && linha.parentNode) linha.remove();
+      if (salvou) impFichas = impFichas.filter((x) => x !== f);
+      mostrarTela("importar");
+      impEstado("resultado");
+    };
+    abrirForm(f.modelo, { novo: true, titulo: "Encurtar antes de cadastrar" });
+  }
+
+  // --- wiring --------------------------------------------------------------
+  if (temDocx && elDrop) {
+    btnImportarLote.addEventListener("click", abrirImportar);
+
+    const escolher = () => {
+      elArquivos.value = ""; // permite reimportar os MESMOS arquivos
+      elArquivos.click();
+    };
+    elDrop.addEventListener("click", escolher);
+    elDrop.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        escolher();
+      }
+    });
+    elArquivos.addEventListener("change", () => impLer(elArquivos.files));
+
+    elDrop.addEventListener("dragenter", (e) => {
+      e.preventDefault();
+      profundidade++;
+      elDrop.classList.add("arrastando");
+    });
+    elDrop.addEventListener("dragover", (e) => {
+      // sobrepõe o dropEffect "none" da guarda global: AQUI pode soltar
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    });
+    elDrop.addEventListener("dragleave", () => {
+      profundidade = Math.max(0, profundidade - 1);
+      if (!profundidade) elDrop.classList.remove("arrastando");
+    });
+    elDrop.addEventListener("drop", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      profundidade = 0;
+      elDrop.classList.remove("arrastando");
+      if (e.dataTransfer && e.dataTransfer.files) impLer(e.dataTransfer.files);
+    });
+
+    // handlers DELEGADOS: as fichas são recriadas a cada render
+    elFichas.addEventListener("change", (e) => {
+      const box = e.target.closest(".imp-ficha");
+      if (!box || !box.dataset.i) return;
+      const f = impFichas[Number(box.dataset.i)];
+      if (!f) return;
+      if (e.target.classList.contains("imp-chk")) {
+        f.incluir = e.target.checked;
+        pintarFicha(box, f);
+        impAtualizarAcao();
+      } else if (e.target.classList.contains("imp-cat")) {
+        f.modelo.categoria = e.target.value;
+        f.catTocada = true; // o selo "sugerida" deixaria de ser verdade
+        MLIB.medirFicha(f);
+        pintarFicha(box, f);
+      }
+    });
+    elFichas.addEventListener("input", (e) => {
+      if (!e.target.classList.contains("imp-tit")) return;
+      const box = e.target.closest(".imp-ficha");
+      const f = impFichas[Number(box.dataset.i)];
+      if (!f) return;
+      f.modelo.titulo = e.target.value;
+      MLIB.medirFicha(f);
+      impRepintarTodas();
+    });
+    elFichas.addEventListener("click", (e) => {
+      const btn = e.target.closest(".imp-prev-b");
+      if (!btn) return;
+      const prev = btn.closest(".imp-ficha").querySelector(".imp-prev");
+      prev.hidden = !prev.hidden;
+      btn.setAttribute("aria-expanded", String(!prev.hidden));
+      btn.textContent = prev.hidden ? "ver as primeiras linhas" : "esconder o texto";
+    });
+
+    elImpCadastrar.addEventListener("click", impCadastrar);
+    elImpCancelar.addEventListener("click", pedirDescarte);
+    $("#impFechar").addEventListener("click", fecharImportar);
+    $("#impParar").addEventListener("click", () => {
+      if (impSinal) impSinal.cancelado = true;
+    });
+  } else if (btnImportarLote) {
+    btnImportarLote.hidden = true;
+  }
+
   $("#novo").addEventListener("click", () => abrirForm(null));
   $("#salvar").addEventListener("click", salvar);
-  $("#cancelar").addEventListener("click", fecharForm);
+  $("#cancelar").addEventListener("click", () => fecharForm());
   elBusca.addEventListener("input", filtrar);
   elBusca.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && elBusca.value) {
@@ -356,6 +902,10 @@
     }
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !elTelaForm.hidden) fecharForm();
+    if (e.key !== "Escape") return;
+    if (!elTelaForm.hidden) fecharForm();
+    // com um lote em conferência, o Esc ARMA o descarte e o segundo confirma —
+    // fechar de primeira jogaria fora o trabalho de conferir dez fichas
+    else if (elTelaImportar && !elTelaImportar.hidden) pedirDescarte();
   });
 })();

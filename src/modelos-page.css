@@ -8,6 +8,11 @@
   --canvas: #eceef1;
   --canvas-2: #e3e6e9;
   --linha: #d7dbdf;
+  /* respiro no fim da área rolável. É variável porque o rodapé sticky da
+     importação precisa COMPENSÁ-LO: `position:sticky; bottom:0` gruda na borda
+     de PADDING do scrollport, então com um valor fixo aqui o rodapé parava 40px
+     antes do fim e flutuava por cima das fichas. */
+  --mesa-pb: 40px;
 }
 
 html, body { height: 100%; }
@@ -96,7 +101,7 @@ button svg { flex: none; }
   min-height: 0;
   overflow: auto;
   background: var(--canvas);
-  padding: 26px 18px 40px;
+  padding: 26px 18px var(--mesa-pb);
 }
 .col { width: 100%; max-width: 720px; margin: 0 auto; }
 
@@ -336,6 +341,269 @@ body.editando .topo .acoes { visibility: hidden; }
 }
 .form-acoes { display: flex; justify-content: flex-end; gap: 9px; }
 
+/* --------------------------------------------- importar .docx em lote (.imp-*) */
+/* Os MESMOS nomes de classe do bloco .imp-* de panel.css, com as regras
+   reescritas: as duas folhas não podem se importar (o painel vive num Shadow
+   DOM e carrega só o panel.css). Nomes iguais é o que faz as duas se lerem
+   lado a lado quando uma delas mudar. */
+
+/* zona de arraste — tracejada porque é um ALVO, não um botão */
+.imp-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  padding: 34px 20px 30px;
+  border: 1.5px dashed var(--line-check);
+  border-radius: var(--r-box);
+  background: #fafcfd;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.14s, background 0.14s, color 0.14s;
+}
+.imp-drop svg { color: #b8c4cd; transition: color 0.14s; }
+.imp-drop:hover,
+.imp-drop:focus-visible,
+.imp-drop.arrastando {
+  border-color: var(--pje);
+  background: var(--hover-2);
+  color: var(--text);
+  outline: none;
+}
+.imp-drop:hover svg,
+.imp-drop:focus-visible svg,
+.imp-drop.arrastando svg { color: var(--pje); }
+.imp-drop-t { font-size: var(--fs-body); }
+.imp-drop-t b { color: var(--ink); }
+.imp-drop-s { font-size: var(--fs-meta); color: var(--muted); }
+/* compacta quando já há fichas: ali ela é "adicionar mais", não o convite */
+.imp-drop.compacta { flex-direction: row; padding: 12px 16px; gap: 10px; }
+.imp-drop.compacta svg { width: 16px; height: 16px; }
+.imp-drop.compacta .imp-drop-s { display: none; }
+
+/* leitura em curso */
+.imp-prog { margin-bottom: 14px; }
+.imp-prog-hd {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: var(--fs-ui);
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.imp-prog-hd > span:nth-child(2) { flex: 1; min-width: 0; }
+.imp-prog-hd button { padding: 4px 10px; font-size: var(--fs-meta); }
+.imp-spin {
+  width: 14px; height: 14px; flex: none;
+  border: 2px solid var(--accent-bg);
+  border-top-color: var(--pje);
+  border-radius: 50%;
+  animation: imp-gira 0.7s linear infinite;
+}
+@keyframes imp-gira { to { transform: rotate(360deg); } }
+.imp-bar { height: 4px; background: var(--line-2, #edf1f3); border-radius: 3px; overflow: hidden; }
+.imp-bar i {
+  display: block; height: 100%; width: 0;
+  background: linear-gradient(90deg, #62a9c7, var(--pje));
+  transition: width 0.25s ease;
+}
+
+/* lista de fichas */
+.imp-fichas { display: flex; flex-direction: column; gap: 10px; }
+.imp-fichas:not(:empty) { margin-bottom: 14px; }
+
+.imp-ficha {
+  border: 1px solid var(--linha);
+  border-radius: var(--r-box);
+  padding: 11px 13px 12px;
+  background: #fff;
+  transition: opacity 0.14s, background 0.14s;
+}
+/* desmarcada continua LEGÍVEL e editável — desmarcar não é apagar */
+.imp-ficha.fora { opacity: 0.62; background: #fafbfc; }
+.imp-ficha.erro { border-color: var(--warn-line); background: var(--warn-bg); }
+
+.imp-inc { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.imp-inc input { width: 15px; height: 15px; accent-color: var(--pje); flex: none; cursor: pointer; }
+.imp-arq {
+  font-family: var(--ff-mono);
+  font-size: var(--fs-micro);
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.imp-ficha.erro .imp-arq { color: var(--warn-ink); font-weight: 600; }
+
+.imp-campos { display: flex; gap: 9px; margin: 8px 0 7px; }
+.imp-tit {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: var(--fs-ui);
+  font-weight: 600;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--linha);
+  border-radius: 8px;
+  padding: 7px 10px;
+  outline: none;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.imp-catwrap { display: flex; align-items: center; gap: 6px; flex: none; }
+.imp-cat {
+  font: inherit;
+  font-size: var(--fs-meta);
+  color: var(--text);
+  background: #fff;
+  border: 1px solid var(--linha);
+  border-radius: 8px;
+  padding: 7px 8px;
+  outline: none;
+  cursor: pointer;
+  max-width: 190px;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.imp-tit:focus, .imp-cat:focus {
+  border-color: var(--pje);
+  box-shadow: 0 0 0 3px rgba(20, 96, 126, 0.15);
+}
+/* o selo diz "isto é um palpite" — some no primeiro toque no seletor, porque
+   depois disso ele deixaria de ser verdade */
+.imp-sug {
+  font-size: var(--fs-nano);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--pje-2);
+  background: var(--accent-bg);
+  border-radius: var(--r-tight);
+  padding: 2px 6px;
+  flex: none;
+  white-space: nowrap;
+}
+.imp-sug.fraca { color: var(--warn-ink); background: var(--warn-bg); }
+
+.imp-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--fs-micro);
+  color: var(--muted);
+}
+.imp-chars { flex: 1; min-width: 0; }
+.imp-chars.estouro { color: var(--warn-ink); font-weight: 600; }
+.imp-prev-b {
+  font-size: var(--fs-micro);
+  padding: 3px 8px;
+  border-radius: var(--r-tight);
+  border: 1px solid var(--linha);
+  background: #fff;
+  color: var(--muted);
+  flex: none;
+}
+.imp-prev-b:hover { background: var(--hover-2); border-color: var(--pje); color: var(--pje); }
+/* a prévia é a única forma de conferir que o .docx foi lido certo sem abrir o
+   Word — serifada, como a peça é */
+.imp-prev {
+  margin: 9px 0 0;
+  padding: 9px 11px;
+  max-height: 160px;
+  overflow: auto;
+  background: #fafbfc;
+  border: 1px solid var(--linha);
+  border-radius: 8px;
+  font-family: var(--ff-serif);
+  font-size: var(--fs-meta);
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+/* aviso SUAVE: duplicado e acima do teto informam, não impedem de continuar */
+.imp-nota, .imp-erro {
+  margin-top: 8px;
+  padding: 6px 9px;
+  border-radius: var(--r-sm);
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-line);
+  color: var(--warn-ink);
+  font-size: var(--fs-meta);
+  line-height: 1.45;
+}
+.imp-ficha.erro .imp-erro { margin-top: 6px; background: transparent; border: none; padding: 0; }
+
+/* rodapé de ação — sticky para o botão não fugir da tela com 10 fichas.
+   As margens negativas sangram a faixa até as bordas do .form-card (que tem
+   22/24/20 de padding): sem isso o fundo branco cobria só a coluna central e
+   as fichas passavam POR BAIXO dos botões, aparecendo pelas laterais. */
+.imp-acoes {
+  position: sticky;
+  bottom: calc(-1 * var(--mesa-pb));
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 9px;
+  margin: 10px -24px -20px;
+  padding: 12px 24px;
+  background: #fff;
+  border-top: 1px solid var(--linha);
+  border-radius: 0 0 12px 12px;
+  box-shadow: 0 -6px 14px -10px rgba(14, 50, 63, 0.35);
+}
+.imp-acoes .primario:disabled { opacity: 0.5; cursor: default; filter: none; }
+/* descarte armado (dois cliques, nunca confirm() nativo) */
+.imp-acoes .ghost.arm {
+  border-color: var(--alerta);
+  color: var(--alerta);
+  background: var(--alerta-bg);
+  font-weight: 600;
+}
+
+/* resultado */
+.imp-res-ok {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 13px;
+  border-radius: var(--r-box);
+  background: var(--ok-bg);
+  border: 1px solid var(--ok-line);
+  color: var(--ok-ink);
+  font-size: var(--fs-body);
+  font-weight: 600;
+}
+.imp-res-ok svg { color: var(--ok); flex: none; }
+.imp-res-fora { margin-top: 14px; }
+.imp-res-fora h3 {
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+.imp-res-l {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--warn-line);
+  background: var(--warn-bg);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-meta);
+  color: var(--warn-ink);
+  line-height: 1.45;
+  margin-bottom: 7px;
+}
+.imp-res-l > span { flex: 1; min-width: 0; }
+.imp-res-l b { color: #7c5310; }
+.imp-res-l button { flex: none; font-size: var(--fs-micro); padding: 4px 9px; background: #fff; border-color: var(--warn-line); color: var(--warn-ink); }
+.imp-res-l button:hover { background: #fff6e6; }
+
 /* ------------------------------------------------------------------ rodapé */
 .rodape-nota {
   flex: none;
@@ -352,4 +620,9 @@ body.editando .topo .acoes { visibility: hidden; }
 @media (max-width: 620px) {
   .dupla { flex-direction: column; gap: 0; }
   .mrow .acts { opacity: 1; }
+  /* a ficha vira coluna: título e categoria lado a lado não cabem */
+  .imp-campos { flex-direction: column; gap: 7px; }
+  .imp-cat { max-width: none; width: 100%; }
+  .imp-catwrap { justify-content: space-between; }
+  .imp-mais span { display: none; }
 }

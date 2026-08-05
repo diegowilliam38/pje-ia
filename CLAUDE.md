@@ -31,6 +31,7 @@ Content scripts injetados nesta ordem
 |---|---|---|
 | `src/pje.js` | `PJE` | Acesso ao PJe: lista peças da timeline (`#divTimeLine`), baixa cada uma pelo endpoint REST autenticado por cookie de sessão. |
 | `src/prompts.js` | `PLIB` | Biblioteca de prompts do usuário: CRUD sobre `chrome.storage.sync` (um item por prompt, `plib:<id>`) + `aoMudar` para propagação entre abas/dispositivos. |
+| `src/docx-importar.js` | `DocxImport` | Leitor de `.docx` sem biblioteca (ZIP à mão + `DecompressionStream` + `DOMParser` sobre `word/document.xml`) e leitura em LOTE. Ver "Importar peças-modelo de .docx". |
 | `src/panel.js` | `PjePanel` | Toda a UI (chat, seletor de peças, chips, popups `@` e `/`, card de progresso), isolada em **Shadow DOM**. CSS carregado de `src/panel.css` via `web_accessible_resources`. |
 | `src/content.js` | — | Orquestração: downloads com concorrência 3, cache por peça, montagem dos blocos da API, conversa multi-turno, streaming via `Port`. |
 
@@ -1314,6 +1315,93 @@ irmão do `PLIB`, com diferenças de propósito:
   PRIMEIRO match e passariam a apontar para o modal errado se a ordem invertesse. Os
   handlers de lista dos dois são delegados e escopados no próprio `.*-list`, então só a
   ordem no DOM segura essa fronteira.
+
+## Importar peças-modelo de `.docx` (docx-importar.js + modelos.js + as duas cascas)
+
+Cadastrar dez modelos não pode custar dez formulários. O usuário solta 5–10 `.docx`
+de uma vez, cada arquivo vira uma **ficha** já preenchida e um clique cadastra todas.
+Existe nos DOIS lugares — modal `.mlib` do painel e página `src/modelos.html` —, com
+a lógica compartilhada e só a casca escrita duas vezes.
+
+- **`src/docx-importar.js` já existia** (leitor de um arquivo, usado só na página) e
+  **não estava no `manifest.json`** — por isso o modal do painel não tinha importação
+  nenhuma. Ele entra nos content_scripts **entre `modelos.js` e `panel.js`**. O IIFE
+  não toca em nada de ambiente na definição (`DecompressionStream` é checado dentro do
+  `lerArquivo`, `DOMParser` só dentro do `textoDoXml`), então acrescentá-lo não pode
+  quebrar o boot. `panel.js` o trata como **opcional** (`typeof DocxImport !==
+  "undefined"`, igual ao `MLIB`): sem ele o botão Importar some e o resto funciona —
+  é o que mantém o harness de boot verde sem stub novo.
+- **Nenhum global novo.** `lerLote` mora no `DocxImport` (dono do formato);
+  `adivinharCategoria`, `chaveTitulo`, `fichaImportada`, `medirFicha`,
+  `marcarDuplicados` e `salvarLote` moram no `MLIB` (dono do esquema e do storage).
+  Um `modelos-importar.js` dependeria dos DOIS — seria o primeiro content script com
+  duas dependências entre globais. Efeito colateral: `categoriaValida`, que era código
+  morto, virou a guarda do que a adivinhação devolve.
+- **`adivinharCategoria` tem TRÊS sinais, e a precedência é nome → cabeçalho →
+  dispositivo.** (1) O **nome do arquivo** vence quando existe (foi decisão do
+  usuário) e, dentro dele, vence o casamento **mais à esquerda** — nome é "Espécie —
+  assunto", a posição carrega informação; sem isso "Despacho designando audiência de
+  instrução.docx" cairia em `ata`. (2) O **cabeçalho** (12 primeiras linhas úteis) é
+  **ancorado em `^`**: `textoDoXml` entrega um parágrafo por linha, e sem a âncora
+  "…conforme a sentença de fls. 30" passaria por cabeçalho. (3) O **dispositivo** (18
+  últimas) é o sinal mais discriminante, e ali a ORDEM da tabela é tudo — `sentenca`
+  vem ANTES de `mandado` ("Publique-se… Expeça-se mandado" é sentença) e `despacho`
+  vem POR ÚLTIMO (`cite-se`/`cumpra-se` estão em quase todo dispositivo). Valem as
+  armadilhas de sempre: `norm()` antes de tudo, `(?<!(cumprimento|execucao|
+  liquidacao|carta) de )sentenca` (sem `carta`, "Carta de sentença" viraria sentença),
+  `mandado\b(?! de seguranca)`, `ata(?!\s*notarial)`, `acordao` ≠ `acordo`, e — na
+  construção `\b(…)\b` — toda alternativa começando E terminando em caractere de
+  palavra (`p\.r\.i`, nunca `p\.r\.i\.`, cujo ponto quebraria o `\b` de fechamento).
+  Devolve `{categoria, confianca, sinal}`: o `sinal` vira o `title` do selo, porque o
+  usuário precisa poder discordar sabendo de onde veio o palpite.
+- **O selo "sugerida" some no PRIMEIRO `change` do seletor** (`catTocada`): ele afirma
+  "isto é um palpite", e depois do toque deixaria de ser verdade. Com
+  `confianca:"nenhuma"` o rótulo troca para "confira" em tom de aviso suave.
+- **O teto de 60.000 é do ITEM SERIALIZADO, não do texto**: o envelope (UUID, chaves
+  do JSON, dois timestamps) custa ~201 bytes, então `medirFicha` roda também a cada
+  edição do TÍTULO — uma ficha cruza o teto por causa dele. Ficha acima do teto entra
+  **desmarcada**, com aviso suave, e **não bloqueia o lote**; a saída para encurtar
+  aparece no RESULTADO, depois de gravar os outros (`mlibAposForm`/`aposForm` levam o
+  rascunho ao formulário normal com `{novo:true}` e devolvem ao resultado). Pular para
+  o formulário no meio da conferência exigiria carregar N fichas por uma troca de
+  tela, e perder o lote seria o pior desfecho.
+- **ARMADILHA CRÍTICA — soltar arquivo FORA da zona.** Por padrão o Chrome NAVEGA para
+  o `file://`, o que na página de autos mata a sessão JSF e o trabalho junto. A guarda
+  precisa dos **DOIS** eventos com `preventDefault` (é o `dragover` que declara a área
+  como alvo válido e cancela a navegação; só o `drop` não basta — modo de falha
+  silencioso), em **`window` com `capture:true`** (eventos de arrasto são *composed*:
+  atravessam o Shadow DOM e chegam ao window retargetados, então um par de listeners
+  cobre o shadow tree E a página do tribunal), com funções **nomeadas** (arrow inline
+  não sai no `removeEventListener`), ligada/desligada com a tela e **idempotente**. A
+  guarda NUNCA chama `stopPropagation` — quem consome o evento é a zona. `dragleave`
+  é por **CONTADOR** (`dragenter`++/`dragleave`--), nunca por `relatedTarget`, que vem
+  retargetado para o host. Custo aceito e comentado no código: com o importador aberto
+  um arquivo solto sobre a página do PJe é engolido. `impDesligar()` é chamado por
+  TODOS os caminhos de saída, inclusive o gate de 1M (`setModelosHabilitado(false)` →
+  `fecharMlib()`).
+- **Três telas no card, um ponto único** (`mlibTela` no painel, `mostrarTela` na
+  página): lista, formulário e importação são exclusivos, e "Novo"/"Importar" somem
+  fora da lista (clicá-los com um lote em conferência descartaria o trabalho).
+  `fecharMlibForm` PRECISA voltar para `"lista"` — ela é chamada por `fecharMlib` e
+  por `abrirMlib`, e sem isso fechar com a importação aberta deixaria duas telas
+  visíveis na abertura seguinte.
+- **A ficha é construída com `createElement` + `.value`/`.textContent`, nunca
+  `innerHTML`**: título e texto vêm de arquivo externo e o `escapeHtml` do painel não
+  escapa aspa simples. Os handlers são delegados no container, com `data-i` INTEIRO
+  como chave (não o nome do arquivo — evita `CSS.escape` e nomes hostis em seletor). E
+  editar o título **não re-renderiza a ficha** (`pintarFicha` atualiza só o que muda):
+  re-render a cada tecla arrancaria o foco do campo.
+- **Nada silencioso**: erro de leitura de um arquivo não derruba o lote (vira ficha de
+  erro com a mensagem do `DocxImport` verbatim, e as falhas aparecem ANTES das fichas
+  — é o que explica o botão dizer "Cadastrar 7" quando foram soltos 8); cancelar a
+  leitura NÃO descarta o que já foi lido; `salvarLote` serializa e AGREGA os erros em
+  vez de parar no primeiro; e o resultado nomeia, um a um, tudo o que ficou de fora.
+- **Descarte do lote em dois cliques** (backdrop, ✕ e Esc armam o botão Cancelar),
+  nunca `confirm()` nativo. O Esc do `.mlib-card` mantém o `stopPropagation`.
+- Fixtures de teste: `.docx` fabricados com o **`ZipW` do próprio repo** (escritor e
+  leitor conferem campo a campo — método 8/0, CRC no cabeçalho local, EOCD).
+  Armadilha do fixture: o estilo tem de ser `w:val` com o prefixo ligado ao namespace,
+  senão `getAttributeNS(W,"val")` devolve `null` e a regra de heading nunca dispara.
 
 ## Mapa mental (markmap) — página `src/mapa.html`
 

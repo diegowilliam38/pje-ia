@@ -146,5 +146,51 @@ const DocxImport = (() => {
       .slice(0, 80);
   }
 
-  return { lerArquivo, tituloDe, _textoDoXml: textoDoXml };
+  // Lê VÁRIOS .docx de uma vez. Devolve um item por arquivo, na ordem em que
+  // vieram: {ok:true, nome, titulo, texto} ou {ok:false, nome, titulo, erro}.
+  //
+  // Invariantes que não podem cair:
+  //  - SERIALIZADO (for + await, nunca Promise.all). Dez DecompressionStream
+  //    simultâneos, cada um com o arrayBuffer inteiro do .docx na memória, é um
+  //    pico grande e um progresso mentiroso — mesma razão do "UM LOTE POR VEZ"
+  //    do pipeline de upload das peças.
+  //  - Falha de UM arquivo NUNCA derruba o lote (a mesma regra da tolerância a
+  //    falha de download das peças): o erro vira um item e o laço segue. Quem
+  //    arrastou nove arquivos e errou um não pode perder os outros oito.
+  //  - `sinal.cancelado` é conferido ENTRE arquivos, nunca no meio de um, e o
+  //    que já foi lido é DEVOLVIDO: cancelar não descarta trabalho.
+  //  - `onItem` roda dentro de try/catch — uma exceção da UI não pode matar a
+  //    leitura dos arquivos que faltam.
+  //
+  // Não se filtra extensão aqui de propósito: um .pdf solto no meio recebe a
+  // mensagem específica do lerArquivo e vira uma linha de erro VISÍVEL. Sumir
+  // com ele em silêncio deixaria o usuário procurando um arquivo que ele acha
+  // que importou.
+  async function lerLote(arquivos, opts) {
+    const o = opts || {};
+    const lista = Array.from(arquivos || []);
+    const saida = [];
+    for (let i = 0; i < lista.length; i++) {
+      if (o.sinal && o.sinal.cancelado) break;
+      const file = lista[i];
+      const base = { nome: String((file && file.name) || ""), titulo: tituloDe(file) };
+      let r;
+      try {
+        r = Object.assign({ ok: true, texto: await lerArquivo(file) }, base);
+      } catch (e) {
+        r = Object.assign({ ok: false, erro: String((e && e.message) || e) }, base);
+      }
+      saida.push(r);
+      if (o.onItem) {
+        try {
+          o.onItem(r, i + 1, lista.length);
+        } catch {
+          /* a UI que se vire; a leitura continua */
+        }
+      }
+    }
+    return saida;
+  }
+
+  return { lerArquivo, lerLote, tituloDe, _textoDoXml: textoDoXml };
 })();

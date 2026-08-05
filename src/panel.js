@@ -202,6 +202,9 @@ var PjePanel = (function () {
     mapa: '<circle cx="12" cy="12" r="3"/><path d="M12 9V5"/><path d="M14.5 13.5l3 2.5"/><path d="M9.5 13.5l-3 2.5"/>',
     prompts: '<path d="M12 4l1.8 4.2L18 10l-4.2 1.8L12 16l-1.8-4.2L6 10l4.2-1.8z"/><path d="M18 16l.9 2.1L21 19l-2.1.9L18 22l-.9-2.1L15 19l2.1-.9z"/>',
     modelos: '<path d="M4 6h7v14H4z"/><path d="M13 6h7v14h-7z"/>',
+    // mesmo desenho do botão "Importar de .docx" da página modelos.html: as
+    // duas portas de entrada da importação precisam mostrar o mesmo ícone
+    importar: '<path d="M12 20V9"/><path d="M7 13l5-5 5 5"/><path d="M5 4h14"/>',
   };
   // px = lado do ícone; w = stroke-width (a escala do DESIGN.md §5).
   function ic(paths, px, w) {
@@ -253,6 +256,8 @@ var PjePanel = (function () {
     mapa: ic(P.mapa, 13, 1.9),
     prompts: ic(P.prompts, 13, 1.9),
     modelos: ic(P.modelos, 13, 1.9),
+    importar: ic(P.importar, 13, 1.9),
+    importarG: ic(P.importar, 24, 1.4), // grande: traço mais fino (DESIGN.md §5)
     // --- demais ---
     info: ic(P.info, 15, 1.8),
     enviar: ic(P.enviar, 14, 2),
@@ -685,6 +690,7 @@ var PjePanel = (function () {
           <div class="mlib-card plib-card" role="dialog" aria-modal="true" aria-label="Modelos de peças" tabindex="-1">
             <div class="plib-hd">
               <span class="t">${SVG.modelos} Modelos de peças</span>
+              <button class="mlib-imp-btn plib-new" title="Importar peças-modelo de arquivos .docx — pode escolher vários de uma vez, e você confere tudo antes de cadastrar">${SVG.importar}<span class="lbl">Importar</span></button>
               <button class="mlib-new plib-new">${SVG.novo}<span class="lbl">Novo</span></button>
               <button class="mlib-close plib-close" title="Fechar (Esc)" aria-label="Fechar o gerenciador de modelos">${SVG.close}</button>
             </div>
@@ -700,6 +706,33 @@ var PjePanel = (function () {
                 <button class="mlib-cancel plib-cancel">Cancelar</button>
                 <button class="mlib-save plib-save">Salvar</button>
               </div>
+            </div>
+            <div class="mlib-imp" hidden>
+              <div class="imp-rolo">
+                <div class="imp-drop" role="button" tabindex="0" aria-label="Escolher arquivos .docx — ou arraste os arquivos até aqui">
+                  ${SVG.importarG}
+                  <span class="imp-drop-t">Arraste seus arquivos <b>.docx</b> até aqui</span>
+                  <span class="imp-drop-s">ou clique para escolher — pode mandar vários de uma vez</span>
+                </div>
+                <div class="imp-prog" hidden>
+                  <div class="imp-prog-hd">
+                    <span class="imp-spin" aria-hidden="true"></span>
+                    <span class="imp-prog-t" aria-live="polite">lendo os arquivos…</span>
+                    <button class="imp-parar">Parar</button>
+                  </div>
+                  <div class="imp-bar"><i></i></div>
+                </div>
+                <div class="imp-fichas"></div>
+                <div class="imp-res" hidden></div>
+              </div>
+              <div class="imp-acts" hidden>
+                <button class="imp-cancel plib-cancel"><span class="lbl">Cancelar</span></button>
+                <button class="imp-ok plib-save" aria-live="polite"><span class="lbl">Cadastrar</span></button>
+              </div>
+              <div class="imp-acts imp-acts-fim" hidden>
+                <button class="imp-fechar plib-save">Voltar aos modelos</button>
+              </div>
+              <input type="file" class="imp-file" accept=".docx" multiple hidden>
             </div>
           </div>
         </div>
@@ -2745,6 +2778,9 @@ var PjePanel = (function () {
     // acompanha o turno da minuta.
     const btnMlib = $(".btn-mlib");
     const BTN_MLIB_TITLE_ON = btnMlib ? btnMlib.title : ""; // título de HTML (reusado ao reabilitar)
+    const btnMlibNew = $(".mlib-new");
+    const btnMlibImp = $(".mlib-imp-btn");
+    const mlibImp = $(".mlib-imp");
     const mlibEl = $(".mlib");
     const mlibCard = $(".mlib-card");
     const mlibListEl = $(".mlib-list");
@@ -2764,6 +2800,32 @@ var PjePanel = (function () {
     let mlibEditId = null;
     let mlibIdNovo = "";
     let mlibDelArm = null;
+    let mlibAposForm = null; // callback ao sair do formulário (importação em lote)
+
+    // --- estado e nós da IMPORTAÇÃO EM LOTE (o bloco de código está lá embaixo) ---
+    // Declarados AQUI, e não junto do bloco que os usa, pela regra da zona morta
+    // temporal do CLAUDE.md: `fecharMlib()` e `setModelosHabilitado()` chamam
+    // `impDesligar()`, que lê tudo isto. Um `let` declarado depois lançaria
+    // "Cannot access before initialization" dentro de um callback — o erro que
+    // aborta o resto do arquivo em silêncio.
+    const impDrop = $(".imp-drop");
+    const impFile = $(".imp-file");
+    const impProg = $(".imp-prog");
+    const impProgT = $(".imp-prog-t");
+    const impBarraI = $(".imp-bar i");
+    const impFichasEl = $(".imp-fichas");
+    const impActs = $(".imp-acts:not(.imp-acts-fim)");
+    const impActsFim = $(".imp-acts-fim");
+    const impOk = $(".imp-ok");
+    const impCancel = $(".imp-cancel");
+    const impResEl = $(".imp-res");
+    let impFichas = [];
+    let impFalhas = []; // {nome, erro} — arquivos que não puderam ser lidos
+    let impSinal = null;
+    let impLendo = false;
+    let impDescarteArm = false;
+    let impProfundidade = 0; // dragenter/dragleave: contador (ver a guarda)
+    let impGuardaLigada = false;
     // A biblioteca de modelos só faz sentido em modelos de 1M tokens (a minuta
     // manda os autos inteiros + vários modelos): setModelosHabilitado, chamado
     // pelo content.js quando as caps chegam, desliga a feature nos menores
@@ -2771,8 +2833,13 @@ var PjePanel = (function () {
     let modelosHabilitado = true;
 
     // MLIB é content script carregado antes deste; o harness de teste pode não
-    // incluí-lo — sem ele a feature some em silêncio, nada quebra.
+    // incluí-lo — sem ele a feature some em silêncio, nada quebra. O mesmo vale
+    // para o DocxImport (importação de .docx): sem ele o botão Importar some e
+    // o resto do modal funciona igual. Declarados AQUI, no topo do bloco, e não
+    // junto do código que os usa: mlibTela() os lê e é chamada por callbacks —
+    // um `const` declarado depois lançaria pela zona morta temporal.
     const temMlib = typeof MLIB !== "undefined";
+    const temDocx = typeof DocxImport !== "undefined";
     if (temMlib) {
       // popula o <select> de categoria do form uma única vez
       for (const c of MLIB.CATEGORIAS) {
@@ -2934,6 +3001,21 @@ var PjePanel = (function () {
     }
 
     // ----- Gerenciador de modelos (modal .mlib) -----
+    // O card tem TRÊS telas mutuamente exclusivas — lista, formulário e
+    // importação em lote. Um ponto único liga uma e desliga as outras duas;
+    // com os `hidden` alternados na mão, fechar o modal com a importação
+    // aberta deixava duas telas visíveis na abertura seguinte.
+    function mlibTela(qual) {
+      mlibListEl.hidden = qual !== "lista";
+      mlibForm.hidden = qual !== "form";
+      if (mlibImp) mlibImp.hidden = qual !== "importar";
+      // "Novo" e "Importar" só fazem sentido a partir da lista: clicá-los com
+      // um lote em conferência descartaria o trabalho sem aviso nenhum
+      const naLista = qual === "lista";
+      if (btnMlibNew) btnMlibNew.hidden = !naLista;
+      if (btnMlibImp) btnMlibImp.hidden = !naLista || !temDocx;
+    }
+
     function abrirMlib(opts) {
       opts = opts || {};
       mlibEl.hidden = false;
@@ -2946,29 +3028,38 @@ var PjePanel = (function () {
 
     function fecharMlib() {
       mlibEl.hidden = true;
+      impDesligar();
       fecharMlibForm();
       inEl.focus();
     }
 
-    function abrirMlibForm(m) {
-      mlibEditId = m ? m.id : null;
-      mlibIdNovo = m ? null : temMlib ? MLIB.novoId() : "";
+    function abrirMlibForm(m, opts) {
+      const o = opts || {};
+      // o.novo: `m` é um RASCUNHO ainda não gravado (vem da importação em
+      // lote, quando a peça passou do teto e vai ser encurtada aqui)
+      const rascunho = !!(m && o.novo);
+      mlibEditId = m && !rascunho ? m.id : null;
+      mlibIdNovo = rascunho ? m.id : m ? null : temMlib ? MLIB.novoId() : "";
       mlibFT.value = m ? m.titulo : "";
       mlibFC.value = m ? m.categoria || "outro" : "sentenca";
       mlibFD.value = m ? m.descricao || "" : "";
       mlibFX.value = m ? m.texto : "";
       mlibErr.textContent = "";
-      mlibForm.hidden = false;
-      mlibListEl.hidden = true;
+      mlibTela("form");
       atualizarMlibCnt();
       mlibFT.focus();
     }
 
-    function fecharMlibForm() {
+    // `salvou` avisa o callback de saída (usado pela importação) se o rascunho
+    // virou modelo. Nunca ligar direto num addEventListener: o MouseEvent
+    // chegaria como `salvou` e seria truthy.
+    function fecharMlibForm(salvou) {
       mlibEditId = null;
-      mlibForm.hidden = true;
-      mlibListEl.hidden = false;
       mlibErr.textContent = "";
+      const volta = mlibAposForm;
+      mlibAposForm = null;
+      if (volta) volta(!!salvou);
+      else mlibTela("lista");
     }
 
     function modeloDoForm() {
@@ -3010,7 +3101,11 @@ var PjePanel = (function () {
       mlibListEl.innerHTML = "";
       if (!modelosLib.length) {
         mlibListEl.innerHTML =
-          '<div class="plib-empty">Nenhum modelo cadastrado ainda.<br>Clique em <b>Novo</b> para cadastrar sua primeira peça-modelo — depois, ao gerar uma minuta, escolha a categoria em <b>Seguir modelos</b>.</div>';
+          '<div class="plib-empty">Nenhum modelo cadastrado ainda.<br>' +
+          (temDocx
+            ? "Use <b>Importar</b> para trazer vários arquivos <b>.docx</b> de uma vez, ou <b>Novo</b> para colar o texto"
+            : "Clique em <b>Novo</b> para cadastrar sua primeira peça-modelo") +
+          " — depois, ao gerar uma minuta, escolha a categoria em <b>Seguir modelos</b>.</div>";
         return;
       }
       for (const m of modelosLib) {
@@ -3082,17 +3177,539 @@ var PjePanel = (function () {
           .filter((x) => x.id !== m.id)
           .concat(m)
           .sort((a, b) => String(a.titulo).localeCompare(String(b.titulo), "pt-BR"));
-        fecharMlibForm();
+        fecharMlibForm(true);
         renderMlibList();
       });
     }
+    // ----- Importar peças-modelo de .docx, em LOTE -----
+    // Cadastrar dez modelos não pode custar dez formulários. O usuário solta os
+    // arquivos de uma vez, cada um vira uma FICHA já preenchida (título do nome
+    // do arquivo, espécie adivinhada do conteúdo, prévia do texto lido) e um
+    // clique cadastra todas. A conferência existe porque errar a CATEGORIA é o
+    // erro caro: a minuta procura modelos POR categoria, então um modelo mal
+    // classificado fica invisível — e o usuário não descobre por quê.
+    const nFmt = (n) => Number(n || 0).toLocaleString("pt-BR");
+
+    // --- guarda do arrasto ---
+    // Por padrão o Chrome NAVEGA para o file:// de um arquivo solto em qualquer
+    // ponto do documento — na página de autos isso mata a sessão JSF do PJe e o
+    // trabalho do usuário junto. Os DOIS eventos precisam de preventDefault: é
+    // o `dragover` que declara a área como alvo válido e cancela a navegação;
+    // prevenir só o `drop` não basta (modo de falha silencioso clássico).
+    //
+    // Vão no WINDOW, em captura: eventos de arrasto são `composed`, atravessam
+    // a fronteira do Shadow DOM e chegam ao window já retargetados — um par de
+    // listeners cobre o shadow tree E a página do tribunal atrás dele.
+    //
+    // A guarda NUNCA chama stopPropagation: ela só cancela o default. Quem
+    // consome o evento é o handler da própria zona.
+    //
+    // Custo aceito: com o importador aberto, um arquivo solto sobre a página do
+    // PJe (visível ao lado, no modo lateral) é engolido. É deliberado — a
+    // alternativa é a navegação que destrói a sessão —, dura os segundos do
+    // modal, e o modal está visivelmente aberto na tela.
+    function impGuardaOver(e) {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "none";
+    }
+    function impGuardaDrop(e) {
+      e.preventDefault();
+    }
+    function impLigarGuarda() {
+      if (impGuardaLigada) return; // idempotente: abrir duas vezes não empilha
+      window.addEventListener("dragover", impGuardaOver, true);
+      window.addEventListener("drop", impGuardaDrop, true);
+      impGuardaLigada = true;
+    }
+    // Chamada por TODOS os caminhos de saída do modal (fechar, ✕, backdrop,
+    // Esc e o gate de 1M, que fecha o modal por fora).
+    function impDesligar() {
+      if (impGuardaLigada) {
+        window.removeEventListener("dragover", impGuardaOver, true);
+        window.removeEventListener("drop", impGuardaDrop, true);
+        impGuardaLigada = false;
+      }
+      impProfundidade = 0;
+      if (impDrop) impDrop.classList.remove("arrastando");
+      impSinal = null;
+      impLendo = false;
+      impFichas = [];
+      impFalhas = [];
+    }
+
+    // Fechar o modal com um lote em conferência jogaria fora o trabalho de
+    // conferir dez fichas — arma primeiro, como toda ação destrutiva aqui.
+    function sairDoMlib() {
+      if (mlibImp && !mlibImp.hidden && (impFichas.length || impFalhas.length)) {
+        impPedirDescarte(fecharMlib);
+        return;
+      }
+      fecharMlib();
+    }
+
+    function impEstado(qual) {
+      const conferindo = qual === "conferindo";
+      const vazio = qual === "vazio";
+      impDrop.hidden = !vazio && !conferindo;
+      impDrop.classList.toggle("compacta", conferindo);
+      impDrop.querySelector(".imp-drop-t").innerHTML = conferindo
+        ? "Arraste ou clique para <b>adicionar mais</b>"
+        : "Arraste seus arquivos <b>.docx</b> até aqui";
+      impProg.hidden = qual !== "lendo";
+      impFichasEl.hidden = qual === "resultado";
+      // O rodapé aparece também no VAZIO, com só o "Voltar": sem ele, quem abriu
+      // a importação sem querer não tinha como retornar à lista — o ✕ fecha o
+      // modal inteiro, que é outra coisa.
+      impActs.hidden = !conferindo && !vazio;
+      impOk.hidden = !conferindo;
+      if (vazio) rotulo(impCancel, "Voltar");
+      impResEl.hidden = qual !== "resultado";
+      impActsFim.hidden = qual !== "resultado";
+    }
+
+    // O botão do rodapé volta para a LISTA; o ✕ e o Esc fecham o modal. Cada um
+    // faz o que promete, e os dois protegem um lote em conferência.
+    // impDesligar() é obrigatório aqui: sair da tela de importação sem tirar os
+    // listeners deixaria a guarda engolindo arquivos soltos na página do PJe
+    // enquanto o modal já está na lista.
+    function impVoltarLista() {
+      impDesligar();
+      impResetCancelar();
+      mlibTela("lista");
+      renderMlibList();
+    }
+
+    function abrirImportar() {
+      if (!temDocx || !temMlib) return;
+      impFichas = [];
+      impFalhas = [];
+      impFichasEl.textContent = "";
+      impResEl.textContent = "";
+      impResetCancelar();
+      impEstado("vazio");
+      mlibTela("importar");
+      impLigarGuarda();
+      impDrop.focus();
+    }
+
+    // `aoConfirmar` é o que acontece depois do 2º clique: voltar à lista (botão
+    // do rodapé) ou fechar o modal (✕, backdrop, Esc).
+    function impPedirDescarte(aoConfirmar) {
+      const feito = aoConfirmar || impVoltarLista;
+      if (!impFichas.length && !impFalhas.length) return feito();
+      if (impDescarteArm) return feito();
+      impDescarteArm = true;
+      rotulo(
+        impCancel,
+        "Descartar " + impFichas.length + (impFichas.length === 1 ? " ficha?" : " fichas?")
+      );
+      impCancel.classList.add("arm");
+    }
+    function impResetCancelar() {
+      impDescarteArm = false;
+      rotulo(impCancel, "Cancelar");
+      impCancel.classList.remove("arm");
+    }
+
+    async function impLer(arquivos) {
+      const lista = Array.from(arquivos || []).filter(Boolean);
+      if (!lista.length || impLendo) return;
+      impLendo = true;
+      impResetCancelar();
+      impSinal = { cancelado: false };
+      impEstado("lendo");
+      impProgT.textContent = "lendo 1 de " + lista.length + "…";
+      impBarraI.style.width = "0%";
+
+      const res = await DocxImport.lerLote(lista, {
+        sinal: impSinal,
+        onItem: (r, i, n) => {
+          impProgT.textContent = i < n ? "lendo " + (i + 1) + " de " + n + "…" : "lido.";
+          impBarraI.style.width = Math.round((i / n) * 100) + "%";
+        },
+      });
+
+      const interrompido = impSinal && impSinal.cancelado && res.length < lista.length;
+      impLendo = false;
+      impSinal = null;
+
+      for (const r of res) {
+        if (r.ok) impFichas.push(MLIB.fichaImportada(r));
+        else impFalhas.push({ nome: r.nome, erro: r.erro });
+      }
+      // cancelar NÃO descarta o que já foi lido — o estado nunca fica pior
+      if (interrompido) {
+        impFalhas.push({
+          nome: "leitura interrompida",
+          erro:
+            res.length + " de " + lista.length +
+            " arquivos foram lidos. Arraste os demais de novo se quiser.",
+        });
+      }
+      MLIB.marcarDuplicados(impFichas, modelosLib);
+      impRender();
+      impEstado(impFichas.length || impFalhas.length ? "conferindo" : "vazio");
+    }
+
+    // Construído com createElement e .value/.textContent, NUNCA innerHTML: o
+    // título e o texto vêm de um arquivo externo, e o escapeHtml daqui não
+    // escapa aspa simples (o que já basta para quebrar um atributo).
+    function impFichaEl(f, i) {
+      const box = document.createElement("div");
+      box.className = "imp-ficha" + (f.incluir ? "" : " fora");
+      box.dataset.i = String(i);
+
+      const lab = document.createElement("label");
+      lab.className = "imp-inc";
+      const chk = document.createElement("input");
+      chk.type = "checkbox";
+      chk.className = "imp-chk";
+      chk.checked = !!f.incluir;
+      chk.setAttribute("aria-label", "Cadastrar este modelo");
+      const arq = document.createElement("span");
+      arq.className = "imp-arq";
+      arq.textContent = f.arquivo;
+      arq.title = f.arquivo;
+      lab.appendChild(chk);
+      lab.appendChild(arq);
+      box.appendChild(lab);
+
+      const campos = document.createElement("div");
+      campos.className = "imp-campos";
+      const tit = document.createElement("input");
+      tit.type = "text";
+      tit.className = "imp-tit";
+      tit.maxLength = 80;
+      tit.value = f.modelo.titulo;
+      tit.setAttribute("aria-label", "Título do modelo");
+      campos.appendChild(tit);
+
+      const catwrap = document.createElement("div");
+      catwrap.className = "imp-catwrap";
+      const sel = document.createElement("select");
+      sel.className = "imp-cat";
+      sel.setAttribute("aria-label", "Categoria do modelo");
+      for (const c of MLIB.CATEGORIAS) {
+        const op = document.createElement("option");
+        op.value = c.valor;
+        op.textContent = c.rotulo;
+        sel.appendChild(op);
+      }
+      sel.value = f.modelo.categoria;
+      catwrap.appendChild(sel);
+      const sug = document.createElement("span");
+      sug.className = "imp-sug";
+      catwrap.appendChild(sug);
+      campos.appendChild(catwrap);
+      box.appendChild(campos);
+
+      const meta = document.createElement("div");
+      meta.className = "imp-meta";
+      const chars = document.createElement("span");
+      chars.className = "imp-chars";
+      meta.appendChild(chars);
+      const prevB = document.createElement("button");
+      prevB.className = "imp-prev-b";
+      prevB.textContent = "ver as primeiras linhas";
+      prevB.setAttribute("aria-expanded", "false");
+      meta.appendChild(prevB);
+      box.appendChild(meta);
+
+      const prev = document.createElement("pre");
+      prev.className = "imp-prev";
+      prev.hidden = true;
+      prev.textContent = impPrimeirasLinhas(f.modelo.texto);
+      box.appendChild(prev);
+
+      const nota = document.createElement("div");
+      nota.className = "imp-nota";
+      nota.hidden = true;
+      box.appendChild(nota);
+
+      impPintarFicha(box, f);
+      return box;
+    }
+
+    function impPrimeirasLinhas(texto) {
+      const ls = String(texto || "").split("\n").filter((l) => l.trim());
+      const corte = ls.slice(0, 6).join("\n");
+      return ls.length > 6 ? corte + "\n…" : corte;
+    }
+
+    // Atualiza só o que MUDA. Re-renderizar a ficha inteira a cada tecla
+    // digitada no título arrancaria o foco do campo.
+    function impPintarFicha(box, f) {
+      box.classList.toggle("fora", !f.incluir);
+      const sug = box.querySelector(".imp-sug");
+      const nada = f.sugerida.confianca === "nenhuma";
+      sug.hidden = f.catTocada;
+      sug.textContent = nada ? "confira" : "sugerida";
+      sug.classList.toggle("fraca", nada);
+      sug.title = nada
+        ? "Não foi possível reconhecer a espécie — escolha a categoria."
+        : "Categoria sugerida " +
+          (f.sugerida.sinal === "nome"
+            ? "pelo nome do arquivo"
+            : f.sugerida.sinal === "cabecalho"
+              ? "pelo cabeçalho do documento"
+              : "pelo dispositivo da peça") +
+          ".";
+
+      const pct = Math.round((f.bytes / MLIB.TETO_BYTES) * 100);
+      const chars = box.querySelector(".imp-chars");
+      chars.textContent = nFmt(f.modelo.texto.length) + " caracteres · " + pct + "%";
+      chars.classList.toggle("estouro", f.acimaDoTeto);
+
+      const nota = box.querySelector(".imp-nota");
+      const avisos = [];
+      if (f.acimaDoTeto) {
+        avisos.push(
+          "Passa do limite de " + nFmt(MLIB.TETO_BYTES) +
+            " caracteres por modelo, então não entra no lote. Depois de cadastrar os outros você poderá abri-lo para encurtar."
+        );
+      }
+      if (f.duplicado) avisos.push("Já existe um modelo com este título.");
+      nota.textContent = avisos.join(" ");
+      nota.hidden = !avisos.length;
+    }
+
+    function impFalhaEl(fa) {
+      const box = document.createElement("div");
+      box.className = "imp-ficha erro";
+      const arq = document.createElement("span");
+      arq.className = "imp-arq";
+      arq.textContent = fa.nome;
+      arq.title = fa.nome;
+      box.appendChild(arq);
+      const err = document.createElement("div");
+      err.className = "imp-erro";
+      err.textContent = fa.erro;
+      box.appendChild(err);
+      return box;
+    }
+
+    function impRender() {
+      impFichasEl.textContent = "";
+      // As falhas vêm PRIMEIRO: são a informação excepcional, e é o que explica
+      // por que o botão diz "Cadastrar 7" quando foram soltos 8 arquivos.
+      for (const fa of impFalhas) impFichasEl.appendChild(impFalhaEl(fa));
+      impFichas.forEach((f, i) => impFichasEl.appendChild(impFichaEl(f, i)));
+      impAtualizarAcao();
+    }
+
+    function impAtualizarAcao() {
+      const n = impFichas.filter((f) => f.incluir).length;
+      rotulo(impOk, n ? "Cadastrar " + n + (n === 1 ? " modelo" : " modelos") : "Cadastrar");
+      impOk.disabled = !n;
+    }
+
+    // Duplicidade é relativa ao CONJUNTO: mudar um título pode resolver (ou
+    // criar) o aviso de outra ficha, então as notas de todas são repintadas.
+    function impRepintarTodas() {
+      MLIB.marcarDuplicados(impFichas, modelosLib);
+      impFichasEl.querySelectorAll(".imp-ficha:not(.erro)").forEach((box) => {
+        const f = impFichas[Number(box.dataset.i)];
+        if (f) impPintarFicha(box, f);
+      });
+      impAtualizarAcao();
+    }
+
+    function impCadastrar() {
+      const escolhidas = impFichas.filter((f) => f.incluir);
+      if (!escolhidas.length) return;
+      const semTitulo = escolhidas.find((f) => !f.modelo.titulo.trim());
+      if (semTitulo) {
+        const box = impFichasEl.querySelector(
+          '.imp-ficha[data-i="' + impFichas.indexOf(semTitulo) + '"]'
+        );
+        if (box) box.querySelector(".imp-tit").focus();
+        return;
+      }
+      impOk.disabled = true;
+      MLIB.salvarLote(
+        escolhidas.map((f) => f.modelo),
+        (r) => impMostrarResultado(r, escolhidas)
+      );
+    }
+
+    // "Sem cap silencioso": o resultado diz quantos entraram E nomeia, um a um,
+    // tudo o que ficou de fora, com o motivo.
+    function impMostrarResultado(r, escolhidas) {
+      const comErro = new Set((r.erros || []).map((e) => e.id));
+      const gravadas = escolhidas.filter((f) => !comErro.has(f.modelo.id));
+      // otimista, como no salvar avulso; o aoMudar re-lista logo em seguida
+      modelosLib = modelosLib
+        .filter((x) => !gravadas.some((f) => f.modelo.id === x.id))
+        .concat(gravadas.map((f) => f.modelo))
+        .sort((a, b) => String(a.titulo).localeCompare(String(b.titulo), "pt-BR"));
+
+      impResEl.textContent = "";
+      const ok = document.createElement("div");
+      ok.className = "imp-res-ok";
+      ok.innerHTML = SVG.check;
+      const okT = document.createElement("span");
+      okT.textContent = r.ok
+        ? r.ok + (r.ok === 1 ? " modelo cadastrado" : " modelos cadastrados")
+        : "Nenhum modelo foi cadastrado";
+      ok.appendChild(okT);
+      impResEl.appendChild(ok);
+
+      const fora = [];
+      for (const e of r.erros || []) fora.push({ rotulo: e.titulo, motivo: e.erro, ficha: null });
+      for (const f of impFichas) {
+        if (gravadas.indexOf(f) >= 0 || comErro.has(f.modelo.id)) continue;
+        if (f.acimaDoTeto) {
+          fora.push({
+            rotulo: f.modelo.titulo,
+            motivo: "passa do limite de " + nFmt(MLIB.TETO_BYTES) + " caracteres",
+            ficha: f,
+          });
+        } else {
+          fora.push({ rotulo: f.modelo.titulo, motivo: "desmarcado por você", ficha: null });
+        }
+      }
+      for (const fa of impFalhas) fora.push({ rotulo: fa.nome, motivo: fa.erro, ficha: null });
+
+      if (fora.length) {
+        const bloco = document.createElement("div");
+        bloco.className = "imp-res-fora";
+        const h = document.createElement("div");
+        h.className = "imp-res-h";
+        h.textContent = "não entraram (" + fora.length + ")";
+        bloco.appendChild(h);
+        for (const item of fora) {
+          const l = document.createElement("div");
+          l.className = "imp-res-l";
+          const t = document.createElement("span");
+          const b = document.createElement("b");
+          b.textContent = item.rotulo;
+          t.appendChild(b);
+          t.appendChild(document.createTextNode(" — " + item.motivo));
+          l.appendChild(t);
+          if (item.ficha) {
+            const btn = document.createElement("button");
+            btn.className = "imp-res-b";
+            btn.textContent = "encurtar";
+            btn.addEventListener("click", () => impEncurtar(item.ficha, l));
+            l.appendChild(btn);
+          }
+          bloco.appendChild(l);
+        }
+        impResEl.appendChild(bloco);
+      }
+
+      impFichas = impFichas.filter((f) => gravadas.indexOf(f) < 0);
+      renderMlibList();
+      impEstado("resultado");
+    }
+
+    // O texto lido não pode se perder: leva o rascunho ao formulário normal,
+    // onde o contador mostra ao vivo quanto falta cortar. Ao voltar, a linha
+    // some do resultado se o modelo foi salvo.
+    function impEncurtar(f, linha) {
+      mlibAposForm = (salvou) => {
+        if (salvou && linha && linha.parentNode) linha.remove();
+        if (salvou) impFichas = impFichas.filter((x) => x !== f);
+        mlibTela("importar");
+        impEstado("resultado");
+      };
+      abrirMlibForm(f.modelo, { novo: true });
+    }
+
+    if (temMlib && temDocx && impDrop) {
+      btnMlibImp.addEventListener("click", abrirImportar);
+
+      const escolher = () => {
+        impFile.value = ""; // permite reimportar os MESMOS arquivos
+        impFile.click();
+      };
+      impDrop.addEventListener("click", escolher);
+      impDrop.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          escolher();
+        }
+      });
+      impFile.addEventListener("change", () => impLer(impFile.files));
+
+      // `dragleave` dispara ao cruzar CADA filho da zona, e dentro do Shadow
+      // DOM o `relatedTarget` vem retargetado para o host — contar entradas e
+      // saídas é o único jeito confiável de saber quando o ponteiro saiu.
+      impDrop.addEventListener("dragenter", (e) => {
+        e.preventDefault();
+        impProfundidade++;
+        impDrop.classList.add("arrastando");
+      });
+      impDrop.addEventListener("dragover", (e) => {
+        // sobrepõe o dropEffect "none" da guarda global: AQUI pode soltar
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+      });
+      impDrop.addEventListener("dragleave", () => {
+        impProfundidade = Math.max(0, impProfundidade - 1);
+        if (!impProfundidade) impDrop.classList.remove("arrastando");
+      });
+      impDrop.addEventListener("drop", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        impProfundidade = 0;
+        impDrop.classList.remove("arrastando");
+        if (e.dataTransfer && e.dataTransfer.files) impLer(e.dataTransfer.files);
+      });
+
+      // handlers DELEGADOS: as fichas são recriadas a cada render
+      impFichasEl.addEventListener("change", (e) => {
+        const box = e.target.closest(".imp-ficha");
+        if (!box || !box.dataset.i) return;
+        const f = impFichas[Number(box.dataset.i)];
+        if (!f) return;
+        if (e.target.classList.contains("imp-chk")) {
+          f.incluir = e.target.checked;
+          impPintarFicha(box, f);
+          impAtualizarAcao();
+        } else if (e.target.classList.contains("imp-cat")) {
+          f.modelo.categoria = e.target.value;
+          f.catTocada = true; // o selo "sugerida" deixaria de ser verdade
+          MLIB.medirFicha(f);
+          impPintarFicha(box, f);
+        }
+      });
+      impFichasEl.addEventListener("input", (e) => {
+        if (!e.target.classList.contains("imp-tit")) return;
+        const box = e.target.closest(".imp-ficha");
+        const f = impFichas[Number(box.dataset.i)];
+        if (!f) return;
+        f.modelo.titulo = e.target.value;
+        MLIB.medirFicha(f);
+        impRepintarTodas();
+      });
+      impFichasEl.addEventListener("click", (e) => {
+        const btn = e.target.closest(".imp-prev-b");
+        if (!btn) return;
+        const prev = btn.closest(".imp-ficha").querySelector(".imp-prev");
+        prev.hidden = !prev.hidden;
+        btn.setAttribute("aria-expanded", String(!prev.hidden));
+        btn.textContent = prev.hidden ? "ver as primeiras linhas" : "esconder o texto";
+      });
+
+      impOk.addEventListener("click", impCadastrar);
+      impCancel.addEventListener("click", () => impPedirDescarte());
+      $(".imp-fechar").addEventListener("click", impVoltarLista);
+      $(".imp-parar").addEventListener("click", () => {
+        if (impSinal) impSinal.cancelado = true;
+      });
+    } else if (btnMlibImp) {
+      btnMlibImp.hidden = true;
+    }
+
     if (temMlib) {
       mlibCard.querySelector(".mlib-save").addEventListener("click", salvarMlibForm);
-      mlibCard.querySelector(".mlib-cancel").addEventListener("click", fecharMlibForm);
+      mlibCard.querySelector(".mlib-cancel").addEventListener("click", () => fecharMlibForm());
       mlibCard.querySelector(".mlib-new").addEventListener("click", () => abrirMlibForm(null));
-      mlibCard.querySelector(".mlib-close").addEventListener("click", fecharMlib);
+      mlibCard.querySelector(".mlib-close").addEventListener("click", sairDoMlib);
       mlibEl.addEventListener("click", (e) => {
-        if (e.target === mlibEl) fecharMlib();
+        if (e.target === mlibEl) sairDoMlib();
       });
       // Esc no modal: fecha o form (se aberto) ou o modal — e NÃO vaza para o
       // Esc do painel (que cancelaria o modo minuta junto)
@@ -3101,7 +3718,7 @@ var PjePanel = (function () {
         e.preventDefault();
         e.stopPropagation();
         if (!mlibForm.hidden) fecharMlibForm();
-        else fecharMlib();
+        else sairDoMlib();
       });
       btnMlib.addEventListener("click", () =>
         abrirMlib(modelosLib.length ? {} : { form: true })

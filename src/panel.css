@@ -1825,6 +1825,175 @@ button > svg { flex: none; }
   vertical-align: middle;
 }
 
+/* ---------- Importar .docx em lote (.mlib-imp / .imp-*) ---------- */
+/* Terceira tela do card de modelos, irmã da lista e do formulário. Os MESMOS
+   nomes de classe do bloco .imp-* de modelos-page.css, com as regras
+   reescritas: as duas folhas não podem se importar (esta vive no Shadow DOM e
+   aquela é de página). Nomes iguais é o que faz as duas se lerem lado a lado. */
+
+/* O .plib-card é uma coluna flex com overflow:hidden e max-height:92%. Sem o
+   par flex:1 + min-height:0 aqui E no rolo, o card cresce além do teto e o
+   botão "Cadastrar N modelos" some para fora da tela. */
+.mlib-imp { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.imp-rolo {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: 10px; display: flex; flex-direction: column; gap: 9px;
+}
+
+/* zona de arraste — tracejada porque é um ALVO, não um botão */
+.imp-drop {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  text-align: center; padding: 26px 16px 24px;
+  border: 1.5px dashed var(--line-check); border-radius: var(--r-box);
+  background: var(--paper); color: var(--muted); cursor: pointer;
+  transition: border-color .14s ease, background .14s ease, color .14s ease;
+}
+.imp-drop svg { color: var(--muted-3); transition: color .14s ease; }
+.imp-drop:hover, .imp-drop:focus-visible, .imp-drop.arrastando {
+  border-color: var(--pje); background: var(--hover-2); color: var(--text-2); outline: none;
+}
+.imp-drop:hover svg, .imp-drop:focus-visible svg, .imp-drop.arrastando svg { color: var(--pje); }
+.imp-drop-t { font-size: var(--fs-ui); }
+.imp-drop-t b { color: var(--ink); font-weight: 600; }
+.imp-drop-s { font-size: var(--fs-micro); }
+/* compacta na conferência: ali ela é "adicionar mais", não o convite inicial —
+   e some seria pior, porque arrastar mais arquivos não teria onde cair */
+.imp-drop.compacta { flex-direction: row; padding: 9px 12px; gap: 8px; }
+.imp-drop.compacta svg { width: 14px; height: 14px; }
+.imp-drop.compacta .imp-drop-t { font-size: var(--fs-meta); }
+.imp-drop.compacta .imp-drop-s { display: none; }
+
+/* leitura em curso */
+.imp-prog-hd {
+  display: flex; align-items: center; gap: 8px;
+  font-size: var(--fs-meta); color: var(--text-2); margin-bottom: 6px;
+}
+.imp-prog-t { flex: 1; min-width: 0; }
+.imp-parar {
+  flex: none; font: inherit; font-size: var(--fs-micro); padding: 3px 9px;
+  border-radius: var(--r-tight); border: 1px solid var(--line-strong);
+  background: var(--surface); color: var(--muted); cursor: pointer;
+}
+.imp-parar:hover { background: var(--hover); color: var(--text); }
+.imp-spin {
+  width: 13px; height: 13px; flex: none; border: 2px solid var(--accent-bg);
+  border-top-color: var(--pje); border-radius: 50%; animation: imp-gira .7s linear infinite;
+}
+@keyframes imp-gira { to { transform: rotate(360deg); } }
+.imp-bar { height: 4px; background: var(--line-2); border-radius: 3px; overflow: hidden; }
+.imp-bar i {
+  display: block; height: 100%; width: 0;
+  background: linear-gradient(90deg, var(--pje-soft), var(--pje));
+  transition: width .25s ease;
+}
+
+/* fichas */
+.imp-fichas { display: flex; flex-direction: column; gap: 8px; }
+.imp-ficha {
+  border: 1px solid var(--line); border-radius: var(--r-box);
+  padding: 9px 10px 10px; background: var(--surface);
+  transition: opacity .14s ease, background .14s ease;
+}
+/* desmarcada continua LEGÍVEL e editável — desmarcar não é apagar */
+.imp-ficha.fora { opacity: .62; background: var(--paper); }
+.imp-ficha.erro { border-color: var(--warn-line); background: var(--warn-bg); }
+
+.imp-inc { display: flex; align-items: center; gap: 7px; cursor: pointer; }
+.imp-inc input { width: 14px; height: 14px; accent-color: var(--pje); flex: none; cursor: pointer; }
+.imp-arq {
+  font-family: var(--ff-mono); font-size: var(--fs-nano); color: var(--muted-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+}
+.imp-ficha.erro .imp-arq { color: var(--warn-ink); font-weight: 600; }
+
+.imp-campos { display: flex; gap: 7px; margin: 7px 0 6px; }
+.imp-tit {
+  flex: 1; min-width: 0; font: inherit; font-size: var(--fs-meta); font-weight: 600;
+  color: var(--ink); background: var(--surface); border: 1px solid var(--line-input);
+  border-radius: var(--r-md); padding: 6px 9px; outline: none;
+  transition: border-color .14s ease, box-shadow .14s ease;
+}
+.imp-catwrap { display: flex; align-items: center; gap: 5px; flex: none; }
+.imp-cat {
+  font: inherit; font-size: var(--fs-micro); color: var(--text);
+  background: var(--surface); border: 1px solid var(--line-input);
+  border-radius: var(--r-md); padding: 6px 6px; outline: none; cursor: pointer;
+  max-width: 140px; transition: border-color .14s ease, box-shadow .14s ease;
+}
+.imp-tit:focus, .imp-cat:focus { border-color: var(--line-focus); box-shadow: var(--ring); }
+/* o selo diz "isto é um palpite" — some no primeiro toque no seletor, porque
+   depois disso ele deixaria de ser verdade */
+.imp-sug {
+  font-size: var(--fs-nano); font-weight: 600; text-transform: uppercase;
+  letter-spacing: .02em; color: var(--pje-2); background: var(--accent-bg);
+  border-radius: var(--r-tight); padding: 2px 5px; flex: none; white-space: nowrap;
+}
+.imp-sug.fraca { color: var(--warn-ink); background: var(--warn-bg); }
+
+.imp-meta { display: flex; align-items: center; gap: 8px; font-size: var(--fs-nano); color: var(--muted-3); }
+.imp-chars { flex: 1; min-width: 0; font-family: var(--ff-mono); }
+.imp-chars.estouro { color: var(--warn-ink); font-weight: 600; }
+.imp-prev-b {
+  flex: none; font: inherit; font-size: var(--fs-nano); padding: 2px 7px;
+  border-radius: var(--r-tight); border: 1px solid var(--line);
+  background: var(--surface); color: var(--muted); cursor: pointer;
+}
+.imp-prev-b:hover { background: var(--hover-2); border-color: var(--pje); color: var(--pje); }
+/* a prévia é a única forma de conferir que o .docx foi lido certo sem abrir o
+   Word — serifada, como a peça é */
+.imp-prev {
+  margin: 8px 0 0; padding: 8px 10px; max-height: 140px; overflow: auto;
+  background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-md);
+  font-family: var(--ff-serif); font-size: var(--fs-micro); line-height: 1.5;
+  color: var(--text); white-space: pre-wrap; word-break: break-word;
+}
+/* aviso SUAVE: duplicado e acima do teto informam, não impedem de continuar —
+   por isso --warn-* e nunca a .alertbar */
+.imp-nota, .imp-erro {
+  margin-top: 7px; padding: 5px 8px; border-radius: var(--r-sm);
+  background: var(--warn-bg); border: 1px solid var(--warn-line);
+  color: var(--warn-ink); font-size: var(--fs-micro); line-height: 1.45;
+}
+.imp-ficha.erro .imp-erro { margin-top: 5px; background: transparent; border: none; padding: 0; }
+
+/* rodapé de ação — fora do rolo, sempre visível */
+.imp-acts {
+  flex: none; display: flex; justify-content: flex-end; gap: 8px;
+  padding: 10px 12px; border-top: 1px solid var(--line-2); background: var(--surface);
+}
+.imp-acts .plib-save:disabled { opacity: .5; cursor: default; }
+/* descarte armado (dois cliques, nunca confirm() nativo) */
+.imp-cancel.arm {
+  border-color: var(--alerta); color: var(--alerta);
+  background: var(--alerta-bg); font-weight: 600;
+}
+
+/* resultado */
+.imp-res-ok {
+  display: flex; align-items: center; gap: 8px; padding: 9px 11px;
+  border-radius: var(--r-box); background: var(--ok-bg); border: 1px solid var(--ok-line);
+  color: var(--ok-ink); font-size: var(--fs-ui); font-weight: 600;
+}
+.imp-res-ok svg { color: var(--ok); flex: none; }
+.imp-res-fora { margin-top: 12px; }
+.imp-res-h {
+  font-size: var(--fs-micro); font-weight: 600; letter-spacing: 1.4px;
+  text-transform: uppercase; color: var(--muted-2); margin-bottom: 7px;
+}
+.imp-res-l {
+  display: flex; align-items: center; gap: 8px; padding: 7px 9px;
+  border: 1px solid var(--warn-line); background: var(--warn-bg);
+  border-radius: var(--r-sm); font-size: var(--fs-micro); color: var(--warn-ink);
+  line-height: 1.45; margin-bottom: 6px;
+}
+.imp-res-l > span { flex: 1; min-width: 0; }
+.imp-res-b {
+  flex: none; font: inherit; font-size: var(--fs-nano); padding: 3px 8px;
+  border-radius: var(--r-tight); border: 1px solid var(--warn-line);
+  background: var(--surface); color: var(--warn-ink); cursor: pointer;
+}
+.imp-res-b:hover { background: #fff6e6; }
+
 /* ---------- Raciocínio (thinking) colapsável ---------- */
 .msg .think {
   margin-bottom: 6px; border: 1px solid var(--line); border-radius: 8px;
@@ -1893,6 +2062,17 @@ button > svg { flex: none; }
 .wrap.estreito .btn-plib,
 .wrap.estreito .btn-mlib { padding: 0 var(--sp-2b); }
 .wrap.estreito .tools { gap: var(--sp-1); }
+
+/* O cabeçalho do card de modelos passou a dividir a linha com TRÊS botões
+   (Importar, Novo, ✕): no estreito o rótulo do Importar sai e o título trunca,
+   em vez de empurrar os botões para fora. Escopado ao .mlib para não mexer no
+   .plib, que tem só dois. */
+.wrap.estreito .mlib-imp-btn .lbl { display: none; }
+.mlib .plib-hd .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+/* ficha em coluna: título e categoria lado a lado não cabem em 420px */
+.wrap.estreito .imp-campos { flex-direction: column; gap: var(--sp-2); }
+.wrap.estreito .imp-cat { max-width: none; width: 100%; }
+.wrap.estreito .imp-catwrap { justify-content: space-between; }
 
 /* ----- 4. A lista é uma gaveta -----
    ~4 peças visíveis, contra UMA com o teto antigo somado ao rodapé de duas

@@ -229,6 +229,14 @@ espécie. Ao ligar o modo minuta, escolha a espécie em **Seguir modelos** e o a
 recebe as suas peças daquela categoria: ele analisa, adota como base a mais adequada ao
 caso e aproveita a estrutura das seções, as fórmulas de praxe e o linguajar das demais.
 
+**Já tem as peças no Word? Arraste todas de uma vez.** Em **Importar .docx** você solta
+5, 10, quantos arquivos quiser: cada um vira uma ficha já preenchida — o título sai do
+nome do arquivo e a **espécie é reconhecida pelo conteúdo** (o cabeçalho e o fecho da
+peça denunciam o que ela é: um "Publique-se. Registre-se." é sentença; um "Cite-se. Ao
+contador." é despacho). Você confere e corrige o que quiser, e um clique cadastra todas.
+Os arquivos são lidos **no seu próprio computador** — não sobem para lugar nenhum — e
+nada é gravado sem a sua conferência.
+
 **Os fatos nunca vêm do modelo.** O texto que você cadastra entra no pedido numa moldura
 com regra expressa de que serve **só de forma**: nome de parte, valor, data, dispositivo
 ou fundamento saem exclusivamente das peças do processo em tela — o que faltar vira
@@ -315,6 +323,7 @@ flowchart LR
 - [x] Mapa mental interativo das peças (markmap), nos três provedores
 - [x] Biblioteca de prompts do usuário (`/` no campo, sincronizada entre navegadores)
 - [x] Biblioteca de modelos de peças — a minuta segue a forma das **suas** peças
+- [x] Importar peças-modelo de `.docx` em lote, com a espécie reconhecida pelo conteúdo
 - [ ] Compaction para conversas muito longas
 - [ ] Limpeza de uploads antigos na Files API
 - [x] Publicação na Chrome Web Store — v0.9.9 **aprovada e publicada**; atualização **v0.14.0** (rebrand TecJustiça PJe, Gemini, editor de minutas, mapa mental) em publicação

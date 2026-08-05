@@ -378,6 +378,37 @@ peça. Aparece **durante** a espera, que é quando a informação vale: o gargal
 real do produto é a entrega serializada do PJe, e sem isso a extensão parece
 travada quando na verdade está esperando o tribunal. Ver `#rede` no `help.html`.
 
+### Zona de arraste e ficha de importação (`.imp-drop`, `.imp-ficha`)
+
+O único drag & drop do produto (importar `.docx` de peças-modelo). Vive nas duas
+folhas com os **mesmos nomes de classe** e regras reescritas — `panel.css` está
+num Shadow DOM e não pode importar `modelos-page.css`, e nomes iguais é o que faz
+as duas se lerem lado a lado quando uma mudar. **Nenhum token novo.**
+
+A **zona** é tracejada (`1.5px dashed --line-check`, `--r-box`, fundo `--paper`),
+porque é um **alvo**, não um botão: contorno cheio a leria como controle
+clicável e o gesto principal ali é soltar. No hover, no foco e durante o arrasto
+ela vira `--pje` + `--hover-2`, com o ícone (24px, traço 1.4) acompanhando. Na
+conferência ela fica **compacta** — uma faixa acima das fichas, com o rótulo
+trocado para "adicionar mais" — e **não some**: sem alvo visível, arrastar mais
+arquivos não teria onde cair.
+
+A **ficha** é um cartão por arquivo (`--line`, `--r-box`) com checkbox real +
+nome do arquivo em `--ff-mono`/`--fs-nano`, título e categoria editáveis, a
+contagem em mono e a prévia do texto lido em **serifada** (é peça jurídica).
+Desmarcada fica `opacity:.62` sobre `--paper` — **continua legível e editável**,
+porque desmarcar não é apagar.
+
+O selo **"sugerida"** (`--accent-bg`/`--pje-2`, `--fs-nano`, `--r-tight`) diz que
+a categoria é palpite da máquina, e **desaparece no primeiro toque no seletor**:
+depois disso ele estaria mentindo. Quando nada foi reconhecido, vira "confira"
+nos tokens de aviso suave.
+
+Tudo o que informa sem impedir — título duplicado, arquivo grande demais, arquivo
+ilegível — usa o trio **`--warn-*`**, nunca a `.alertbar`: o lote continua, e o
+que ficou de fora é nomeado no resultado. O único vermelho da tela é o botão
+Cancelar **armado** (`--alerta`), porque descartar o lote é a ação destrutiva.
+
 ### Estado vazio da conversa
 Eyebrow mono `ASSISTENTE DOS AUTOS` (só nos modos largos) + título serifado
 centrado + subtítulo de uma linha em `--muted-2`. Grade de 3 cartões de passo
