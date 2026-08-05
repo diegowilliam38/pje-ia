@@ -742,8 +742,15 @@ e até a v0.23 as dez fontes eram tratadas como equivalentes.
   enviam: sem peça marcada o envio falharia e a primeira experiência do usuário
   seria um erro; (3) `<details class="guia">` FECHADO por padrão (estado em
   `chrome.storage.local.guiaAberta`, restaurado depois de `showEmptyHint` existir
-  — mesma armadilha do `docsOcultas`) com três parágrafos: não é agente autônomo,
-  a lista pode vir incompleta, o contexto é limitado; (4) botão "Guia completo,
+  — mesma armadilha do `docsOcultas`) com quatro parágrafos: não é agente
+  autônomo, a lista pode vir incompleta, o contexto é limitado e **a conexão
+  manda no tempo de espera** (cabo » Wi-Fi). O `<summary>` **nomeia a
+  velocidade** ("…e o que deixa mais rápido") de propósito: o parágrafo de rede
+  é o mais acionável do guia e ficava atrás de um rótulo — "limites e
+  alternativas" — que não prometia falar disso, e ninguém abre um acordeão para
+  descobrir o que não sabe que está lá dentro. A mesma frase agora abre também a
+  caixa `.privacy` do popup/opções, que é onde ela alcança quem ainda não usou a
+  extensão; (4) botão "Guia completo,
   modelos e preços →" abrindo `src/help.html` (por isso ele está em
   `web_accessible_resources`). **A referência que envelhece — tabela de modelos,
   preços, fluxo recomendado, dicas de cache — vive SÓ no `help.html`**: o painel
@@ -1437,9 +1444,18 @@ que não podem quebrar:
   (`runtime.getURL`, `storage.local.get`, `storage.sync` completo — sem ele a
   biblioteca de prompts fica invisível —, `runtime.connect`) e carregue
   `src/prompts.js` + `src/panel.js`,
-  servido por HTTP local (fetch do CSS falha em `file://`). Chamar `PjePanel.mount()`,
-  `setConfigured(true)`, `setDocs([...])` com peças fictícias. As APIs `startPrep` /
+  servido por HTTP local (fetch do CSS falha em `file://`). **`mount()` DEVOLVE a
+  API** — `const painel = PjePanel.mount()`, e é nele que vivem `setConfigured(true)`,
+  `setDocs([...])`, `setTimelineTip({texto, carregando})`… Chamar `PjePanel.setDocs`
+  direto lança `is not a function` e a lista fica vazia, sem nada na tela que
+  explique. O painel abre pelo botão `.launcher` (não `.fab`) e o modo se troca
+  pelos botões `.expand` / `.side` / `.free` do cabeçalho. As APIs `startPrep` /
   `setPrepState` / `endPrep` / `addMessage` permitem simular todo o fluxo visual.
+  Duas armadilhas do harness por automação: `document.hasFocus()` é **false** com
+  a janela em segundo plano, então `:focus` não casa e regras como
+  `:has(.tip-i:focus)` parecem quebradas (o `activeElement` está correto); e o
+  ponto de virada dos modos largos é a **coluna** de peças (328/372px), não a
+  largura do painel — testar layout de lista só no flutuante não vê o pior caso.
 - Para testar no PJe de verdade: recarregar a extensão em `chrome://extensions` e
   recarregar a aba do processo (o content script tem guard `window.__pjeIaLoaded`).
 

@@ -281,22 +281,51 @@ input:focus, select:focus, textarea:focus {
 .step .txt { font-size: var(--fs-ui); color: var(--text); }
 .step .txt b { color: var(--ink); }
 
-.note {
-  margin-top: 16px;
-  background: var(--warn-bg);
-  border: 1px solid var(--warn-line);
-  border-radius: 8px;
-  padding: 9px 11px;
-  font-size: var(--fs-meta);
-  color: var(--warn);
+/* ---------- Caixa "o que você precisa saber" (popup + opções) ----------
+   UMA caixa, três fatos. Antes eram três blocos soltos e de aparências
+   diferentes: `.lock-note` (cadeado, centralizado, cinza-claro), `.note`
+   (âmbar, à esquerda, barra de 3px) e — o pior — a dica de rede, que não
+   existia em tela nenhuma de configuração. Os dois primeiros diziam a mesma
+   coisa (onde os dados ficam e para onde vão) em dois alinhamentos e duas
+   cores, com os passos "Como usar" separando um do outro no popup.
+
+   O que distingue as linhas agora é a COR DO ÍCONE, não a moldura: azul para
+   a garantia, âmbar para a implicação. Quando tudo alerta com a mesma
+   intensidade, nada alerta (DESIGN.md §2) — e três caixas empilhadas alertam
+   com a mesma intensidade por construção. O texto fica no mesmo eixo de
+   leitura à esquerda do resto da coluna; o `.lock-note` centralizado era o
+   único elemento fora desse eixo. */
+.privacy {
+  margin-top: var(--sp-3b);
+  background: var(--surface-card);
+  border: 1px solid var(--line-card);
+  border-radius: var(--r-box);
+  padding: var(--sp-3) var(--sp-3b);
+  display: flex; flex-direction: column; gap: var(--sp-2);
 }
-/* Variante de UMA linha para o popup: o aviso de sigilo precisa estar sempre
-   visível (é compromisso com o usuário), mas como bloco ele empurrava o botão
-   Salvar para baixo da dobra a cada abertura. */
-.note.slim {
-  margin-top: 12px; padding: 7px 10px; line-height: 1.4;
-  background: transparent; border: none; border-left: 3px solid var(--warn-line);
-  border-radius: 0;
+.priv-l {
+  margin: 0; display: flex; align-items: flex-start; gap: var(--sp-2b);
+  font-size: var(--fs-meta); line-height: 1.45; color: var(--muted);
+}
+/* alinha o ícone à PRIMEIRA linha do texto: centralizar o SVG no bloco o faria
+   descer para o meio quando a frase quebra em duas ou três linhas. */
+.priv-l svg { flex: none; margin-top: 2px; color: var(--pje); }
+.priv-l b { color: var(--ink); font-weight: 600; }
+.priv-l a { color: var(--pje-2); font-weight: 600; text-decoration: none; }
+.priv-l a:hover { text-decoration: underline; }
+.priv-l.warn { color: var(--text-2); }
+.priv-l.warn svg { color: var(--warn); }
+/* A dica de rede muda de assunto (deixa de ser sobre dados e passa a ser sobre
+   espera), e a divisória tracejada é o que marca isso DENTRO da caixa — um
+   segundo cartão recriaria o empilhamento que esta caixa acabou de desfazer.
+   Ela precisa estar aqui porque o gargalo do produto é o PJe entregando peça
+   por peça: sem essa frase, uma conexão ruim lê como extensão lenta. Estava
+   dita em três lugares (o guia do painel, o card de progresso depois de 12 s
+   e o help.html#rede) e nenhum deles aparece antes do primeiro uso. */
+.priv-l.net {
+  border-top: 1px dashed var(--line-2);
+  margin-top: var(--sp-1); padding-top: var(--sp-3);
+  color: var(--text-2);
 }
 
 /* ------------------------------------------------------ Suas bibliotecas
@@ -462,7 +491,4 @@ input:focus, select:focus, textarea:focus {
   border: 1px solid var(--line); box-shadow: none;
 }
 .btn-sec:hover { border-color: var(--line-focus); color: var(--pje-2); background: #fff; }
-.lock-note {
-  display: flex; align-items: center; justify-content: center; gap: var(--sp-2);
-  margin-top: var(--sp-3); font-size: var(--fs-micro); color: var(--muted-3);
-}
+/* `.lock-note` saiu: virou a primeira linha da `.privacy` (ver acima). */

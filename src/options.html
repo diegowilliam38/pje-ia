@@ -172,13 +172,29 @@
           </div>
           <div class="save-status" id="saveStatus"></div>
         </div>
-        <div class="lock-note">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
-          As chaves ficam neste navegador — nunca em nossos servidores.
-        </div>
-
-        <div class="note">
-          As peças selecionadas são enviadas à API do provedor do modelo escolhido (Anthropic, Google ou OpenAI). Processos podem conter dados pessoais/sigilosos — use conforme as normas do seu tribunal. <a href="https://github.com/marcosmarf27/pje-ia/blob/main/PRIVACY.md" target="_blank" rel="noopener">Política de privacidade</a>.
+        <!-- Mesma caixa do popup, com os textos longos que lá não cabem: a
+             página de opções não é outra tela, é a mesma com respiro
+             (DESIGN.md §5). -->
+        <div class="privacy">
+          <p class="priv-l">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+            <span>As chaves ficam <b>neste navegador</b> — nunca em nossos servidores.</span>
+          </p>
+          <p class="priv-l warn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18.5a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9.5v4"/><path d="M12 17.2h.01"/></svg>
+            <span>As peças selecionadas são enviadas à API do provedor do modelo escolhido
+            (Anthropic, Google ou OpenAI). Processos podem conter <b>dados pessoais ou
+            sigilosos</b> — use conforme as normas do seu tribunal.
+            <a href="https://github.com/marcosmarf27/pje-ia/blob/main/PRIVACY.md" target="_blank" rel="noopener">Política de privacidade</a>.</span>
+          </p>
+          <p class="priv-l net">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4.5 13.5H11l-1 8.5L19.5 10H13z"/></svg>
+            <span><b>Conexão por cabo faz muita diferença.</b> A espera de um turno quase
+            nunca é da IA: é o PJe entregando as peças <b>uma de cada vez</b>, cerca de 5 s
+            cada. No Wi-Fi instável isso se multiplica por dezenas de documentos e a extensão
+            parece travada, quando na verdade está esperando o tribunal.
+            <a href="help.html#rede" target="_blank">Por que a sua conexão importa tanto →</a></span>
+          </p>
         </div>
 
         <!-- Bibliotecas: as duas coleções que o usuário constrói ao longo do

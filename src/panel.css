@@ -668,7 +668,12 @@ button > svg { flex: none; }
   font-size: var(--fs-meta); font-weight: 600;
 }
 .tip-i:focus-visible { outline: 2px solid var(--pje); outline-offset: 1px; }
-.tip-txt { display: none; flex: 1 1 100%; order: 2; line-height: 1.4; }
+/* O "!" fecha a fileira à DIREITA, não a abre. Ele é indicador de ESTADO da
+   lista, e as ações vêm primeiro no eixo de leitura — mesma anatomia da
+   .metarow do rodapé (ações à esquerda, estado à direita). Aberto à esquerda
+   ele dava a um aviso secundário a primeira posição da faixa. */
+.tip-i { order: 3; margin-left: auto; }
+.tip-txt { display: none; flex: 1 1 100%; order: 4; line-height: 1.4; }
 /* O texto aparece durante o carregamento E no hover/foco do ícone: o title
    sozinho deixaria de fora quem navega por teclado (o aviso é informação
    necessária, não decoração — só deixou de ser permanente). */
@@ -693,6 +698,51 @@ button > svg { flex: none; }
 }
 .tip-load:disabled, .tip-zip:disabled, .tip-ia:disabled {
   opacity: 0.6; cursor: default;
+}
+/* ----- A faixa é SEMPRE de uma fileira -----
+   A fileira nunca quebra por falta de espaço: quem cede é o rótulo de
+   "Carregar tudo" (ellipsis), não a linha. Isto é incondicional de propósito —
+   o único jeito de o "!" nunca aparecer sozinho numa segunda fileira, que é o
+   que acontece com `wrap` + `margin-left:auto` quando falta um punhado de
+   pixels. A ÚNICA quebra permitida é a do texto do aviso, abaixo. */
+.docs-tip { flex-wrap: nowrap; }
+.tip-load { flex: 0 1 auto; min-width: 0; overflow: hidden; }
+.tip-load .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Quem libera a quebra são os MESMOS três gatilhos que revelam o .tip-txt, e o
+   texto ocupa a linha inteira (`flex: 1 1 100%` na declaração dele).
+   A regra anterior testava `:has(.tip-txt:not([hidden]))`, que casa SEMPRE — o
+   .tip-txt nunca recebe o atributo hidden, quem o esconde é o `display:none`
+   acima. Com especificidade maior e vindo depois, ela devolvia flex-wrap:wrap
+   em repouso e anulava o nowrap: a fileira única existia no papel, não na tela. */
+.docs-tip.carregando,
+.docs-tip:has(.tip-i:hover),
+.docs-tip:has(.tip-i:focus) { flex-wrap: wrap; }
+
+/* ----- Rótulo só onde a lista é LARGA -----
+   Só "Carregar tudo" mantém o rótulo sempre: é o botão que o texto do aviso
+   nomeia ("clique em Carregar tudo"), e um ícone mudo ali faria o aviso mentir.
+   Os outros dois viram ícone quando a lista é estreita — title e aria-label
+   continuam no DOM.
+
+   E "estreita" tem DOIS gatilhos independentes: painel abaixo de 520px
+   (.estreito) e a COLUNA de 328/372px dos modos largos (.expanded,
+   .livre-wide). A regra nasceu só dentro do bloco .estreito, e por isso o pior
+   caso ficava sem defesa nenhuma: no expandido o painel tem 1180px — nada
+   dispara .estreito —, mas a coluna tem 328px e os três botões com rótulo somam
+   ~416px. A fileira quebrava em duas, com um buraco à direita da primeira. É a
+   mesma lógica dos rótulos .op-l/.op-s do segmented (DESIGN.md §5): encurtar
+   nos modos LARGOS, porque lá a lista vira coluna. Por ser regra do COMPONENTE,
+   e não de um modo, ela mora aqui.
+
+   Fora dessas classes sobra um caso só — a janela livre entre 520 e 740px, em
+   que a lista é uma faixa de até 712px. Ali os três rótulos cabem com folga, e
+   escondê-los seria perder informação sem motivo. */
+.wrap:is(.estreito, .expanded, .livre-wide) .docs-tip { gap: var(--sp-2); }
+.wrap:is(.estreito, .expanded, .livre-wide) :is(.tip-ia, .tip-zip) .lbl {
+  display: none;
+}
+.wrap:is(.estreito, .expanded, .livre-wide) :is(.tip-ia, .tip-zip) {
+  padding: 0 var(--sp-2b);
 }
 
 /* Menu de seleção em faixa (botão direito numa peça). Resolve o caso em que o
@@ -1829,21 +1879,9 @@ button > svg { flex: none; }
 .wrap.estreito .hd .ttl { font-size: var(--fs-lg); }
 
 /* ----- 2. Rodapé da lista em UMA fileira -----
-   Só "Carregar tudo" mantém o rótulo: é o botão que o texto do aviso nomeia
-   ("clique em Carregar tudo"), e um ícone mudo ali faria o aviso mentir. Os
-   outros dois viram ícone — o title e o aria-label continuam no DOM. */
-.wrap.estreito .docs-tip { flex-wrap: nowrap; gap: var(--sp-2); }
-.wrap.estreito .tip-ia .lbl,
-.wrap.estreito .tip-zip .lbl { display: none; }
-.wrap.estreito .tip-ia,
-.wrap.estreito .tip-zip { padding: 0 var(--sp-2b); }
-.wrap.estreito .tip-load { flex: 0 1 auto; min-width: 0; overflow: hidden; }
-.wrap.estreito .tip-load .lbl {
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-/* o texto do aviso continua ocupando a linha inteira quando aparece */
-.wrap.estreito .tip-txt { flex-basis: 100%; }
-.wrap.estreito .docs-tip:has(.tip-txt:not([hidden])) { flex-wrap: wrap; }
+   A regra saiu daqui e passou a viver junto do componente (.docs-tip): ela vale
+   também nos modos LARGOS, onde a lista é uma coluna de 328/372px — mais
+   estreita que este painel inteiro. Ver "Rodapé da lista em UMA fileira". */
 
 /* ----- 3. Toolbar em UMA fileira -----
    Jurisprudência tem ESTADO e o estado é o próprio rótulo ("ligada"), então ela

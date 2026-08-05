@@ -806,7 +806,12 @@ var PjePanel = (function () {
         "</div>" +
         '<details class="guia"' +
         (guiaAberta ? " open" : "") +
-        "><summary>Como funciona, limites e alternativas</summary>" +
+        // O summary nomeia a VELOCIDADE de propósito: o parágrafo sobre rede é
+        // o mais acionável do guia (cabo em vez de Wi-Fi muda a experiência
+        // inteira) e ficava atrás de um rótulo — "limites e alternativas" — que
+        // não prometia falar disso. Ninguém abre um acordeão para descobrir o
+        // que não sabe que está lá dentro.
+        "><summary>Como funciona, limites e o que deixa mais rápido</summary>" +
         "<p><b>Não é um agente autônomo</b> (como o Claude Code): ele não navega no " +
         "processo sozinho. Você marca as peças, envia a solicitação e a resposta usa " +
         "somente os documentos marcados — dá para marcar e desmarcar entre uma " +

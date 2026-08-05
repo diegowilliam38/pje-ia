@@ -336,10 +336,41 @@ Legenda de categorias com dots de **6px**. Itens: checkbox 15px (`--r-xs`) + dot
 > `.alertbar`: informa sem impedir de continuar. Some no gesto seguinte.
 
 A faixa abaixo da lista (`.docs-tip`) hospeda as ações que valem para a **lista
-inteira** — hoje `⟳ Carregar todas as peças` e `⬇ Baixar .zip`. Elas compartilham
-a MESMA regra de estilo (`.tip-load, .tip-zip`) de propósito: são pares, e regras
-separadas divergiriam com o tempo. Ação nova de escopo "lista toda" entra aqui,
-não na `.toolbar` — aquela linha já vive no limite em 484px.
+inteira** — hoje `⟳ Carregar tudo`, `✨ Escolher com IA` e `⬇ Baixar .zip`. As três
+compartilham a MESMA regra de estilo (`.tip-load, .tip-zip, .tip-ia`) de propósito:
+são irmãs, e regras separadas divergiriam com o tempo. Ação nova de escopo "lista
+toda" entra aqui, não na `.toolbar` — aquela linha já vive no limite em 484px.
+
+O `!` (`.tip-i`) **fecha a fileira à direita**, não a abre: ele é indicador de
+ESTADO da lista, e ação vem antes de estado no eixo de leitura — a mesma anatomia
+da `.metarow` do rodapé. Aberta pelo ícone, a faixa dava a primeira posição a um
+aviso secundário.
+
+> **A faixa é de UMA fileira, sempre — e isso é incondicional.** Quem cede
+> quando falta espaço é o rótulo de `Carregar tudo` (ellipsis), nunca a linha; a
+> única quebra permitida é a do texto do aviso, que ocupa a fileira inteira
+> abaixo. Incondicional porque `wrap` + `margin-left: auto` põe o `!` **sozinho**
+> numa segunda fileira quando falta um punhado de pixels.
+>
+> **O que é condicional é o RÓTULO**, e o gatilho é a lista ser estreita — o que
+> acontece por DUAS vias independentes: painel abaixo de 520px (`.estreito`) e a
+> **coluna** de 328/372px dos modos largos (`.expanded`, `.livre-wide`). A regra
+> nasceu só dentro do bloco `.estreito` e por isso o pior caso ficava sem defesa
+> nenhuma: no expandido o painel tem 1180px — nada dispara `.estreito` —, mas a
+> coluna tem 328px e os três botões com rótulo somam ~416px, então a fileira
+> quebrava em duas com um buraco à direita da primeira. É a mesma lógica dos
+> rótulos `.op-l`/`.op-s` do segmented: encurtar nos modos LARGOS, porque lá a
+> lista vira coluna. Por ser regra do COMPONENTE, e não de um modo, ela vive
+> junto da `.docs-tip`. Fora dessas classes sobra um caso só — a janela livre
+> entre 520 e 740px, onde a lista é faixa de até 712px e os três rótulos cabem
+> com folga; escondê-los ali seria perder informação sem motivo.
+>
+> Cuidado com o seletor que libera a quebra quando o aviso aparece: os gatilhos
+> são `.carregando` e hover/foco no ícone, os MESMOS três que revelam o
+> `.tip-txt`. Testar `:has(.tip-txt:not([hidden]))` **casa sempre** — o
+> `.tip-txt` nunca recebe o atributo `hidden`, quem o esconde é `display:none` —
+> e, com especificidade maior, devolvia `flex-wrap: wrap` em repouso: a fileira
+> única existia no papel e não na tela.
 
 ### Aviso dentro do card de progresso (`.prep-nota`)
 Nota em aviso suave abaixo da barra, usada quando o download passa de 12 s por
@@ -500,7 +531,9 @@ quebrava em duas fileiras, a toolbar em duas, e a lista de 33 peças mostrava
 2. **Uma fileira no rodapé da lista.** Só `Carregar tudo` mantém o rótulo — é o
    botão que o texto do aviso nomeia, e um ícone ali faria o aviso mentir.
    `Escolher com IA` e `Baixar .zip` ficam só com o ícone (`title` + `aria-label`
-   preservados).
+   preservados). **A regra não é mais exclusiva deste modo**: ela vale igual na
+   coluna estreita dos modos largos e por isso mora junto do componente
+   `.docs-tip` (ver "Lista de peças"). Editá-la aqui não tem efeito.
 3. **Uma fileira na toolbar.** `Jurisprudência` (tem ESTADO, e o estado é o
    rótulo) e `Minutar` (ação primária) mantêm o rótulo; mapa, prompts e modelos
    ficam só com o ícone. A `.metarow` desce ancorada à direita quando não couber —
@@ -526,9 +559,36 @@ gaveta acima" pelo mesmo mecanismo dos rótulos longo/curto do segmented
 `popup.html` e `options.html` compartilham o `popup.js` — e agora também a
 estrutura: chip de estado, três cartões de provedor, cartão do provedor ativo
 (chave + modelo + segmented de raciocínio), instruções personalizadas com chips
-de persona, e a linha `Testar chave` + `Salvar`. A página de opções não é outra
-tela: é a mesma com respiro e com os textos longos que não cabem nos 600px de
-altura do popup do Chrome.
+de persona, a linha `Testar chave` + `Salvar` e a caixa `.privacy`. A página de
+opções não é outra tela: é a mesma com respiro e com os textos longos que não
+cabem nos 600px de altura do popup do Chrome.
+
+**`.privacy` — uma caixa, três fatos.** Fecha o bloco de ação com o que o usuário
+precisa saber antes de usar: a chave fica **neste navegador**, as peças marcadas
+**vão à API** do provedor, e **conexão por cabo faz muita diferença**. Cartão
+`--surface-card` / `--line-card` / `--r-box`, texto todo no mesmo eixo de leitura
+à esquerda; o que distingue as linhas é a **cor do ícone** — `--pje` para a
+garantia, `--warn` para a implicação —, não a moldura.
+
+> Eram três coisas em três lugares, e o resultado somava mal. `.lock-note`
+> (cadeado, centralizado, `--muted-3` — o único elemento fora do eixo de leitura
+> da coluna) e `.note` (âmbar, à esquerda, barra de 3px) diziam a MESMA coisa em
+> dois alinhamentos e duas cores, com os passos "Como usar" separando um do outro
+> no popup. Três blocos de aviso empilhados alertam todos com a mesma
+> intensidade, e aí nada alerta (§2).
+>
+> A terceira linha, a de rede, **não existia em tela nenhuma de configuração** — e
+> é a mais acionável das três, porque o gargalo do produto é o PJe entregando as
+> peças uma de cada vez. Ela estava dita em três lugares e todos exigem uma ação
+> ou uma condição para aparecer: o guia do painel (acordeão fechado), a
+> `.prep-nota` (só depois de 12 s por peça) e o `help.html#rede` (outra página).
+> Sem ela, conexão ruim lê como extensão lenta. A divisória tracejada
+> (`--line-2`) é que marca a mudança de assunto dentro da caixa — um segundo
+> cartão recriaria o empilhamento que ela acabou de desfazer.
+>
+> **Cada linha é `display:flex`, então todo o texto vai num `<span>` único.** Sem
+> ele, cada `<b>` e cada nó de texto vira um flex item próprio: a frase se parte
+> em pedaços com o `gap` de 8px entre eles.
 
 Enquanto ela teve layout próprio (acordeões `<details class="keybox">`), o
 resultado era duas telas com aparências diferentes para a mesma tarefa — e um

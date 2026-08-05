@@ -167,9 +167,24 @@
         </div>
         <div class="save-status" id="saveStatus"></div>
       </div>
-      <div class="lock-note">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
-        As chaves ficam neste navegador — nunca em nossos servidores.
+      <!-- Uma caixa, três fatos: onde a chave fica, para onde as peças vão e o
+           que faz a espera encolher. Eram três blocos de aparências diferentes
+           (e o terceiro não existia em tela nenhuma de configuração). -->
+      <div class="privacy">
+        <p class="priv-l">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+          <span>As chaves ficam <b>neste navegador</b> — nunca em nossos servidores.</span>
+        </p>
+        <p class="priv-l warn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18.5a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9.5v4"/><path d="M12 17.2h.01"/></svg>
+          <span>As peças marcadas vão à API do provedor escolhido — processos podem conter <b>dados sigilosos</b>.</span>
+        </p>
+        <p class="priv-l net">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4.5 13.5H11l-1 8.5L19.5 10H13z"/></svg>
+          <span><b>Conexão por cabo faz muita diferença:</b> o PJe entrega as peças
+          <b>uma de cada vez</b>, e no Wi-Fi instável essa espera se multiplica por
+          dezenas de documentos. <a href="help.html#rede" target="_blank">Entenda →</a></span>
+        </p>
       </div>
 
       <!-- Passos do PRIMEIRO USO: popup.js esconde este bloco assim que existe
@@ -189,10 +204,6 @@
           <div class="n">3</div>
           <div class="txt">Clique no botão <b>Analisar com IA</b> no canto inferior direito da página.</div>
         </div>
-      </div>
-
-      <div class="note slim">
-        As peças marcadas vão à API do provedor escolhido — processos podem conter dados sigilosos.
       </div>
 
       <div class="foot">
