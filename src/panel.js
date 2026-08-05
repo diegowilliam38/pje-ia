@@ -2282,7 +2282,10 @@ var PjePanel = (function () {
             const baixado = await previewDlCb(id);
             // re-renderiza só se o popover ainda mostra ESTA peça
             if (previewId !== id) return;
-            if (baixado) {
+            // mesma guarda do ramo "sem bytes" abaixo: o que volta precisa ter
+            // CONTEÚDO, senão o re-render repete o aviso e o clique parece
+            // não ter feito nada
+            if (baixado && (baixado.b64 || (baixado.kind === "text" && baixado.text))) {
               renderPreview(row, baixado);
               // o conteúdo pode ter crescido (aviso → PDF): reposiciona na
               // row ATUAL (o setDocs pode ter recriado a lista nesse meio-tempo)
@@ -2332,6 +2335,7 @@ var PjePanel = (function () {
           "<span>O conteúdo desta peça não está carregado nesta conversa.</span>" +
           '<button type="button" class="preview-dl">Abrir documento</button>';
         const btn = box.querySelector(".preview-dl");
+        const soAvisoB = (t) => (box.innerHTML = "<span>" + escapeHtml(t) + "</span>");
         btn.addEventListener("click", async () => {
           if (!previewDlCb) return;
           btn.disabled = true;
@@ -2340,13 +2344,20 @@ var PjePanel = (function () {
           try {
             const baixado = await previewDlCb(id);
             if (previewId !== id) return;
-            if (baixado) {
+            // A peça precisa ter voltado COM os bytes: um retorno sem `b64`
+            // (ou sem texto) cairia neste mesmo ramo no re-render e o clique
+            // pareceria não ter feito nada — que era exatamente o sintoma
+            // quando a peça vinha da memória de caso só com o `fileId`.
+            const veioInteira =
+              baixado && (baixado.b64 || (baixado.kind === "text" && baixado.text));
+            if (veioInteira) {
               renderPreview(row, baixado);
               const anc = doclist.querySelector('.docrow[data-id="' + CSS.escape(id) + '"]');
               if (anc) posicionarPreview(anc);
-            }
+            } else soAvisoB("Não foi possível abrir a peça.");
           } catch (err) {
-            if (previewId === id) box.textContent = "Falha ao abrir: " + ((err && err.message) || err);
+            if (previewId === id)
+              soAvisoB("Falha ao abrir: " + String((err && err.message) || err));
           } finally {
             previewDlPendente = false;
           }

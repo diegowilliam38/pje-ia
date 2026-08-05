@@ -691,14 +691,35 @@ do PJe. O `fileId` sobrevivia em `storage.session` mas era lido de DENTRO do
   (content.js:1330). `salvarPecas` apaga `b64`/`semBytes` como última barreira.
   Peça de TEXTO guarda o texto: ali ele É o conteúdo e dispensa o download por
   completo.
-- **Três predicados são a fonte única da regra** (irmãos de `precisaUpload`):
+- **QUATRO predicados são a fonte única da regra** (irmãos de `precisaUpload`):
   `fileIdValido` (provedor bate · `fileExp` com 60 s de folga · `chaveHash`),
   `podeAnexar` (ramos EXPLÍCITOS por `kind` — imagem vai **sempre** inline em
-  base64 nos três provedores, então um `fileId` não a dispensa de nada) e
-  `precisaBaixar`. Todo `!docsCache.has(id)` de decisão de download virou
-  `precisaBaixar`; `garantirBaixada` é o funil ÚNICO e **mescla** (`Object.assign`)
-  em vez de substituir — um `set` cru apagaria o `fileId` e a peça subiria de
-  novo a cada sessão, anulando metade da economia.
+  base64 nos três provedores, então um `fileId` não a dispensa de nada),
+  `precisaBaixar` e `temBytes`. Todo `!docsCache.has(id)` de decisão de download
+  virou `precisaBaixar`; `garantirBaixada` é o funil ÚNICO e **mescla**
+  (`Object.assign`) em vez de substituir — um `set` cru apagaria o `fileId` e a
+  peça subiria de novo a cada sessão, anulando metade da economia.
+- **`precisaBaixar` e `temBytes` respondem perguntas DIFERENTES, e confundi-las
+  já custou dois bugs de uma vez.** O primeiro é "preciso baixar para
+  **ENVIAR**?", e a resposta é **não** quando há `fileId` válido — o modelo
+  recebe a peça por referência da Files API. Mas há dois consumidores que não
+  mandam a peça a lugar nenhum e para os quais o `fileId` não vale nada: o
+  **preview**, que desenha pixels, e a **exportação `.zip`**, que grava o arquivo
+  original. Os dois chamavam `garantirBaixada(id)` e, numa peça vinda da memória
+  de caso (`fileId` + zero bytes — o caminho COMUM ao reabrir um processo), o
+  download era pulado. Sintomas distintos e ambos silenciosos: no preview o botão
+  "Abrir documento" não fazia nada (baixava zero e o popover re-renderizava o
+  mesmo aviso); no `.zip` a peça saía **vazia**, num arquivo que só se abre
+  depois. Os dois passaram a pedir `garantirBaixada(id, {bytes:true})`. A
+  medição de contexto (`baixarQuieto`) segue com `precisaBaixar`, porque lá o
+  `fileId` de fato basta — o `count_tokens` referencia por ele.
+  - Corolário na UI: o botão do preview confere se o que voltou tem **conteúdo**
+    (`b64`, ou `text` quando é peça de texto), não se voltou algo. Retorno sem
+    bytes cai no mesmo ramo no re-render, e o clique parece não ter feito nada —
+    era metade do sintoma. Os DOIS ramos de `preview-miss` fazem essa checagem.
+  - Coberto por teste que extrai os quatro predicados do `content.js` real (por
+    varredura de chaves no fonte, não cópia) e roda em `vm` com um `docsCache`
+    falso.
 - **Armadilhas que já custaram bug nesta rodada:**
   - **Gravar antes de hidratar apaga o caso.** O `refresh()` do boot roda
     `setDocs` → `syncSelection` → `selChangeCb` SÍNCRONO, com a lista vazia. Sem

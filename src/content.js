@@ -1080,7 +1080,10 @@
         onEtapa: (id, estado) => panel.setPrepState(id, estado),
         // Mesmo caminho do envio: o que já está em cache não baixa de novo, e o
         // que baixar aqui fica disponível para a conversa (prefetch de graça).
-        obter: (id) => garantirBaixada(id),
+        // `{bytes:true}` porque o pacote leva o ARQUIVO ORIGINAL: uma peça
+        // retomada da memória tem `fileId` e nenhum byte, e sem a flag ela saía
+        // vazia do `.zip` — em silêncio, num arquivo que só se abre depois.
+        obter: (id) => garantirBaixada(id, { bytes: true }),
       });
       panel.endPrep();
       baixarBlob(r.nome, r.blob);
@@ -1150,7 +1153,10 @@
   panel.onPreviewBaixar(async (id) => {
     if (busy) throw new Error("aguarde a resposta atual terminar para abrir a peça");
     if (exportando) throw new Error("aguarde a exportação terminar para abrir a peça");
-    return await garantirBaixada(id);
+    // `{bytes:true}`: o preview desenha o PDF/a imagem na tela, então precisa do
+    // conteúdo aqui — uma peça retomada da memória tem `fileId` e nenhum byte, e
+    // sem esta flag o download era pulado e o botão não fazia nada.
+    return await garantirBaixada(id, { bytes: true });
   });
 
   let docsIndex = new Map(); // id -> {id, titulo} (para chips e card de progresso)
@@ -1230,9 +1236,13 @@
   // Baixa a peça uma única vez por aba: o download do PJe é serializado na
   // sessão JSF (~5,6 s cada), então todo caminho que precisa do conteúdo passa
   // por aqui e reaproveita o cache — envio, preview, exportação e medição.
-  async function garantirBaixada(id) {
+  // opts.bytes: exige os BYTES na aba, não só "dá para enviar" (ver `temBytes`).
+  // É o que o preview e a exportação `.zip` pedem — para eles um `fileId` não
+  // substitui o conteúdo.
+  async function garantirBaixada(id, opts) {
     let d = docsCache.get(id);
-    if (precisaBaixar(id)) {
+    const precisa = opts && opts.bytes ? !temBytes(id) : precisaBaixar(id);
+    if (precisa) {
       const novo = await PJE.baixar(id);
       // MESCLA, nunca substitui: a entrada que veio do disco carrega o `fileId`
       // e o `chaveHash`, e um `set` cru os apagaria — a peça subiria de novo à
@@ -1451,6 +1461,29 @@
     if (!d) return true; // nunca vista
     if (!d.semBytes) return false; // veio inteira nesta sessão
     return !podeAnexar(id);
+  }
+
+  // Os BYTES desta peça estão aqui, nesta aba?
+  //
+  // NÃO é a mesma pergunta de `precisaBaixar`, e confundir as duas foi um bug
+  // real: aquela responde "preciso baixar para ENVIAR?", e a resposta lá é
+  // *não* quando existe um `fileId` válido — o modelo recebe a peça por
+  // referência da Files API e os bytes são dispensáveis. Só que há dois
+  // consumidores que não têm essa saída, porque não mandam a peça a lugar
+  // nenhum: o PREVIEW, que desenha pixels na tela, e a EXPORTAÇÃO `.zip`, que
+  // grava o arquivo original no pacote. Para eles o `fileId` não serve de nada.
+  //
+  // O sintoma era diferente em cada um, e o da exportação era o pior: no
+  // preview o botão "Abrir documento" ficava sem efeito (baixava zero, o
+  // popover re-renderizava o mesmo aviso); no `.zip`, a peça saía VAZIA ou
+  // derrubava a entrada — em silêncio, num pacote que o usuário só abre depois.
+  // Nos dois casos só acontecia com peça vinda da memória de caso, que é
+  // justamente o caminho comum ao reabrir um processo.
+  function temBytes(id) {
+    const d = docsCache.get(id);
+    if (!d) return false;
+    if (d.kind === "text") return !!d.text; // ali o texto É o conteúdo
+    return !!d.b64;
   }
 
   // ---------------------------------------------------------------------------
