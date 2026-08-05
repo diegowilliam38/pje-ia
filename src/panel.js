@@ -3936,6 +3936,12 @@ var PjePanel = (function () {
           "claude-fable-5": "Claude Fable 5",
           "gemini-3.6-flash": "Gemini 3.6 Flash",
           "gemini-3.5-flash-lite": "Gemini 3.5 Flash-Lite",
+          // Os três GPT faltavam desde que a OpenAI entrou: o fallback abaixo
+          // não quebra nada, mas põe o id cru ("gpt-5.6-luna") num selo cujo
+          // trabalho é dizer ao usuário, na língua dele, qual modelo respondeu.
+          "gpt-5.6-sol": "GPT-5.6 Sol",
+          "gpt-5.6-terra": "GPT-5.6 Terra",
+          "gpt-5.6-luna": "GPT-5.6 Luna",
         };
         const EFFORTS = { high: "alto", medium: "médio", low: "baixo" };
         let txt = NOMES[info.model] || info.model;
