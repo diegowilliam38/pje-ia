@@ -644,8 +644,8 @@ var PjePanel = (function () {
                 <div class="minuta-modelo" hidden>
                   <span class="mm-lab">Seguir modelos:</span>
                   <select class="minuta-modelo-sel" aria-label="Categoria de peças-modelo que a minuta deve seguir" title="Escolha uma categoria: o assistente recebe as suas peças-modelo daquela espécie e segue a estrutura e o estilo da mais adequada ao caso — os fatos continuam vindo só das peças do processo."></select>
-                  <span class="mm-vazio" hidden>nenhuma peça-modelo cadastrada — a minuta sai no estilo padrão</span>
-                  <button class="mm-add" hidden title="Cadastre uma sentença, decisão, despacho ou ofício seu: nas próximas minutas o assistente segue a estrutura e o estilo dela.">${SVG.novo}<span class="lbl">Cadastrar modelo</span></button>
+                  <span class="mm-vazio" hidden>nenhuma cadastrada — a minuta sai no estilo padrão</span>
+                  <button class="mm-add" hidden title="Cadastre uma sentença, decisão, despacho ou ofício seu: nas próximas minutas o assistente segue a estrutura e o estilo dela.">${SVG.novo}<span class="lbl">Cadastrar</span></button>
                 </div>
               </div>
               <div class="mapabar" hidden>
@@ -3788,7 +3788,17 @@ var PjePanel = (function () {
             "o assistente segue a estrutura e o estilo delas (os fatos continuam saindo " +
             "só das peças do processo).";
           alt.addEventListener("click", () => {
-            if (!minutaMode) btnMinuta.click(); // reusa validação e instrução padrão
+            // O pedido ORIGINAL volta ao campo antes de ligar o modo. Sem isto,
+            // `btnMinuta` veria o campo vazio e injetaria a instrução PADRÃO —
+            // genérica —, trocando "sentença de improcedência pela prescrição"
+            // por "redija a peça adequada". O usuário perderia justamente o que
+            // acabou de escrever, e num clique cujo nome promete REFAZER o
+            // mesmo pedido.
+            if (!inEl.value.trim() && info.pedido) {
+              inEl.value = info.pedido;
+              autoresize();
+            }
+            if (!minutaMode) btnMinuta.click(); // reusa validação e exclusividade com o mapa
             inEl.focus();
           });
           box.appendChild(alt);

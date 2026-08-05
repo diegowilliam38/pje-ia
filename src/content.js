@@ -2310,6 +2310,9 @@
         if (destaque || mdResposta.length >= 400) {
           panel.adicionarAcaoEditor(assistantEl, {
             destaque,
+            // O pedido deste turno, para a ação "Refazer seguindo seus modelos"
+            // reabrir o modo minuta COM ele, em vez da instrução padrão.
+            pedido: text,
             onAbrir: async (btn) => {
               if (btn) btn.disabled = true;
               try {

@@ -1566,6 +1566,10 @@ button > svg { flex: none; }
 .minutabar { flex-wrap: wrap; }
 .minuta-modelo {
   flex-basis: 100%; display: flex; align-items: center; gap: 6px; padding-top: 2px;
+  /* O estado vazio põe TRÊS itens na linha (rótulo + frase + botão): no painel
+     estreito eles precisam poder quebrar, senão o botão Cadastrar é espremido
+     contra a borda. Com o seletor (dois itens) nada muda. */
+  flex-wrap: wrap;
 }
 .minuta-modelo[hidden] { display: none; }
 .minuta-modelo .mm-lab { flex: none; font-weight: 600; color: var(--pje-2); }
@@ -1591,9 +1595,11 @@ button > svg { flex: none; }
 }
 .mm-add:hover { background: var(--accent-bg); }
 .mm-add[hidden] { display: none; }
-/* No painel estreito sobra pouca linha: fica o ícone, e o texto do convite
-   encurta para não empurrar o botão para fora. */
-.wrap.estreito .mm-add .lbl { display: none; }
+/* No estreito o botão MANTÉM o rótulo, ao contrário dos da barra de
+   ferramentas: um "+" sozinho ao lado de uma frase não diz o que adiciona, e
+   aqui não há o ícone distintivo que torna os outros reconhecíveis sem texto.
+   Quem cede espaço é a frase, que encolhe e quebra — o `flex-wrap` do
+   container deixa o botão descer para a linha seguinte se precisar. */
 .wrap.estreito .mm-vazio { font-size: var(--fs-micro); }
 /* o botão Enviar vira "✍️ Gerar minuta" / "🧠 Gerar mapa" — halo azul para
    marcar a mudança (a classe .docx é histórica; vale para os dois modos) */

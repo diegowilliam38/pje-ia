@@ -1227,8 +1227,13 @@ irmão do `PLIB`, com diferenças de propósito:
   invisível justamente para quem acabou de pedir uma peça redigida. Quando a
   heurística `pareceMinuta` acende o destaque E há modelos cadastrados, entra ao
   lado uma ação secundária "Refazer seguindo seus modelos", que só clica no
-  `.btn-minuta` (reusa validação de peças marcadas, instrução padrão e
-  exclusividade com o mapa). Ela precisa de CSS próprio porque
+  `.btn-minuta` (reusa validação de peças marcadas e exclusividade com o mapa).
+  Ela devolve o **pedido original** ao campo antes disso (`info.pedido`, posto
+  pelo content.js com o `text` do turno): sem isso o `.btn-minuta` veria o campo
+  vazio e injetaria a `INSTRUCAO_MINUTA_PADRAO` — genérica —, trocando "sentença
+  de improcedência pela prescrição" por "redija a peça adequada", num clique
+  cujo nome promete REFAZER o mesmo pedido. Campo já preenchido nunca é
+  sobrescrito. Ela precisa de CSS próprio porque
   `.editor-act.destaque button` pinta TODO botão do bloco com o gradiente da
   ação principal — dois destaques disputariam o mesmo clique.
 - **Testar a UI da biblioteca em jsdom exige `<script>` de verdade, nunca
