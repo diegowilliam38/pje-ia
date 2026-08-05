@@ -118,6 +118,10 @@
   --r-2xl: 14px;  /* moldura externa do painel */
   /* 20px, NÃO 999px: a cápsula destoa dos raios de 8–12px de tudo em volta. */
   --r-pill: 20px;
+  /* Lupa usada como MÁSCARA no status de busca (a cor vem de background, não do
+     SVG). Data URI, não arquivo: máscara é decoração de um estado transitório e
+     um recurso a mais em web_accessible_resources não se justifica. */
+  --ic-lupa-busca: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20.5 20.5l-4.4-4.4'/%3E%3C/svg%3E");
   --sh-card: 0 1px 2px rgba(14, 50, 63, 0.04);
   --sh-seg: 0 1px 2px rgba(14, 50, 63, 0.1); /* pill ativo do segmented */
   --sh-btn: 0 1px 2px rgba(14, 50, 63, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.18);
@@ -1421,6 +1425,23 @@ button > svg { flex: none; }
   border: 2px solid var(--pje); border-top-color: transparent;
   border-radius: 50%; margin-right: 7px; vertical-align: -1px;
   animation: pje-ia-girar 0.8s linear infinite;
+}
+/* Busca na web: a lupa no lugar do anel. O anel diz que algo está acontecendo;
+   a lupa diz O QUE — e é o MESMO símbolo do botão Jurisprudência, para o
+   usuário ligar o estado à ação que o produziu. Máscara + cor de fundo em vez
+   de <img>: a cor vem do token (§5 do DESIGN.md, "Ícones"), e o SVG embutido
+   como data URI não é recurso externo (§6.2). */
+.status.busy.buscando::before {
+  border: 0; border-radius: 0; width: 13px; height: 13px;
+  background: var(--pje);
+  -webkit-mask: var(--ic-lupa-busca) center / contain no-repeat;
+  mask: var(--ic-lupa-busca) center / contain no-repeat;
+  animation: pje-ia-lupa 1.6s ease-in-out infinite;
+}
+/* Varredura curta: sugere procurar, sem a agitação de um spinner. */
+@keyframes pje-ia-lupa {
+  0%, 100% { transform: translateX(-1.5px) scale(0.92); opacity: 0.6; }
+  50%      { transform: translateX(1.5px) scale(1.06); opacity: 1; }
 }
 @keyframes pje-ia-girar { to { transform: rotate(360deg); } }
 

@@ -3750,9 +3750,14 @@ var PjePanel = (function () {
       // busy=true mostra um spinner antes do texto (trabalho em andamento —
       // análise, geração de documento, upload…), para o usuário ver que a
       // extensão está trabalhando e não travada.
-      setStatus(s, busy) {
+      // `icone` troca o anel genérico de "trabalhando" por um símbolo do que
+      // está acontecendo — hoje só "busca" (lupa). O anel diz que ALGO ocorre;
+      // a lupa diz O QUE, que é a informação que o usuário quer durante uma
+      // pesquisa de jurisprudência.
+      setStatus(s, busy, icone) {
         statusEl.textContent = s || "";
         statusEl.classList.toggle("busy", !!busy && !!s);
+        statusEl.classList.toggle("buscando", !!busy && !!s && icone === "busca");
       },
       // Nota dentro do card de progresso — hoje usada para avisar que o
       // download está lento. Aparece DURANTE a espera, que é quando a

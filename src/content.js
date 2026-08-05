@@ -2212,7 +2212,8 @@
             const q = input && input.query;
             panel.setStatus(
               q ? "Pesquisando jurisprudência: “" + q + "”…" : "Pesquisando jurisprudência na web…",
-              true
+              true,
+              "busca"
             );
           } else if (name === "web_fetch") {
             let fonte = "";
@@ -2221,7 +2222,8 @@
             } catch {}
             panel.setStatus(
               fonte ? "Lendo fonte: " + fonte + "…" : "Lendo página de fonte jurídica…",
-              true
+              true,
+              "busca"
             );
           } else {
             panel.setStatus("Executando ferramenta…", true);
