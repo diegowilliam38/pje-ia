@@ -818,6 +818,73 @@ do PJe. O `fileId` sobrevivia em `storage.session` mas era lido de DENTRO do
   memória e hospeda o botão de apagar (dois cliques, nunca `confirm()`).
   Documentado em `PRIVACY.md`, `help.html#memoria` e `README.md`.
 
+## Tour de primeiro uso (`tour.js` + `panel.js`)
+
+Visita guiada de 13 passos que se desenha SOBRE o painel real. Existe porque os
+gestos de seleção em faixa (arrastar, Shift+clique, botão direito) estavam na
+extensão desde a v0.23 e quase ninguém os descobria: gesto não se anuncia
+sozinho, e o guia do estado vazio é texto — ninguém abre um acordeão para achar
+o que não sabe que existe. **Sete dos treze passos são sobre marcar peças**, que
+é a tarefa repetida dezenas de vezes por processo.
+
+- **Por que NÃO uma biblioteca** (Driver.js/Shepherd/Intro.js, todas avaliadas):
+  (1) os alvos vivem no **Shadow DOM** e `document.querySelector` deles devolve
+  `null`; (2) elas injetam o popover em `document.body`, FORA do shadow, e o
+  balão volta a ficar exposto ao CSS do tribunal — o painel usa Shadow DOM
+  exatamente para não estar; (3) o que este tour ensina são **gestos**, e
+  nenhuma delas anima gesto; (4) ele **pilota** o painel (`open`, `aplicarModo`,
+  `setDocsOcultas`), que é código só daqui. O recorte — a parte que a lib
+  resolveria — são cinco linhas de CSS. Mesmo argumento que manteve o JSZip
+  fora do projeto.
+- **INVARIANTE: o tour NUNCA toca no estado real.** Os gestos são demonstrados
+  num **palco falso** (lista fictícia dentro do balão). Animar sobre as rows
+  verdadeiras marcaria peças de verdade → `selChangeCb` → estimativa de contexto
+  → `baixarQuieto`/prefetch, isto é, uma visita de boas-vindas **iniciando
+  downloads na fila serializada do PJe**. O palco também é o que faz os passos
+  funcionarem com a timeline ainda vazia, que é justamente o primeiro uso.
+  Coberto por teste (nenhum disparo de `onSelectionChange` na visita inteira).
+- **O `ctrl` é a fronteira, e é deliberadamente mínimo**: `{root, wrap, abrir,
+  modo, modoAtual, mostrarPecas}`. Nenhum método que altere seleção, conversa ou
+  envio atravessa — é o que garante o invariante acima por construção, não por
+  disciplina.
+- **Uma caixa de 0×0 não pinta `box-shadow` no Chrome** — nem com spread de
+  9999px. O recorte é `box-shadow: 0 0 0 9999px` num `div` posicionado sobre o
+  alvo; nas telas SEM alvo (capa e encerramento) o buraco colapsaria em 0×0 e o
+  escurecimento sumia inteiro, deixando a capa boiando sobre a página do
+  tribunal. Por isso `sem-alvo` vai nos DOIS elementos: o buraco se apaga
+  (`opacity`, nunca `[hidden]`, para o fade de volta) e quem escurece passa a ser
+  o **fundo da camada**. `getComputedStyle` mostra a sombra viva e correta nesse
+  estado — a falha é invisível fora de um teste de pixel.
+- **NUNCA `requestAnimationFrame` na primeira pintura.** O Chrome congela o rAF
+  em aba de segundo plano (o mesmo que já derrubou o primeiro desenho do mapa
+  mental), e abrir processos com Ctrl+clique em várias abas é o padrão de
+  trabalho no PJe: a visita auto-abre ~1 s após o boot e o usuário encontraria a
+  tela escurecida com um cartão **vazio**. Pinta-se síncrono, com **dois**
+  repintes (320 ms e 700 ms) porque o `.panel` tem `transition: all` e medir o
+  alvo no meio dela põe o spotlight ao lado do botão.
+- **Ordem dos lados do balão: direita ANTES de abaixo** quando o alvo está na
+  metade esquerda. "Abaixo primeiro" é o default óbvio e estava errado aqui — os
+  alvos da esquerda são todos da coluna de peças, e um balão abaixo deles cobre
+  justamente a lista que o passo explica.
+- **Os palcos declaram uma timeline; quem agenda é o `laco`.** Quando cada palco
+  fazia o próprio `setInterval` e registrava os `setTimeout` na lista geral (só
+  esvaziada na troca de passo), um passo deixado aberto empilhava dezenas de
+  entradas mortas por minuto. `tocar` devolve a função de PARADA e
+  `limparTimers` a chama. Teste cobre: nunca mais de um laço vivo, zero ao fim.
+- **Esc é capturado em `capture:true` no window**, senão a cascata de Esc do
+  painel (`/` → `@` → modal → modo minuta) fecharia outra coisa junto.
+- **Abre sozinho UMA vez** (`chrome.storage.local.tourVisto`, versionado), e só
+  com a conversa vazia — cobrir uma conversa restaurada da memória de caso seria
+  o pior momento possível. A primeira tela é uma **capa que pergunta** antes de
+  percorrer; recusar ali marca o "visto", porque quem recusou não quer ser
+  abordado a cada processo. O caminho de volta é o botão `.hint-tour` no estado
+  vazio, que some com a primeira mensagem como o resto do bloco.
+- `panel.js` trata `PjeTour` como **opcional** (`typeof PjeTour !== "undefined"`,
+  como `MLIB` e `DocxImport`): sem o arquivo, o convite some e nada quebra. E a
+  **instância nasce depois** de `open`/`aplicarModo`/`setDocsOcultas` existirem —
+  só o flag `temTour` mora no topo, porque `showEmptyHint()` roda antes (a
+  armadilha da zona morta temporal, aqui no `panel.js`).
+
 ## Busca de peças e orientações (panel.js)
 
 - **"Carregar todas as peças" tenta DUAS rotas, nesta ordem** (detalhes e

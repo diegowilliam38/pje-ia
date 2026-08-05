@@ -455,6 +455,43 @@ botão de texto puro, `Guia completo →` à direita) separadas do resto por bor
 superior. No estreito os três passos empilham e os chips viram botões de largura
 total alinhados à esquerda.
 
+### Visita guiada (`.tour`) — camada, cartão e palco
+
+Camada `position: fixed` **dentro do Shadow DOM**, pela mesma razão do `.selmenu`
+e do `.preview`: o `.wrap` é um container de tamanho zero, e posicionar por dentro
+dele jogaria o elemento para fora da tela. Ficar no shadow é o que dá isolamento
+contra o CSS do tribunal e acesso aos tokens.
+
+**O recorte é um elemento só** — `box-shadow: 0 0 0 2px rgba(255,255,255,.92),
+0 0 0 9999px rgba(14,50,63,.62)` num `div` sobre o alvo: a sombra pinta tudo
+*fora* dele, então o próprio elemento é o buraco. Transição nas quatro
+propriedades de posição faz o holofote **deslizar** entre alvos em vez de piscar.
+
+> **Uma caixa de 0×0 não pinta `box-shadow`** — nem com spread de 9999px, e
+> `getComputedStyle` reporta a propriedade viva e correta, o que torna a falha
+> invisível a qualquer teste que não olhe pixels. Nas telas sem alvo (capa e
+> encerramento) quem escurece é o **fundo da camada** (`.tour.sem-alvo`), e o
+> buraco some por `opacity` — nunca `[hidden]`, que levaria embora o fade de
+> volta.
+
+Cartão de **384px** (428 nas capas), `--r-2xl`, `--sh-pop`, com
+`max-height: calc(100vh - 24px)` e rolagem interna: em tela baixa os cards mais
+altos não cabem, e o clamp de posição só garante o topo — o rodapé com
+**Continuar** sairia da tela e a visita ficaria sem saída. Dentro: eyebrow mono
+de capítulo (`.tour-cap`), título serifado, corpo em `--fs-ui` e a linha de
+navegação com barra de progresso de 76×3px + contador mono.
+
+**O palco** (`.tour-palco`) é a demonstração animada: superfície `--surface-2`,
+`--r-md`, com uma lista de peças **fictícia** que reusa os tokens reais
+(`--cat-*` nos dots, `--accent-bg` na linha marcada, id em `--ff-mono`/
+`--fs-nano`). É falso de propósito — ver a nota em `CLAUDE.md`; animar sobre as
+rows verdadeiras dispararia downloads reais. O ponteiro fantasma é o único
+elemento do painel com `fill` sólido em vez de traço: ele precisa pousar sobre a
+lista com peso próprio, e um ícone de contorno desapareceria ali.
+
+Tudo o que anima respeita `prefers-reduced-motion`: os palcos pintam o **estado
+final** e não devolvem laço nenhum.
+
 ### Faixa de retomada (`.retomada`)
 
 Primeira linha da área de mensagens quando a conversa foi restaurada da memória

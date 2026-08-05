@@ -1035,6 +1035,19 @@ var PjePanel = (function () {
     // -------------------------------------------------------------------------
     let hintEl = null;
     let guiaAberta = false;
+    // Tour de primeiro uso — dependência OPCIONAL, como MLIB e DocxImport: sem
+    // o arquivo, o convite some e o resto funciona.
+    // ARMADILHA DA ZONA MORTA TEMPORAL (a mesma documentada para o content.js):
+    // `showEmptyHint()` é chamado ~100 linhas ABAIXO, antes de `open`,
+    // `aplicarModo` e `setDocsOcultas` existirem — então a INSTÂNCIA do tour não
+    // pode ser criada aqui. Só o flag mora no topo (é ele que o estado vazio lê
+    // para desenhar o convite); `tourInst` é preenchido lá embaixo, e o handler
+    // do clique só o lê quando o usuário clica, quando já existe.
+    const temTour = typeof PjeTour !== "undefined";
+    let tourInst = null;
+    function abrirTour() {
+      if (tourInst) tourInst.iniciar();
+    }
     function showEmptyHint() {
       if (hintEl || msgs.querySelector(".msg")) return;
       hintEl = document.createElement("div");
@@ -1062,6 +1075,17 @@ var PjePanel = (function () {
             "</button>"
         ).join("") +
         "</div>" +
+        // Convite PERMANENTE ao tour. A visita guiada abre sozinha uma única vez
+        // (primeiro uso); daí em diante o caminho de volta é este botão, que
+        // vive no estado vazio de toda conversa nova e some com a 1ª mensagem —
+        // pelo mesmo motivo do resto do bloco: descoberta é assunto de quem
+        // ainda não começou, e nada disso pode aparecer entre a pergunta e a
+        // resposta.
+        (temTour
+          ? '<button type="button" class="hint-tour" title="Visita guiada pelos recursos do painel — cerca de um minuto, sem alterar nada no seu processo">' +
+            SVG.play +
+            "Ver como funciona</button>"
+          : "") +
         '<details class="guia"' +
         (guiaAberta ? " open" : "") +
         // O summary nomeia a VELOCIDADE de propósito: o parágrafo sobre rede é
@@ -1126,6 +1150,10 @@ var PjePanel = (function () {
           /* contexto da extensão invalidado — segue sem persistir */
         }
       });
+      const btnTour = hintEl.querySelector(".hint-tour");
+      // `abrirTour` lê `tourInst` NO CLIQUE — quando este handler é registrado a
+      // instância ainda não existe (ver a nota da zona morta temporal acima).
+      if (btnTour) btnTour.addEventListener("click", abrirTour);
       hintEl.querySelector(".hint-help").addEventListener("click", () => {
         try {
           window.open(chrome.runtime.getURL("src/help.html"), "_blank", "noopener");
@@ -1435,6 +1463,41 @@ var PjePanel = (function () {
       });
     } catch {
       /* sem storage (harness de teste): lista visível */
+    }
+
+    // -------------------------------------------------------------------------
+    // Tour de primeiro uso. A instância nasce AQUI, e não junto do `temTour` lá
+    // em cima, porque o controle remoto abaixo referencia `open`, `aplicarModo`
+    // e `setDocsOcultas` — que só existem a partir deste ponto do arquivo.
+    //
+    // O `ctrl` é deliberadamente MÍNIMO: o tour recebe o que precisa para
+    // pilotar a visita (abrir, expandir, mostrar a lista) e nada além disso.
+    // Nenhum método que altere seleção, conversa ou envio atravessa esta
+    // fronteira — é ela que garante, por construção, que a visita guiada não
+    // consegue mexer no processo do usuário nem que se queira.
+    // -------------------------------------------------------------------------
+    if (temTour) {
+      tourInst = PjeTour.criar({
+        root,
+        wrap,
+        abrir: open,
+        modo: aplicarModo,
+        modoAtual,
+        mostrarPecas: () => setDocsOcultas(false, false),
+      });
+      // Auto-abertura ÚNICA, e só quando a conversa está vazia: se o painel já
+      // tem mensagens (memória de caso retomada), quem chegou não é novato — e
+      // cobrir uma conversa restaurada com um tour seria o pior momento
+      // possível. A primeira tela do tour é uma capa que PERGUNTA antes de
+      // percorrer; recusar ali marca o "visto" e o convite fica no estado vazio.
+      PjeTour.precisa((sim) => {
+        if (!sim || !tourInst || msgs.querySelector(".msg")) return;
+        // atraso curto: deixa o boot (setDocs, caps, retomada) assentar antes
+        // de medir os alvos — o tour lê getBoundingClientRect deles
+        setTimeout(() => {
+          if (tourInst && !tourInst.ativo() && !msgs.querySelector(".msg")) tourInst.iniciar();
+        }, 900);
+      });
     }
 
     let resetCb = null;
@@ -4256,6 +4319,10 @@ var PjePanel = (function () {
     // desestruturasse a API — nenhum outro ponto deste arquivo usa `this`.
     const api = {
       open,
+      // Visita guiada sob demanda (o convite do estado vazio já a dispara; isto
+      // é para o content script poder oferecê-la de outro lugar). No-op sem o
+      // tour.js carregado.
+      iniciarTour: abrirTour,
       onSend(cb) {
         sendCb = cb;
       },
@@ -4539,8 +4606,17 @@ var PjePanel = (function () {
           row.dataset.id = d.id; // usado pelo preview e pelo "ver na timeline"
           if (pecasEnviadas.has(d.id)) row.classList.add("enviada");
           // O TIPO oficial da grid descreve a peça melhor que o título (que é o
-          // nome do arquivo) — vai no tooltip, sem custar um pixel na linha.
-          const dica = d.tipo && d.tipo !== p.nome ? d.titulo + " — " + d.tipo : d.titulo;
+          // nome do arquivo) e a DATA de juntada dá o eixo cronológico — os dois
+          // vão para o tooltip, sem custar um pixel na linha.
+          // A data ESTAVA na linha, em coluna própria, e era o pior negócio da
+          // lista: ~60px dos 328px da coluna, tirados justamente do nome da
+          // peça, para responder uma pergunta que a ORDEM da lista já responde
+          // (a timeline vem em ordem cronológica). Quem escolhe peça escolhe
+          // pelo nome; a data é conferência, e conferência cabe no hover.
+          const dica =
+            d.titulo +
+            (d.tipo && d.tipo !== p.nome ? " — " + d.tipo : "") +
+            (dataCurta(d.juntadoEm) ? " · juntada em " + dataCurta(d.juntadoEm) : "");
           row.innerHTML =
             `<input type="checkbox" value="${escapeHtml(d.id)}">` +
             '<span class="d-dot" aria-hidden="true"></span>' +
@@ -4548,12 +4624,6 @@ var PjePanel = (function () {
             `<span class="d-nm">${escapeHtml(p.nome)}</span>` +
             (p.id ? `<span class="d-id">${p.id}</span>` : "") +
             "</span>" +
-            // Data de juntada: o eixo CRONOLÓGICO que hoje só existe implícito
-            // na ordem da lista. Vem da grid, então nem sempre existe. O CSS a
-            // esconde nos modos estreitos, onde não há espaço para ela.
-            (d.juntadoEm
-              ? `<span class="d-dt">${escapeHtml(String(d.juntadoEm).slice(0, 10))}</span>`
-              : "") +
             '<button type="button" class="d-ver" title="Ver esta peça na linha do tempo do processo" aria-label="Localizar esta peça na linha do tempo">' +
             SVG.ver + "</button>";
           // `selPendente.delete` devolve true só na PRIMEIRA vez que este id
