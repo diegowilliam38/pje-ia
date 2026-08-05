@@ -360,10 +360,34 @@ export async function* streamGemini(req) {
 //  - qualquer outro step (thought assinado, buscas, texto com assinatura) →
 //    {type:"x-gemini-item", raw} — wrapper OPACO que prepararEnvio e
 //    sanearCitacoes não tocam; traduzirHistorico devolve o raw verbatim.
+// Um step de busca só tem valor no reenvio se carregar o que a API produziu:
+// as `queries` na chamada, o payload no resultado. Sem isso é casca do
+// `step.start` — não informa o modelo e faz a API recusar o request.
+function ehStepDeBuscaOco(s) {
+  const t = s && s.type;
+  if (t !== "google_search_call" && t !== "google_search_result") return false;
+  const temAlgo =
+    (Array.isArray(s.queries) && s.queries.length) ||
+    (Array.isArray(s.content) && s.content.length) ||
+    (Array.isArray(s.results) && s.results.length) ||
+    (s.search_suggestions && String(s.search_suggestions).length);
+  return !temAlgo;
+}
+
 function stepsParaBlocos(oficiais) {
   const blocos = [];
   for (const s of oficiais) {
     if (!s) continue;
+    // Step de ferramenta OCO não volta ao histórico. Quando o
+    // `interaction.completed` não traz os steps, caímos nos acumulados do
+    // `step.start`, que são ESQUELETOS: `{id, signature:"", type}` — os deltas
+    // preenchem texto e a assinatura do thought, mas nunca as `queries` da
+    // busca nem os resultados. Reenviar essa casca é o que fazia o 2º turno
+    // devolver 400 de corpo vazio (rejeição na borda), e como os steps ficam
+    // no histórico para sempre, desligar a Jurisprudência depois não adiantava.
+    // Confirmado contra a API real: step de busca COMPLETO volta e dá 200; a
+    // casca dá 400 — com ou sem a assinatura vazia.
+    if (ehStepDeBuscaOco(s)) continue;
     // Só achata para texto puro o que for REALMENTE puro. Tudo o mais volta
     // verbatim — foi assim que o reenvio funcionou em teste contra a API real.
     // Duas condições que faltavam e quebravam o 2º turno COM busca ligada:
