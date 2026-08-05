@@ -546,9 +546,22 @@ export async function friendlyHttpErrorGemini(resp) {
   let apiMsg = "";
   try {
     const j = await resp.json();
-    apiMsg = (j && j.error && j.error.message) || "";
+    // A API do Google devolve o erro em DUAS formas: o objeto {error:{message}}
+    // e, em alguns endpoints, um ARRAY [{error:{message}}]. Sem tratar o array,
+    // `apiMsg` ficava vazio e o usuário via só "Erro da API do Google (400)" —
+    // uma mensagem que não diz nada e transforma o diagnóstico em adivinhação.
+    const raiz = Array.isArray(j) ? j.find((x) => x && x.error) || {} : j || {};
+    apiMsg = (raiz.error && (raiz.error.message || raiz.error.status)) || "";
+    // Último recurso: corpo JSON com forma inesperada. Melhor mostrar um trecho
+    // cru do que engolir a única pista que existe.
+    if (!apiMsg && j) apiMsg = JSON.stringify(j).slice(0, 240);
   } catch {
-    /* corpo não-JSON */
+    // corpo não-JSON: ainda assim pode ter texto útil (HTML de proxy, etc.)
+    try {
+      apiMsg = (await resp.text()).slice(0, 240);
+    } catch {
+      /* corpo já consumido ou vazio */
+    }
   }
   const low = apiMsg.toLowerCase();
 
