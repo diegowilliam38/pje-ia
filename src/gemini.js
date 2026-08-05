@@ -190,6 +190,31 @@ export async function* streamGemini(req) {
     body.generation_config.thinking_level = req.thinkingLevel;
   }
 
+  // Radiografia do request no console do service worker. Um 400 de corpo vazio
+  // é rejeição na BORDA (request malformado), e a única forma de achar a causa
+  // é comparar a forma do turno que passa com a do que falha. Só tipos e
+  // tamanhos — nenhum conteúdo de peça é impresso.
+  try {
+    const corpo = JSON.stringify(body);
+    console.log(
+      "[PJe IA] Gemini request: " +
+        (corpo.length / 1024).toFixed(0) + " KB | itens: " +
+        (body.input || [])
+          .map((it) => {
+            if (it.type === "user_input" || it.type === "model_output") {
+              return it.type + "(" + (it.content || []).map((c) => c.type).join("+") + ")";
+            }
+            // steps opacos: mostra tambem se carregam assinatura
+            return it.type + (it.signature ? "[sig]" : "");
+          })
+          .join(" > ")
+    );
+  } catch (e) {
+    // JSON.stringify falhou: o corpo tem algo não serializável, e ISSO por si
+    // só explicaria um request malformado.
+    console.error("[PJe IA] Gemini request NÃO serializável:", e);
+  }
+
   const resp = await fetch(API + "/interactions", {
     method: "POST",
     headers: headersGemini(req.apiKey),
