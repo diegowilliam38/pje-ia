@@ -100,6 +100,41 @@
     "fonte superior. Para texto de lei, use planalto.gov.br.",
     "Cite a fonte de cada informação obtida na web.",
   ];
+  // DESTAQUES — o que o usuário precisa bater o olho e ver.
+  //
+  // A observação que muda a leitura do processo ("esta peça é só encaminhamento,
+  // a defesa está na 205649798"; "a peça decisiva não foi anexada"; "não deu
+  // para confirmar este valor") chegava como mais um parágrafo no meio de uma
+  // resposta longa. Quem lê autos lê por VARREDURA: ressalva sem peso visual é
+  // ressalva não lida — e aqui o custo disso é decidir com base errada.
+  //
+  // A sintaxe é a dos "alerts" do GitHub (`> [!ALERTA]`) por ADERÊNCIA, não por
+  // gosto: os modelos a conhecem muito bem do treino, e uma marcação inventada
+  // aqui seria obedecida pela metade. Ela é uma citação markdown legítima, então
+  // um provedor que ignore a instrução degrada para blockquote em vez de vazar
+  // marcação estranha. Quem desenha o bloco colorido é `lerCallout` em panel.js
+  // — os rótulos DAQUI e os aceitos LÁ precisam continuar batendo.
+  //
+  // Vai nos DOIS system prompts (citação nativa e textual). NÃO vai na minuta
+  // nem no mapa: os dois têm sufixo próprio, e um "[!ALERTA]" no meio de uma
+  // sentença seria um defeito, não um destaque.
+  const PROMPT_DESTAQUES = [
+    "Quando houver algo que o usuário PRECISE notar de imediato, escreva um aviso em",
+    "bloco: uma citação markdown cuja primeira linha é só o rótulo entre colchetes e",
+    "cujo texto vem nas linhas seguintes, todas começando com '>'. Assim:",
+    "\n> [!ATENÇÃO]\n> A peça 205649792 - Contestação é apenas encaminhamento ('SEGUE" +
+      " ANEXO'); o conteúdo da defesa está na peça 205649798.\n",
+    "Use [!ALERTA] para o que pode levar a erro de análise ou de decisão: divergência",
+    "entre peças sobre fato, valor ou data; prazo, prescrição ou preclusão em jogo; peça",
+    "essencial que NÃO foi anexada; documento que contradiz a conclusão.",
+    "Use [!ATENÇÃO] para ressalvas sobre a BASE da resposta: peça que é só",
+    "encaminhamento; documento ilegível ou digitalizado sem texto; conteúdo cortado por",
+    "tamanho; informação que você não conseguiu confirmar na peça.",
+    "Use [!NOTA] para observação útil que não é risco.",
+    "Todo aviso nomeia a peça e o id de que trata. No máximo TRÊS avisos por resposta e",
+    "nunca para o conteúdo principal — um destaque que aparece em tudo deixa de",
+    "destacar. Não use esses blocos dentro de tabelas.",
+  ];
   const SYSTEM_PROMPT = PROMPT_INICIO.concat(
     [
       "As citações precisas de trechos são geradas automaticamente pelo sistema e já",
@@ -110,7 +145,8 @@
       "123456') e avise o usuário de que aquela peça não é citável.",
     ],
     PROMPT_BUSCA,
-    PROMPT_FIM
+    PROMPT_FIM,
+    PROMPT_DESTAQUES
   ).join(" ");
   const SYSTEM_PROMPT_CIT_TEXTUAL = PROMPT_INICIO.concat(
     [
@@ -120,7 +156,8 @@
       "'(Contestação, id 123456)'.",
     ],
     PROMPT_BUSCA,
-    PROMPT_FIM
+    PROMPT_FIM,
+    PROMPT_DESTAQUES
   ).join(" ");
   // Instruções personalizadas do usuário (persona/preferências — magistrado,
   // assessor, advogado…), definidas nas opções. Entram DEPOIS das regras-base
@@ -530,6 +567,26 @@
     };
   }
 
+  // Há o que gravar nesta conversa? O critério é PRODUTO na tela, e ele tem duas
+  // metades, cada uma corrigindo um erro oposto:
+  //
+  // - `conversation` sozinho NÃO serve: minuta, mapa mental e "escolher com IA"
+  //   são requests ISOLADOS e, por decisão de projeto, não entram nele. Medir
+  //   por ele fazia uma sessão inteira de minutas e mapas nunca virar conversa
+  //   no disco — a tela com meia dúzia de cards, o banco vazio, e fechar a aba
+  //   apagava tudo sem aviso. Foi o bug que abriu esta rodada.
+  // - O transcript INTEIRO também não serve: quando um turno falha, o histórico
+  //   é desfeito (`conversation.pop()`) e a bolha do assistente é removida, mas
+  //   a pergunta do usuário fica na tela. Gravar ali encheria a lista de
+  //   conversas com perguntas que nunca foram respondidas.
+  //
+  // Sobra o certo: houve resposta — uma entrada de `assistant`, que é o que a
+  // minuta e o mapa deixam — ou já existe histórico de API.
+  function temProduto(transcript) {
+    if (conversation.length) return true;
+    return (transcript || []).some((t) => t && t.role === "assistant" && t.text);
+  }
+
   // Grava agora. Chamada nos `finally` dos turnos — o fim de um turno é o
   // momento mais valioso para persistir, e é também quando `busy` acabou de
   // cair. NUNCA rejeita: a memória de caso é comodidade, e um
@@ -580,11 +637,27 @@
       }
       // A conversa só é gravada quando existe: uma sessão em que o usuário só
       // marcou peças e não perguntou nada não cria conversa vazia na lista.
-      if (!conversation.length) return;
-      const c = await CASO.salvarConversa(
-        casoChave, convAtual, snapshotConversa(), convVersao
-      );
-      if (!c || !c.convId) return;
+      //
+      // O critério é o TRANSCRIPT, nunca `conversation` sozinho — e essa
+      // distinção foi um bug de perda de trabalho. `conversation` é o histórico
+      // que vai à API; minuta, mapa mental e "escolher com IA" são requests
+      // ISOLADOS e, por decisão de projeto, não entram nele. Medir por ele
+      // fazia uma sessão inteira de minutas e mapas nunca virar conversa no
+      // disco: a tela com meia dúzia de cards, o banco vazio, e fechar a aba
+      // apagava tudo sem aviso. O que o usuário reconhece como "a conversa" é
+      // o que está na tela, e é o transcript que guarda isso.
+      const snap = snapshotConversa();
+      if (!temProduto(snap.transcript)) return;
+      const c = await CASO.salvarConversa(casoChave, convAtual, snap, convVersao);
+      if (!c || !c.convId) {
+        // Silêncio aqui era o pior modo de falha do recurso: o worker pode não
+        // responder (morto, contexto órfão, mensagem grande demais) e o
+        // usuário seguiria trabalhando achando que está guardado.
+        console.log(
+          "[PJe IA] memória: a conversa NÃO foi gravada — o serviço da extensão não respondeu"
+        );
+        return;
+      }
       convAtual = c.convId;
       // O carimbo desta gravação vira a base da próxima: sem atualizá-lo, a
       // segunda gravação desta mesma aba pareceria vir de um retrato velho e
@@ -820,6 +893,10 @@
 
   panel.onReset(async () => {
     if (busy) return; // não zera no meio de uma resposta
+    // Havia o que arquivar? MESMO critério da gravação (`temProduto`) — se a
+    // mensagem dissesse "ficou guardada" num caso em que nada foi gravado, ela
+    // seria mentira, e mentira sobre memória é pior do que silêncio.
+    const tinhaTrabalho = temProduto(panel.lerTranscript ? panel.lerTranscript() : []);
     // ARQUIVA a conversa atual antes de abrir a nova. Esta é a correção de uma
     // decisão errada da rodada anterior: enquanto nada era persistido, "Nova
     // conversa" só limpava a tela. Com memória, sobrescrever significaria
@@ -840,6 +917,15 @@
     // botão próprio na faixa de retomada.
     CASO.salvar(casoChave, { convAtual: null });
     atualizarListaConversas();
+    // "Nova conversa" APAGA a tela, e uma tela apagada é indistinguível de
+    // trabalho perdido — a queixa não é hipotética. O status diz para onde a
+    // conversa foi e por qual botão se volta a ela.
+    if (tinhaTrabalho) {
+      panel.setStatus(
+        "Conversa anterior guardada — ela continua na lista de conversas deste processo " +
+          "(o botão com o número, no topo do painel)."
+      );
+    }
   });
 
   // "Ver na timeline": rola a página do PJe até a peça com destaque temporário
@@ -3159,6 +3245,11 @@
     } finally {
       busy = false;
       panel.setIaOcupado(false);
+      // A escolha da IA REESCREVE a seleção de peças, que é parte do registro
+      // da conversa. O `selChangeCb` que ela dispara cai na guarda de `busy`
+      // do `agendarSalvar` (o turno ainda estava correndo), então sem esta
+      // linha a nova seleção só iria ao disco no próximo evento qualquer.
+      salvarCasoAgora();
     }
   });
 
@@ -3199,7 +3290,14 @@
     " precedente: se algo necessário não constar das peças anexadas, escreva no lugar" +
     " [COMPLETAR: o que falta], para quem for assinar preencher." +
     " NÃO assine, não date e não crie cabeçalho de tribunal, vara ou comarca — isso o" +
-    " sistema do PJe já acrescenta.";
+    " sistema do PJe já acrescenta." +
+    // O system prompt do chat manda destacar ressalvas com blocos "> [!ALERTA]".
+    // Aqui a saída é o texto de um ato processual, que circula fora da extensão:
+    // um bloco desses no meio de uma sentença é defeito, não destaque. O canal
+    // para o que falta continua sendo o [COMPLETAR: …].
+    " NÃO use blocos de aviso do tipo \"> [!ALERTA]\" ou \"> [!ATENÇÃO]\": nada de" +
+    " observação ao leitor no corpo do ato — o que não estiver confirmado nas peças vira" +
+    " [COMPLETAR: o que falta].";
 
   // Quando o usuário escolhe uma categoria de modelos (biblioteca MLIB), TODAS
   // as peças-modelo daquela espécie (o painel já aplica o teto) entram no
@@ -3403,6 +3501,12 @@
     } finally {
       busy = false;
       panel.lockInput(false);
+      // A minuta É um registro da conversa: o card fica na tela e o markdown
+      // inteiro vive no transcript. Sem esta linha ele só chegava ao disco se
+      // algum OUTRO evento disparasse gravação depois — gerar a minuta e
+      // fechar a aba perdia o card e, junto, as peças que acabaram de baixar
+      // (a fila `pecasSujas` também sai daqui).
+      salvarCasoAgora();
     }
   });
 
@@ -3527,7 +3631,8 @@
     " RECURSOS: use **negrito** no rótulo do item e ==destaque== no que for decisivo; quando a" +
     " informação for tabular (partes, linha do tempo, valores, prazos), use UMA tabela Markdown" +
     " na seção correspondente, com no máximo 3 colunas e células curtas. NÃO use emojis," +
-    " imagens, HTML, fórmulas nem numeração de tópicos.";
+    " imagens, HTML, fórmulas, numeração de tópicos nem blocos de aviso do tipo" +
+    " \"> [!ALERTA]\" (o mapa é feito de nós; um bloco de citação não vira nó).";
 
   panel.onMapa(async (text, selecaoDoPainel) => {
     if (busy || bloqueadoPelaExportacao()) return;
@@ -3666,6 +3771,9 @@
     } finally {
       busy = false;
       panel.lockInput(false);
+      // Mesma razão da minuta: o card do mapa é parte do registro da conversa,
+      // e o download das peças que ele acabou de fazer também.
+      salvarCasoAgora();
     }
   });
 
@@ -3770,9 +3878,24 @@
     }
     panel.clearMessages();
     zerarEstadoDaConversa();
+    // A identidade da conversa só é assumida se ela REALMENTE abriu. Assumi-la
+    // antes era destrutivo: quando `aplicarConversa` recusa (conversa de outro
+    // provedor), a tela fica vazia mas `convAtual` continua apontando para o
+    // registro cheio — e a primeira gravação seguinte escreveria o vazio por
+    // cima dele. O usuário perderia a conversa por ter clicado nela.
+    if (!aplicarConversa(conv)) {
+      convAtual = null;
+      convVersao = 0;
+      panel.setStatus(
+        "Essa conversa foi feita com outro provedor de IA (Claude, Gemini ou OpenAI) e não " +
+          "pode ser reaberta neste modelo — o raciocínio vem assinado pelo provedor. Volte ao " +
+          "modelo anterior nas opções para lê-la."
+      );
+      atualizarListaConversas();
+      return;
+    }
     convAtual = convId;
     convVersao = conv.atualizadoEm || 0;
-    aplicarConversa(conv);
     // Grava o ponteiro: é esta conversa que a próxima sessão retoma.
     CASO.salvar(casoChave, { convAtual: convId });
     atualizarListaConversas();
@@ -3832,13 +3955,25 @@
 
   function retomarConversa(caso) {
     const conv = caso.conversa;
-    if (!conv || !Array.isArray(conv.conversation) || !conv.conversation.length) return;
+    if (!conv) return;
+    // Conversa SEM `conversation` é legítima e precisa voltar: uma sessão só de
+    // minuta e mapa mental não tem histórico de API nenhum (esses turnos são
+    // requests isolados), mas tem registro na tela — e era justamente ela que
+    // se perdia. O critério é o mesmo da gravação: o que o usuário vê.
+    const temHistorico = Array.isArray(conv.conversation) && conv.conversation.length;
+    const temTela = Array.isArray(conv.transcript) && conv.transcript.length;
+    if (!temHistorico && !temTela) return;
+    // A identidade só é assumida se a conversa abriu de fato — ver o comentário
+    // em `trocarConversa`: apontar para uma conversa que não foi aplicada faz a
+    // próxima gravação apagá-la.
+    if (!aplicarConversa(conv)) return;
     convAtual = conv.convId;
     convVersao = conv.atualizadoEm || 0;
-    aplicarConversa(conv);
   }
 
-  // Põe uma conversa (do disco) no estado vivo e na tela.
+  // Põe uma conversa (do disco) no estado vivo e na tela. Devolve `false`
+  // quando RECUSA abrir — e o chamador precisa desse retorno para não assumir a
+  // identidade de uma conversa que não abriu (ver `trocarConversa`).
   function aplicarConversa(caso) {
     const provAtual = (modelCaps && modelCaps.provider) || "anthropic";
     if (caso.conversaProvider && caso.conversaProvider !== provAtual) {
@@ -3846,9 +3981,12 @@
         "[PJe IA] memória de caso: conversa anterior era do provedor " +
           caso.conversaProvider + " e o atual é " + provAtual + " — só as peças foram retomadas"
       );
-      return;
+      return false;
     }
-    conversation = caso.conversation;
+    // `|| []` obrigatório: uma conversa só de minuta/mapa não tem histórico de
+    // API, e `conversation = undefined` derrubaria o próximo `.length` — que é
+    // lido em quase todo caminho do envio.
+    conversation = Array.isArray(caso.conversation) ? caso.conversation : [];
     pecasNaConversa = new Set(caso.pecasNaConversa || []);
     custoConversaUsd = caso.custoConversaUsd || 0;
     conversaProvider = caso.conversaProvider || null;
@@ -3868,6 +4006,10 @@
       // "nesta resposta" seria afirmar um custo que não aconteceu agora.
       panel.setCusto({ conversaUsd: custoConversaUsd });
     }
+    // ABRIU. Sem este `true` a conversa aparece na tela mas o chamador não
+    // assume a identidade dela — e a gravação seguinte cria uma DUPLICATA em
+    // vez de continuar a conversa retomada (pego pelo teste de retomada).
+    return true;
   }
 
   // "3 de agosto" / "ontem" / "hoje". O usuário pensa a distância em dias, não

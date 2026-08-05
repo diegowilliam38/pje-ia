@@ -523,3 +523,30 @@ input:focus, select:focus, textarea:focus {
 }
 .btn-sec:hover { border-color: var(--line-focus); color: var(--pje-2); background: #fff; }
 /* `.lock-note` saiu: virou a primeira linha da `.privacy` (ver acima). */
+
+/* ---------- Caixa de apoio ao projeto (`.apoio`) ----------
+   A extensão é gratuita e de código aberto, e quem a mantém paga o tempo de
+   desenvolvimento e os tokens de API dos testes em processos reais. O pedido de
+   apoio existe por isso — e vive SÓ nas telas satélites (ajuda, novidades,
+   configuração) e no guia recolhido do painel. Nunca no fluxo de trabalho: uma
+   caixa de assinatura entre a pergunta e a resposta seria cobrar pedágio no
+   meio da análise dos autos.
+
+   Veste-se com --accent-bg (o azul de apoio da marca), não com --ok-* nem
+   --warn-*: não é sucesso nem alerta, é uma informação institucional. */
+.apoio {
+  margin-top: var(--sp-5); padding: 14px 18px;
+  background: var(--accent-bg); border: 1px solid var(--line);
+  border-left: 3px solid var(--pje); border-radius: var(--r-md);
+  font-size: var(--fs-body); color: var(--text-2);
+}
+.apoio b { color: var(--ink); font-weight: 650; }
+.apoio p { margin: 0 0 8px; }
+.apoio p:last-child { margin-bottom: 0; }
+.apoio a.assinar {
+  display: inline-flex; align-items: center; gap: 7px; margin-top: 4px;
+  text-decoration: none; font-weight: 600; font-size: var(--fs-ui);
+  color: #fff; background: linear-gradient(180deg, var(--pje), var(--pje-2));
+  padding: 9px 16px; border-radius: var(--r-sm); box-shadow: var(--sh-btn);
+}
+.apoio a.assinar:hover { filter: brightness(1.06); }

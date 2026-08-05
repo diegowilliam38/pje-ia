@@ -253,8 +253,17 @@
         </p>
         <p><strong>O que fica guardado neste computador:</strong> o texto das peças de
         editor (despachos, decisões, petições), os dados de cada peça (id, título, número de
-        páginas), a referência dos arquivos já enviados ao provedor, a conversa daquele
+        páginas), a referência dos arquivos já enviados ao provedor, as conversas daquele
         processo e quais peças estavam marcadas.</p>
+        <p><strong>Você pode ter várias conversas no mesmo processo</strong> — uma para a
+        prescrição, outra para a minuta da sentença, outra para os cálculos. No alto do
+        painel, o botão de balões <strong>com o número ao lado</strong> abre a lista delas
+        (e é de lá que se começa uma nova ou se apaga alguma); o balão com o
+        <strong>+</strong>, ao lado, começa uma conversa nova direto. A lista é
+        <strong>por processo</strong>: cada processo mostra só as suas. Clicar em “Nova
+        conversa” não apaga nada — a anterior continua na lista, e as peças já baixadas
+        servem a todas as conversas daquele processo. Minutas e mapas mentais que você
+        gerar também ficam registrados na conversa em que foram pedidos.</p>
         <p><strong>O que não fica:</strong> os <strong>PDFs</strong> e as
         <strong>imagens</strong> — eles são o volume dos autos. Quando forem necessários de
         novo, a extensão os busca no tribunal. Por isso a pré-visualização de um PDF numa
@@ -332,7 +341,7 @@
           situação atual — num mapa interativo. Minutar e o mapa funcionam em <strong>qualquer
           modelo</strong>, Claude, Gemini ou GPT, sempre com a peça, o <em>id</em> e a folha de origem.</li>
           <li>Siga a conversa: <strong>adicionar</strong> peças no meio é barato; para
-          <strong>remover</strong> várias ou mudar de assunto, prefira <svg class="ic-in" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 15a3 3 0 0 1-3 3H9l-4 3v-4H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3z"/></svg>Nova conversa.</li>
+          <strong>remover</strong> várias ou mudar de assunto, prefira <svg class="ic-in" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 15a3 3 0 0 1-3 3H9l-4 3v-4H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3z"/><path d="M12 8v6"/><path d="M9 11h6"/></svg>Nova conversa.</li>
           <li><strong>Personalize o assistente</strong>: nas opções, o campo
           <strong>"Instruções personalizadas"</strong> diz ao modelo quem você é e como quer as
           respostas (ex.: "Sou assessor de vara criminal; destaque prazos prescricionais") —
@@ -349,7 +358,7 @@
           novo chat para adicionar documentos.</li>
           <li><strong>Desmarcar peça libera contexto na hora</strong>, mas invalida o cache daquele
           ponto em diante (o turno seguinte re-paga o envio das peças restantes). Use quando o medidor
-          encher; para trocar de assunto ou remodelar a seleção inteira, prefira <strong><svg class="ic-in" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 15a3 3 0 0 1-3 3H9l-4 3v-4H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3z"/></svg>Nova conversa</strong>.</li>
+          encher; para trocar de assunto ou remodelar a seleção inteira, prefira <strong><svg class="ic-in" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 15a3 3 0 0 1-3 3H9l-4 3v-4H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3z"/><path d="M12 8v6"/><path d="M9 11h6"/></svg>Nova conversa</strong>.</li>
           <li><strong>O medidor no rodapé é o guia</strong>: perto de 90% da janela do modelo, desmarque
           peças ou abra uma conversa nova. Vale para Claude, Gemini e GPT (todos têm cache automático).</li>
         </ul>
@@ -442,6 +451,17 @@
         (para você reabri-las depois) e são apagadas automaticamente após 7 dias — use
         <strong>Descartar</strong>, no editor, para remover uma minuta antes disso. Detalhes na
         <a class="link" href="https://github.com/marcosmarf27/pje-ia/blob/main/PRIVACY.md" target="_blank" rel="noopener">política de privacidade</a>.
+      </div>
+
+      <div class="apoio">
+        <p><b>Esta extensão é gratuita e de código aberto</b>, e continua recebendo
+        melhorias toda semana — cada recurso é escrito e testado em processos reais, o que
+        custa tempo de desenvolvimento e tokens de API.</p>
+        <p>Se ela está sendo útil no seu trabalho, a maneira de apoiar os próximos projetos
+        é assinar o <b>TecJustiça</b> no Substack, por <b>R$ 10 mensais</b>. Nada na
+        extensão muda com isso: não há recurso pago, nem limite para quem não assina — o
+        apoio é o que viabiliza a próxima ferramenta.</p>
+        <a class="assinar" href="https://tecjustica.substack.com/" target="_blank" rel="noopener">Assinar o TecJustiça — R$ 10/mês ↗</a>
       </div>
 
       <p style="margin-top: 22px; font-size: var(--fs-body)">

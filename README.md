@@ -436,6 +436,16 @@ Não precisa de nada disso: abra uma
 **[issue](https://github.com/marcosmarf27/pje-ia/issues/new)** contando o que aconteceu,
 em qual tribunal, e cole a mensagem de erro do painel (o Console do F12 também ajuda).
 
+## ☕ Apoiar o projeto
+
+A extensão é **gratuita e de código aberto**, sem recurso pago e sem limite para quem
+não apoia — você usa tudo com a sua própria chave de API. Ela recebe melhorias toda
+semana, e cada recurso é escrito e testado em processos reais: isso custa tempo de
+desenvolvimento e tokens de API.
+
+Se ela está sendo útil no seu trabalho, a forma de apoiar os próximos projetos é
+**assinar o [TecJustiça no Substack](https://tecjustica.substack.com/) — R$ 10 mensais**.
+
 ## 📄 Licença
 
 [MIT](LICENSE) © marcosmarf27

@@ -619,6 +619,29 @@ e até a v0.23 as dez fontes eram tratadas como equivalentes.
   rito. Lida UMA vez por sessão (`fichaCache`): `systemPromptAtual()` roda duas vezes
   por turno e raspar o DOM de novo seria desperdício. Best-effort: ficha nula ⇒ o
   system fica byte a byte o de antes.
+- **Avisos em bloco na resposta** (`PROMPT_DESTAQUES` em content.js +
+  `lerCallout`/`CALLOUTS` em panel.js): a observação que MUDA a leitura do
+  processo — "esta peça é só encaminhamento, a defesa está na 205649798", "a
+  peça decisiva não foi anexada", "não deu para confirmar este valor" — chegava
+  como mais um parágrafo no meio de uma resposta longa. Quem lê autos lê por
+  VARREDURA: ressalva sem peso visual é ressalva não lida, e aqui o custo disso
+  é decidir com base errada.
+  - A sintaxe é a dos **"alerts" do GitHub** (`> [!ALERTA]`) por ADERÊNCIA, não
+    por gosto: os modelos a conhecem do treino, e marcação inventada seria
+    obedecida pela metade. Como é uma citação markdown legítima, o provedor que
+    ignore a instrução degrada para blockquote em vez de vazar sintaxe crua.
+  - **Três níveis, e as tabelas dos dois lados precisam bater**: `[!ALERTA]`
+    (`--alerta-*`, o que pode levar a erro de decisão), `[!ATENÇÃO]`
+    (`--warn-*`, ressalva sobre a BASE da resposta) e `[!NOTA]` (azul da marca).
+    `CALLOUTS` aceita também os rótulos canônicos em inglês (WARNING, NOTE,
+    CAUTION…): o modelo escorrega para eles mesmo instruído em português, e um
+    rótulo não reconhecido apareceria como `[!WARNING]` cru na tela.
+  - Vai nos DOIS system prompts de chat e **é proibido na minuta e no mapa**
+    (regra explícita no `SUFIXO_MINUTA`/`SUFIXO_MAPA`): um `[!ALERTA]` no meio
+    de uma sentença que vai ao PJe é defeito, não destaque — ali o canal do que
+    falta continua sendo o `[COMPLETAR: …]`.
+  - Teto de três avisos por resposta, dito no prompt: destaque que aparece em
+    tudo deixa de destacar.
 - **Inventário das peças NÃO anexadas** (`inventarioNaoMarcadas` + `comInventario`):
   ao fim do turno do usuário vai a lista de `id - título` das peças que estão na
   timeline mas ficaram de fora. É o que fecha o ciclo entre a IA e a seleção — sem
@@ -735,6 +758,41 @@ do PJe. O `fileId` sobrevivia em `storage.session` mas era lido de DENTRO do
   de chave/modelo: a invalidação acontece sozinha, sem caminho novo. A resposta
   de `upload` passou a levar `exp` também — antes a expiração do Gemini existia
   só dentro do worker, o que bastava enquanto o cache morria com a aba.
+- **O que decide se há conversa a gravar é `temProduto`, e ele tem DUAS metades**
+  — cada uma corrigindo um erro oposto:
+  - `conversation` sozinho não serve: minuta, mapa mental e "escolher com IA"
+    são requests ISOLADOS e não entram nele **por decisão de projeto**. Enquanto
+    `gravarCasoEConversa` media por ele (`if (!conversation.length) return`),
+    uma sessão inteira de minutas e mapas NUNCA virava conversa no disco: a tela
+    com meia dúzia de cards e o banco vazio; fechar a aba apagava tudo sem
+    aviso. Foi o bug que abriu a rodada.
+  - O transcript INTEIRO também não serve: num turno que falha o histórico é
+    desfeito (`conversation.pop()`) e a bolha do assistente é removida, mas a
+    pergunta do usuário fica na tela — gravar ali encheria a lista de conversas
+    com perguntas nunca respondidas.
+  - Sobra o certo: **houve resposta** (uma entrada `assistant` no transcript, que
+    é o que o card da minuta e o do mapa deixam) **ou** já há histórico de API.
+    `onReset` usa a MESMA função para decidir se anuncia "conversa anterior
+    guardada" — anunciar num caso em que nada foi gravado seria mentir sobre
+    memória, que é pior do que o silêncio.
+
+  Consequências que andam juntas e não podem se separar:
+  - `retomarConversa` aceita conversa **sem** `conversation` (basta transcript),
+    e `aplicarConversa` faz `caso.conversation || []` — `undefined` ali derruba
+    o próximo `.length`, lido em quase todo caminho do envio.
+  - **Minuta, mapa e triagem gravam no `finally`** (`salvarCasoAgora()`), como o
+    chat e a exportação. Sem isso o registro só chegava ao disco se algum outro
+    evento disparasse gravação depois — e o download das peças daquele turno
+    junto. Na triagem vale o mesmo por outro motivo: ela reescreve a SELEÇÃO, e
+    o `selChangeCb` que ela dispara cai na guarda de `busy` do `agendarSalvar`.
+- **A identidade da conversa (`convAtual`) só é assumida quando
+  `aplicarConversa` devolve `true`** — ela devolve `false` ao recusar histórico
+  de outro provedor. Assumir antes era destrutivo nos DOIS caminhos (boot e
+  troca pela lista): a tela fica vazia, `convAtual` segue apontando para o
+  registro cheio, e a primeira gravação escreve o vazio por cima. O usuário
+  perdia a conversa por ter clicado nela. E o `return true` no fim da função é
+  parte da correção: sem ele a conversa aparece na tela, ninguém assume a
+  identidade, e a gravação seguinte cria uma DUPLICATA.
 - **"Nova conversa" apaga a CONVERSA, preserva as PEÇAS.** O botão promete zerar
   o chat, não esquecer o processo; apagar as peças faria o usuário pagar o
   download inteiro por ter trocado de assunto.

@@ -150,6 +150,12 @@ no popup `@` e no mapa mental. Não reutilizar para outros fins.
 > provedor) e usa vermelho-tijolo, mais forte de propósito. Não trocar um pelo
 > outro: se tudo alerta com a mesma intensidade, nada alerta.
 
+> **O trio `--alerta-*` vale também DENTRO da resposta** (o `[!ALERTA]` do
+> `.callout`, §5). Ele deixou de significar só "a interface está bloqueada" e
+> passou a significar **atenção máxima**, venha de onde vier — o bloqueio de um
+> envio ou um risco apontado no conteúdo. É deliberado: a cor é a mesma para o
+> usuário não precisar aprender duas escalas de gravidade na mesma tela.
+
 ---
 
 ## 3. Tipografia
@@ -290,9 +296,20 @@ vertical de 1px `rgba(255,255,255,0.22)`.
 
 À direita, os botões vivem em **clusters** — não soltos: cada grupo é um
 `background: rgba(255,255,255,0.07)`, `--r-ctrl`, `padding: 3px`, `gap: 2px`. São
-três: `[baixar · nova conversa]`, `[modos de layout]` e `[✕]` isolado. Botões 30×30
-(32 nos largos), `--r-sm`, transparentes, hover `rgba(255,255,255,0.16)`; o modo
-ativo fica com esse mesmo fundo fixo. O ✕ tem hover `--erro-hd`.
+três: `[baixar · conversas guardadas · nova conversa]`, `[modos de layout]` e `[✕]`
+isolado. Botões 30×30 (32 nos largos), `--r-sm`, transparentes, hover
+`rgba(255,255,255,0.16)`; o modo ativo fica com esse mesmo fundo fixo. O ✕ tem
+hover `--erro-hd`.
+
+> **A única exceção ao botão quadrado é o de conversas guardadas** (`.convs`):
+> `width: auto` com o **contador** ao lado do ícone (`--ff-mono`, `--fs-nano`,
+> num `<span>` próprio — `textContent` no botão apagaria o `<svg>`). O motivo é
+> um relato de uso: listar e criar conversa eram dois desenhos de balão vizinhos
+> e, a 15px, ninguém adivinhava qual era qual. Duas correções juntas — o ícone
+> de **nova conversa** ganhou a CRUZ dentro do balão (o sinal universal de
+> criar) e o de **lista** ganhou o número, que diz o que o desenho não conseguia
+> dizer ("há 3 conversas aqui dentro"). Ícone só não basta quando dois ícones
+> vizinhos pertencem à mesma família visual.
 
 > **O cluster substituiu o separador de 1px** que ficava antes do ✕. Sete botões
 > lado a lado exigiam um separador justamente porque não se lia onde um grupo
@@ -447,6 +464,28 @@ Duas regras de conteúdo, e as duas são de privacidade, não de estética:
   página do tribunal.
 
 Sem memória não há faixa: quando não há o que esquecer, não há o que dizer.
+
+### Aviso em bloco dentro da resposta (`.callout`)
+Três níveis, e a escala de cor é a MESMA do resto do painel — quem aprendeu o
+significado de uma cor num canto da interface não deveria reaprendê-lo no outro:
+
+| Rótulo | Tokens | Quando |
+|---|---|---|
+| **Alerta** | `--alerta-bg` / `--alerta-line` / `--alerta` na barra | O que pode levar a erro de análise ou decisão: divergência entre peças, prazo em jogo, peça essencial não anexada |
+| **Atenção** | `--warn-bg` / `--warn-line` / `--warn` | Ressalva sobre a BASE da resposta: peça de mero encaminhamento, documento ilegível, texto cortado, informação não confirmada |
+| **Nota** | `--accent-bg` / `--line` / `--pje` | Observação útil que não é risco |
+
+Estrutura: cabeçalho (`.co-h`) com **ícone SVG de 14px** + rótulo em `--fs-meta`
+peso 700, e corpo (`.co-b`) no tamanho do balão — é conteúdo, não legenda, e
+encolher a letra contradiria o motivo de o bloco existir. Barra à esquerda de
+3px, a mesma do `blockquote`: o aviso é parente dele, não um componente novo.
+
+> **Quem escreve o bloco é o modelo**, na sintaxe de "alerts" do GitHub
+> (`> [!ALERTA]`), e quem o desenha é `lerCallout` em `panel.js`. Consequência
+> de design: o teto de **três avisos por resposta** vive no system prompt, não
+> no CSS — um destaque que aparece em tudo deixa de destacar, e aqui o freio só
+> pode estar em quem gera. Rótulo não reconhecido degrada para citação normal,
+> nunca some.
 
 ### Rodapé de citações da bolha (`.cites`)
 

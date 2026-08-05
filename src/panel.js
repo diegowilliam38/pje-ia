@@ -22,6 +22,67 @@ var PjePanel = (function () {
     return h;
   }
 
+  // ---------------------------------------------------------------------------
+  // AVISOS EM BLOCO (callouts) dentro da resposta.
+  //
+  // O modelo é instruído (PROMPT_DESTAQUES, em content.js) a marcar o que o
+  // usuário PRECISA notar como uma citação markdown cuja primeira linha é um
+  // rótulo entre colchetes — `> [!ATENÇÃO]`. É o padrão de "alerts" do GitHub,
+  // escolhido justamente porque os modelos o conhecem muito bem do treino: uma
+  // sintaxe inventada aqui seria obedecida pela metade.
+  //
+  // Existe porque a observação que MUDA a leitura do processo — "esta peça é só
+  // encaminhamento, a defesa está na 205649798", "a peça essencial não foi
+  // anexada" — chegava como mais um parágrafo igual aos outros, no meio de uma
+  // resposta longa, e passava batido. Quem lê autos lê por varredura.
+  //
+  // A tabela aceita as formas em português E as canônicas do GitHub: o modelo
+  // escorrega para WARNING/NOTE mesmo instruído em português, e um rótulo não
+  // reconhecido apareceria como "[!WARNING]" cru na cara do usuário.
+  // ---------------------------------------------------------------------------
+  const CALLOUTS = {
+    alerta: { cls: "co-erro", rotulo: "Alerta" },
+    erro: { cls: "co-erro", rotulo: "Alerta" },
+    critico: { cls: "co-erro", rotulo: "Alerta" },
+    caution: { cls: "co-erro", rotulo: "Alerta" },
+    danger: { cls: "co-erro", rotulo: "Alerta" },
+    atencao: { cls: "co-aviso", rotulo: "Atenção" },
+    aviso: { cls: "co-aviso", rotulo: "Atenção" },
+    ressalva: { cls: "co-aviso", rotulo: "Atenção" },
+    importante: { cls: "co-aviso", rotulo: "Atenção" },
+    important: { cls: "co-aviso", rotulo: "Atenção" },
+    warning: { cls: "co-aviso", rotulo: "Atenção" },
+    nota: { cls: "co-nota", rotulo: "Nota" },
+    note: { cls: "co-nota", rotulo: "Nota" },
+    info: { cls: "co-nota", rotulo: "Nota" },
+    dica: { cls: "co-nota", rotulo: "Nota" },
+    tip: { cls: "co-nota", rotulo: "Nota" },
+  };
+
+  // `linhas` já vem SEM o "> " e DEPOIS do escape (o `>` do markdown chega aqui
+  // como `&gt;` e foi removido pelo chamador) — colchetes e `!` não são
+  // escapados, então o rótulo casa direto. Devolve null quando não é um aviso:
+  // aí o chamador desenha a citação normal, e nada se perde.
+  function lerCallout(linhas) {
+    if (!linhas.length) return null;
+    const m = linhas[0].trim().match(/^\[!\s*([A-Za-zÀ-ÿ]+)\s*\]\s*(.*)$/);
+    if (!m) return null;
+    const tipo = CALLOUTS[norm(m[1])];
+    if (!tipo) return null;
+    // O texto pode vir na mesma linha do rótulo ou nas seguintes; e pode não
+    // vir nenhum (o modelo põe o rótulo e escreve o parágrafo fora do bloco).
+    // Corpo vazio ainda rende o cabeçalho — o realce é do rótulo.
+    const corpo = [m[2]].concat(linhas.slice(1)).filter((l) => l.trim() !== "");
+    return (
+      '<div class="callout ' + tipo.cls + '" role="note">' +
+      '<div class="co-h">' +
+      (tipo.cls === "co-nota" ? SVG.coNota : SVG.coAlerta) +
+      "<span>" + tipo.rotulo + "</span></div>" +
+      (corpo.length ? '<div class="co-b">' + corpo.map(inlineMd).join("<br>") + "</div>" : "") +
+      "</div>"
+    );
+  }
+
   function isTableSep(line) {
     return /^\s*\|?\s*:?-{2,}[\s:|-]*$/.test(line) && line.includes("-");
   }
@@ -88,14 +149,17 @@ var PjePanel = (function () {
         continue;
       }
 
-      // citação
+      // citação — e o AVISO EM BLOCO, que é uma citação cuja primeira linha traz
+      // o rótulo `[!ALERTA]` (ver `lerCallout` no topo do arquivo).
       if (/^\s*&gt;\s?/.test(line)) {
         const buf = [];
         while (i < lines.length && /^\s*&gt;\s?/.test(lines[i])) {
           buf.push(lines[i].replace(/^\s*&gt;\s?/, ""));
           i++;
         }
-        out.push("<blockquote>" + buf.map(inlineMd).join("<br>") + "</blockquote>");
+        out.push(
+          lerCallout(buf) || "<blockquote>" + buf.map(inlineMd).join("<br>") + "</blockquote>"
+        );
         continue;
       }
 
@@ -170,9 +234,21 @@ var PjePanel = (function () {
   // ---------------------------------------------------------------------------
   const P = {
     download: '<path d="M12 4v11"/><path d="M7 11l5 5 5-5"/><path d="M5 20h14"/>',
-    chat: '<path d="M20 15a3 3 0 0 1-3 3H9l-4 3v-4H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3z"/>',
-    // Conversas guardadas: pilha de balões — o mesmo balão do "Nova conversa",
-    // repetido, para os dois se lerem como a mesma família.
+    // Nova conversa: o balão com uma CRUZ dentro. O balão SOZINHO — que é o que
+    // este botão mostrava, e por isso saiu da tabela — dizia só "conversa", e ao
+    // lado da pilha de balões das conversas guardadas os dois viravam o mesmo
+    // desenho borrado a 15px: não havia como adivinhar qual criava e qual
+    // listava. A cruz é o sinal universal de "criar", e é ela que separa os dois
+    // em meio segundo de olhar. O mesmo desenho é repetido no `help.html`, onde
+    // o texto nomeia o botão (DESIGN.md §5, "ícone dentro de uma frase").
+    chatNovo:
+      '<path d="M20 15a3 3 0 0 1-3 3H9l-4 3v-4H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3z"/>' +
+      '<path d="M12 8v6"/><path d="M9 11h6"/>',
+    // Aviso em bloco dentro da resposta (callout): triângulo com "!". O ponto é
+    // um traço curto + um ponto, como o do `info` — a 14px um "!" desenhado
+    // como glifo vira borrão.
+    alerta:
+      '<path d="M12 4.5L21 19.5H3z"/><path d="M12 10v4"/><path d="M12 16.8h.01"/>',
     convs: '<path d="M17 12a3 3 0 0 1-3 3H8l-3 2.5V15H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3z"/><path d="M8 17v1a3 3 0 0 0 3 3h5l3 2.5V20h1a3 3 0 0 0 3-3v-5a3 3 0 0 0-3-3"/>',
     close: '<path d="M6 6l12 12"/><path d="M18 6L6 18"/>',
     x: '<path d="M6 6l12 12"/><path d="M18 6L6 18"/>',
@@ -243,8 +319,12 @@ var PjePanel = (function () {
     fold: ic(P.fold, 13, 2),
     ver: ic(P.ver, 12, 1.8),
     close: ic(P.close, 15, 1.9),
-    reset: ic(P.chat, 15, 1.8),
+    reset: ic(P.chatNovo, 15, 1.8),
     convs: ic(P.convs, 15, 1.8),
+    // Ícones dos avisos em bloco das respostas (renderMd). 14px porque vivem
+    // dentro de um parágrafo, e stroke 1.9 pela escala do DESIGN.md §5.
+    coAlerta: ic(P.alerta, 14, 1.9),
+    coNota: ic(P.info, 14, 1.9),
     download: ic(P.download, 15, 1.8),
     copy: ic(P.copy, 13, 1.8),
     doc: ic(P.doc, 11, 1.8),
@@ -551,8 +631,8 @@ var PjePanel = (function () {
           </span>
           <div class="hd-grp">
             <button class="dl" title="Baixar a conversa em arquivo (.md)" aria-label="Baixar a conversa em arquivo">${SVG.download}</button>
-            <button class="convs" title="Conversas guardadas deste processo" aria-label="Conversas guardadas deste processo" aria-haspopup="true" aria-expanded="false" hidden>${SVG.convs}</button>
-            <button class="reset" title="Nova conversa (a atual fica guardada)" aria-label="Nova conversa">${SVG.reset}</button>
+            <button class="convs" title="Conversas guardadas deste processo" aria-label="Conversas guardadas deste processo" aria-haspopup="true" aria-expanded="false" hidden>${SVG.convs}<span class="convs-n" aria-hidden="true"></span></button>
+            <button class="reset" title="Nova conversa — a atual fica guardada na lista ao lado" aria-label="Nova conversa">${SVG.reset}</button>
           </div>
           <div class="hd-grp">
             <button class="docsvis" title="Ocultar a lista de peças (mais espaço para o chat)" aria-label="Ocultar ou exibir a lista de peças" aria-pressed="false">${SVG.docshide}</button>
@@ -835,6 +915,22 @@ var PjePanel = (function () {
       h.textContent = "Conversas deste processo";
       convMenu.appendChild(h);
 
+      // "Nova conversa" DENTRO da lista, além do botão do cabeçalho. Quem abre a
+      // lista está justamente decidindo entre continuar uma e começar outra — e
+      // é aqui que a ação faz sentido no fluxo, não num ícone vizinho que já se
+      // confundia com este. Duplicar um comando é barato; obrigar a fechar o
+      // menu para achar o botão certo não é.
+      const nova = document.createElement("button");
+      nova.type = "button";
+      nova.className = "cm-nova";
+      nova.innerHTML = SVG.reset + "<span>Nova conversa</span>";
+      nova.addEventListener("click", (e) => {
+        e.stopPropagation();
+        fecharConvMenu();
+        if (resetCb) resetCb();
+      });
+      convMenu.appendChild(nova);
+
       for (const c of convLista) {
         const row = document.createElement("div");
         row.className = "cm-row" + (c.convId === convAtualId ? " atual" : "");
@@ -886,6 +982,16 @@ var PjePanel = (function () {
         row.appendChild(x);
         convMenu.appendChild(row);
       }
+
+      // O rodapé responde, no lugar em que a dúvida nasce, as duas perguntas
+      // que o menu levanta: onde isto está guardado e se vale para todos os
+      // processos. A resposta é o modelo mental do recurso — a memória é por
+      // processo (host + grau + id) e mora só neste computador.
+      const rod = document.createElement("div");
+      rod.className = "cm-f";
+      rod.textContent =
+        "Guardadas neste computador, separadas por processo — cada processo tem a sua lista.";
+      convMenu.appendChild(rod);
 
       wrap.appendChild(convMenu);
       const r = convBtn.getBoundingClientRect();
@@ -982,6 +1088,15 @@ var PjePanel = (function () {
         "é gerenciado automaticamente pelo código, e a demonstração com o PJe do Ceará em " +
         '<a href="https://pjece.tecjustica.com/" target="_blank" rel="noopener">' +
         "pjece.tecjustica.com</a>.</p>" +
+        // Apoio ao projeto: UMA linha, no fim de um acordeão FECHADO por padrão
+        // e só no estado vazio (some no primeiro turno). O painel é ferramenta
+        // de trabalho — pedido de assinatura entre a pergunta e a resposta
+        // cobraria pedágio no meio da análise dos autos. A caixa completa vive
+        // na ajuda, nas novidades e na configuração.
+        "<p><b>Gratuita e de código aberto.</b> Se estiver sendo útil, você pode apoiar " +
+        'os próximos projetos assinando o <a href="https://tecjustica.substack.com/" ' +
+        'target="_blank" rel="noopener">TecJustiça</a> — R$ 10 por mês. Nenhum recurso ' +
+        "daqui é pago.</p>" +
         "</details>" +
         '<button type="button" class="hint-help">Guia completo, modelos e preços →</button>';
       // exemplos: PREENCHEM o campo (não enviam — sem peça marcada o envio
@@ -4332,9 +4447,16 @@ var PjePanel = (function () {
         if (!mostrar) fecharConvMenu();
         else {
           convBtn.title =
-            convLista.length === 1
+            (convLista.length === 1
               ? "1 conversa guardada neste processo"
-              : convLista.length + " conversas guardadas neste processo";
+              : convLista.length + " conversas guardadas neste processo") +
+            " — clique para abrir a lista";
+          // O NÚMERO ao lado do ícone é o que faz este botão se explicar: dois
+          // desenhos de balão vizinhos são indistinguíveis, mas um deles com
+          // "3" ao lado só pode ser a lista. Vai num <span> próprio, nunca em
+          // `convBtn.textContent`, que apagaria o <svg> (DESIGN.md §5).
+          const n = convBtn.querySelector(".convs-n");
+          if (n) n.textContent = String(convLista.length);
         }
         // Menu aberto: re-renderiza para refletir a exclusão sem fechar na cara
         // do usuário.

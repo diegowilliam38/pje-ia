@@ -90,7 +90,7 @@
     <div class="page">
       <h1 class="serif">O que mudou na extensão</h1>
       <p class="lead">
-        Da primeira versão (19 de julho de 2026) até hoje foram <strong>53 versões</strong>. Esta
+        Da primeira versão (19 de julho de 2026) até hoje foram <strong>56 versões</strong>. Esta
         página agrupa o que foi feito <strong>por recurso</strong> — é assim que se usa a
         extensão, não versão a versão. O
         <a class="link" href="#historico">histórico completo</a>, com data e uma linha por
@@ -99,7 +99,56 @@
 
       <div class="card destaque">
         <p class="eyebrow" style="color: rgba(255,255,255,0.7)">A novidade mais recente</p>
-        <h2><span class="v novo">v0.28.0</span> O assistente lembra dos seus processos</h2>
+        <h2><span class="v novo">v0.30.0</span> Nada mais se perde — e o que importa salta aos olhos</h2>
+        <p>
+          Três correções e um recurso, todos sobre a mesma queixa: <strong>trabalho que
+          sumia</strong>. Quem gerava uma <strong>minuta</strong> ou um <strong>mapa
+          mental</strong> e fechava a aba perdia o registro — a conversa aparecia na tela,
+          mas nunca chegava a ser gravada, porque a extensão media a existência da conversa
+          pelo histórico de perguntas, e minuta e mapa não entram nele. Agora o critério é o
+          que está na tela: <strong>toda conversa com resposta é guardada</strong>, venha ela
+          do chat, da minuta, do mapa ou da escolha de peças por IA.
+        </p>
+        <p>
+          Junto foram duas perdas silenciosas: a conversa retomada podia virar uma
+          <strong>duplicata</strong> na lista, e uma conversa feita em <strong>outro
+          provedor</strong> (Claude ↔ Gemini ↔ GPT) podia ser <strong>sobrescrita</strong>
+          pela conversa nova. As duas acabaram.
+        </p>
+        <p>
+          E as respostas passaram a <strong>destacar o que você precisa notar</strong> em
+          blocos coloridos: <strong>Alerta</strong> (vermelho) para o que pode levar a erro
+          de decisão — divergência entre peças, prazo em jogo, peça essencial que não foi
+          anexada —, <strong>Atenção</strong> (âmbar) para ressalvas sobre a base da resposta
+          — a peça que é só um “Segue anexo”, o documento ilegível, o que não deu para
+          confirmar — e <strong>Nota</strong> para o resto. No máximo três por resposta, de
+          propósito: destaque que aparece em tudo deixa de destacar.
+        </p>
+        <p>
+          Por fim, os dois botões de conversa no alto do painel deixaram de ser adivinhação:
+          o de <strong>nova conversa</strong> ganhou o sinal de <strong>+</strong> dentro do
+          balão, e o das <strong>conversas guardadas</strong> mostra <strong>quantas
+          são</strong> — e o menu diz, em uma linha, que a lista é por processo e mora só
+          neste computador.
+        </p>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">Antes disso</p>
+        <h2><span class="v">v0.29.0</span> Várias conversas no mesmo processo</h2>
+        <p>
+          Um processo raramente tem uma pergunta só: a prescrição, o cálculo, a minuta da
+          sentença. Antes, cada assunto novo exigia apagar o anterior. Agora
+          <strong>“Nova conversa” deixou de destruir</strong> — a anterior é arquivada e
+          continua acessível pela <strong>lista de conversas</strong>, no alto do painel, com
+          o título tirado da primeira pergunta e a contagem de mensagens. A lista é
+          <strong>por processo</strong>, e as peças já baixadas servem a todas as conversas
+          dele: trocar de assunto não custa download nenhum. Duas abas abertas no mesmo
+          processo deixaram de disputar o mesmo registro — o trabalho da segunda vira um ramo
+          próprio em vez de sobrescrever o da primeira.
+        </p>
+
+        <h2><span class="v">v0.28.0</span> O assistente lembra dos seus processos</h2>
         <p>
           Até aqui, fechar a aba do processo apagava tudo: a conversa, as peças baixadas e o
           trabalho de ter escolhido quais delas importavam. Voltar ao mesmo processo dois dias
@@ -698,7 +747,10 @@
             <tr><th>Versão</th><th>Data</th><th>O que mudou</th></tr>
           </thead>
           <tbody>
-            <tr class="marco"><td><span class="v novo">0.28.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span><strong>Memória de processos</strong>: reabrir um processo já analisado retoma a conversa, a seleção de peças e o contexto <strong>sem baixar nada de novo</strong> — faixa de retomada no topo do chat, com botão “Esquecer este processo”. Fica guardado neste computador o texto das peças e a conversa (nunca os PDFs nem as imagens), por no máximo 14 dias e 20 processos; interruptor para desligar na configuração completa. Referências de arquivos vencidas no provedor são renovadas sozinhas antes do envio</td></tr>
+            <tr class="marco"><td><span class="v novo">0.30.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span><strong>Conversa com minuta ou mapa mental deixa de se perder</strong>: a gravação passou a considerar o que está na tela, e não só o histórico de perguntas — antes, uma sessão inteira de minutas e mapas nunca chegava ao disco. Corrigidas também duas perdas silenciosas: conversa retomada que virava duplicata e conversa de outro provedor sobrescrita pela nova. As respostas ganharam <strong>avisos em bloco</strong> — <strong>Alerta</strong> (vermelho) para o que pode levar a erro de decisão, <strong>Atenção</strong> (âmbar) para ressalvas sobre a base da resposta, <strong>Nota</strong> para o resto —, e os botões de conversa no cabeçalho ficaram distinguíveis: <strong>+</strong> no de nova conversa, <strong>contador</strong> no da lista</td></tr>
+            <tr><td><span class="v">0.29.1</span></td><td>05/08/2026</td><td>A lista de conversas não some ao excluir a penúltima, e uma pergunta deixa de virar duas conversas iguais quando duas gravações correm juntas</td></tr>
+            <tr class="marco"><td><span class="v">0.29.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span><strong>Várias conversas por processo</strong>: “Nova conversa” arquiva em vez de apagar, e a lista no alto do painel traz as conversas guardadas daquele processo, com título e nº de mensagens. As peças baixadas servem a todas elas; duas abas no mesmo processo deixam de sobrescrever o trabalho uma da outra</td></tr>
+            <tr class="marco"><td><span class="v">0.28.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span><strong>Memória de processos</strong>: reabrir um processo já analisado retoma a conversa, a seleção de peças e o contexto <strong>sem baixar nada de novo</strong> — faixa de retomada no topo do chat, com botão “Esquecer este processo”. Fica guardado neste computador o texto das peças e a conversa (nunca os PDFs nem as imagens), por no máximo 14 dias e 20 processos; interruptor para desligar na configuração completa. Referências de arquivos vencidas no provedor são renovadas sozinhas antes do envio</td></tr>
             <tr class="marco"><td><span class="v">0.27.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span><strong>Importar peças-modelo de <code>.docx</code> em lote</strong>: arraste vários arquivos e cada um vira uma ficha preenchida, com a espécie reconhecida pelo nome, cabeçalho e dispositivo; leitura 100% local; falhas nomeadas uma a uma, sem travar o lote</td></tr>
             <tr class="marco"><td><span class="v">0.26.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span><strong>Escolher com IA</strong> responde em segundos (raciocínio baixo nesta tarefa) e marca as peças ao vivo; a lista vai em ordem cronológica — antes a instrução apontava para a petição errada — e leva quem juntou, tipo, páginas e a triagem local; corte pelo meio em listas gigantes; a faixa de ações da lista não quebra mais em duas fileiras no painel expandido; a tela de configuração reúne num bloco só onde a chave fica, para onde as peças vão e <strong>por que a conexão importa</strong> (cabo » Wi-Fi)</td></tr>
             <tr><td><span class="v">0.25.2</span></td><td>05/08/2026</td><td>A linha <strong>Seguir modelos</strong> do modo minuta aparece mesmo com a biblioteca vazia, com atalho para cadastrar; respostas de chat que parecem uma peça ganham o caminho <strong>Refazer seguindo seus modelos</strong>, que devolve o pedido ao campo; regra prática do guia atualizada para o novo modelo padrão</td></tr>
@@ -757,6 +809,18 @@
           O código-fonte e as notas técnicas de cada versão estão no
           <a class="link" href="https://github.com/marcosmarf27/pje-ia/releases" target="_blank" rel="noopener">repositório do projeto</a>.
         </p>
+      </div>
+
+      <!-- O pedido de apoio fica no FIM desta página de propósito: quem chegou
+           até aqui acabou de ler a lista das melhorias, que é o argumento. -->
+      <div class="apoio">
+        <p><b>Gratuita, de código aberto e mantida toda semana.</b> Cada uma dessas
+        versões custou tempo de desenvolvimento e tokens de API — os recursos são testados
+        em processos reais antes de chegar aqui.</p>
+        <p>Se a extensão está sendo útil, apoie os próximos projetos assinando o
+        <b>TecJustiça</b> no Substack, por <b>R$ 10 mensais</b>. A extensão continua
+        inteira e gratuita para todo mundo, com ou sem assinatura.</p>
+        <a class="assinar" href="https://tecjustica.substack.com/" target="_blank" rel="noopener">Assinar o TecJustiça — R$ 10/mês ↗</a>
       </div>
 
       <p class="voltar">

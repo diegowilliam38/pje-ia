@@ -367,6 +367,18 @@ button > svg { flex: none; }
   transition: background 0.14s ease, color 0.14s ease;
 }
 .hd button:hover { background: rgba(255, 255, 255, 0.16); color: #fff; }
+/* Conversas guardadas: ícone + CONTADOR. O botão é o único do cabeçalho que
+   não é quadrado, e por um motivo — dois desenhos de balão vizinhos (listar e
+   criar) são indistinguíveis a 15px, e foi exatamente esse o relato. O número
+   diz o que o desenho não conseguia dizer: "há 3 conversas aqui dentro". Mono
+   porque é numeral (DESIGN.md §3) e --fs-nano porque numeral é o único uso
+   dessa escala. */
+.hd .convs { width: auto; min-width: 30px; gap: 5px; padding: 0 8px; }
+.hd .convs .convs-n {
+  font-family: var(--ff-mono); font-size: var(--fs-nano);
+  font-weight: 600; letter-spacing: 0.02em; line-height: 1;
+}
+.hd .convs .convs-n:empty { display: none; }
 /* O ✕ fica fora dos clusters — é a única ação irreversível da barra. */
 .hd > .close {
   background: rgba(255, 255, 255, 0.07);
@@ -867,6 +879,24 @@ button > svg { flex: none; }
   font-size: var(--fs-micro); color: var(--muted); font-weight: 600;
   padding: 5px 8px 7px; border-bottom: 1px solid var(--line-2); margin-bottom: 4px;
 }
+/* "Nova conversa" no topo da lista: quem abre o menu está decidindo entre
+   continuar uma conversa e começar outra, e a ação precisa estar onde a decisão
+   acontece. Pintada como ação primária discreta — não é um item da lista. */
+.convmenu .cm-nova {
+  display: flex; align-items: center; gap: 7px; width: 100%;
+  background: none; border: 0; cursor: pointer;
+  padding: 8px; margin-bottom: 4px; border-radius: 7px;
+  font-size: var(--fs-meta); font-weight: 600; color: var(--pje-2);
+  text-align: left;
+}
+.convmenu .cm-nova:hover { background: var(--accent-bg); }
+.convmenu .cm-nova svg { flex: none; }
+/* O rodapé responde onde a dúvida nasce: onde isto fica guardado e se é por
+   processo. É meta-informação — nunca compete com os títulos das conversas. */
+.convmenu .cm-f {
+  font-size: var(--fs-micro); color: var(--muted); line-height: 1.4;
+  padding: 8px 8px 4px; margin-top: 4px; border-top: 1px solid var(--line-2);
+}
 .convmenu .cm-row { display: flex; align-items: stretch; gap: 2px; border-radius: 7px; }
 .convmenu .cm-row:hover { background: var(--hover); }
 /* A conversa aberta fica marcada por uma barra à esquerda, não por cor de fundo:
@@ -1032,6 +1062,49 @@ button > svg { flex: none; }
   margin: 8px 0; padding: 6px 12px;
   border-left: 3px solid var(--pje); background: var(--hover-2); color: var(--text-3);
 }
+/* ---------- Aviso em bloco dentro da resposta (callout) ----------
+   O que muda a leitura do processo — "esta peça é só encaminhamento", "a peça
+   decisiva não foi anexada", "não deu para confirmar este valor" — chegava como
+   mais um parágrafo no meio de uma resposta longa. Quem lê autos lê por
+   varredura, e uma ressalva sem peso visual é uma ressalva não lida.
+
+   TRÊS níveis e não mais: --alerta-* (o que pode levar a erro de decisão),
+   --warn-* (ressalva sobre a base da resposta) e o azul da marca (observação
+   útil). A escala é a MESMA do resto do painel — o vermelho-tijolo que veste a
+   .alertbar é o mesmo que veste o [!ALERTA], porque um usuário que aprendeu o
+   significado de uma cor num canto da interface não deveria reaprendê-lo no
+   outro. A barra à esquerda de 3px é a do blockquote: o aviso é um parente
+   dele, não um componente novo. */
+.msg.assistant .callout {
+  margin: 10px 0; padding: 8px 12px 9px;
+  border-radius: var(--r-sm);
+  border: 1px solid transparent; border-left-width: 3px;
+}
+.msg.assistant .callout .co-h {
+  display: flex; align-items: center; gap: 6px;
+  font-size: var(--fs-meta); font-weight: 700;
+  letter-spacing: 0.01em; margin-bottom: 3px;
+}
+.msg.assistant .callout .co-h svg { flex: none; }
+/* O corpo herda o tamanho do balão (não encolhe): é conteúdo, não legenda. */
+.msg.assistant .callout .co-b { color: var(--text); }
+.msg.assistant .callout .co-b code { background: rgba(255, 255, 255, 0.6); }
+.msg.assistant .co-erro {
+  background: var(--alerta-bg); border-color: var(--alerta-line);
+  border-left-color: var(--alerta);
+}
+.msg.assistant .co-erro .co-h { color: var(--alerta-ink); }
+.msg.assistant .co-aviso {
+  background: var(--warn-bg); border-color: var(--warn-line);
+  border-left-color: var(--warn);
+}
+.msg.assistant .co-aviso .co-h { color: var(--warn-ink); }
+.msg.assistant .co-nota {
+  background: var(--accent-bg); border-color: var(--line);
+  border-left-color: var(--pje);
+}
+.msg.assistant .co-nota .co-h { color: var(--pje-2); }
+
 .msg.assistant hr { border: none; border-top: 1px solid var(--line); margin: 10px 0; }
 .msg.assistant code { background: var(--line-2); padding: 1px 5px; border-radius: 4px; font-size: 0.9em; font-family: var(--ff-mono); }
 .msg.assistant pre {
