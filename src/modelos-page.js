@@ -307,8 +307,12 @@
     elArquivo.addEventListener("change", async () => {
       const file = elArquivo.files && elArquivo.files[0];
       if (!file) return;
-      const rotulo = btnImportar.textContent;
-      btnImportar.textContent = "lendo…";
+      // Escrever no BOTÃO apagaria o <svg> do ícone, e o restore do finally
+      // devolveria só o texto — o ícone sumiria já na primeira importação.
+      // Mesma regra do piscar() em editor.js e do rotulo() em panel.js.
+      const alvoRot = btnImportar.querySelector("span") || btnImportar;
+      const rotulo = alvoRot.textContent;
+      alvoRot.textContent = "lendo…";
       btnImportar.disabled = true;
       try {
         const texto = await DocxImport.lerArquivo(file);
@@ -325,7 +329,7 @@
       } catch (e) {
         mostrarErro("Não foi possível importar: " + ((e && e.message) || e), null);
       } finally {
-        btnImportar.textContent = rotulo;
+        alvoRot.textContent = rotulo;
         btnImportar.disabled = false;
       }
     });

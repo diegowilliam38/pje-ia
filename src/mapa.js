@@ -139,10 +139,10 @@
     { k: "decisoes", rot: "Decisões", cor: "#a8752f", re: /\b(decis|sentenc|despacho|acordao|liminar deferid|juizo|magistrad|pronuncia|absolvic|condenac)/ },
     { k: "recursos", rot: "Recursos", cor: "#4a5d78", re: /\b(recurs|apelac|agravo|embargos|contrarrazoes|habeas|instancia superior)/ },
     { k: "prazos", rot: "Prazos", cor: "#b04a3f", re: /\b(prazo|prescri|decadenci|intimac|citac|suspens|tempestiv)/ },
-    { k: "situacao", rot: "Situação atual", cor: "#0078aa", re: /\b(situac|andamento|atual|conclus|proximos passos|pendenci|status|providencia)/ },
+    { k: "situacao", rot: "Situação atual", cor: "#14607e", re: /\b(situac|andamento|atual|conclus|proximos passos|pendenci|status|providencia)/ },
   ];
 
-  const COR_PADRAO = "#0078aa";
+  const COR_PADRAO = "#14607e";
 
   function norm(s) {
     return String(s || "")
@@ -418,7 +418,11 @@
     window.addEventListener("beforeprint", () => mm && mm.fit());
     $("#tema").addEventListener("click", () => {
       const escuro = document.documentElement.classList.toggle("markmap-dark");
-      $("#tema").textContent = escuro ? "☀" : "🌙";
+      // innerHTML do ÍCONE, não textContent do botão: escrever no botão
+      // apagaria o <svg> e o tema ficaria sem controle a partir do 1º clique.
+      $("#tema").innerHTML = escuro
+        ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2"/><path d="M12 19v2"/><path d="M3 12h2"/><path d="M19 12h2"/><path d="M5.6 5.6l1.4 1.4"/><path d="M17 17l1.4 1.4"/><path d="M18.4 5.6L17 7"/><path d="M7 17l-1.4 1.4"/></svg>'
+        : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>';
       $("#tema").title = escuro ? "Voltar ao tema claro" : "Tema escuro";
     });
     $("#md").addEventListener("click", () => {

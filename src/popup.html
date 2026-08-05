@@ -2,6 +2,7 @@
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8" />
+    <link rel="stylesheet" href="fontes.css" />
     <link rel="stylesheet" href="ui.css" />
     <style>
       /* 460px: o popup do Chrome aceita até 800px, e com 340 o nome do modelo
@@ -39,91 +40,136 @@
         <span class="dot"></span><span id="chipText">Chave não configurada</span>
       </div>
 
-      <!-- Chaves: recolhidas quando JÁ configuradas (popup.js abre as que faltam).
-           No dia a dia o popup é aberto para trocar de modelo, não para
-           reescrever a chave — e cada campo aberto custava 99px dos 600px que o
-           popup do Chrome tem. Os inputs seguem no DOM, então salvar não muda. -->
-      <details class="keybox" id="boxA">
-        <summary>
-          Chave da API — Anthropic (Claude)
+      <!-- PROVEDOR EM PRIMEIRO PLANO. Antes eram três acordeões de chave
+           competindo por atenção; agora escolhe-se o provedor e só a chave dele
+           aparece. O provedor NÃO é estado novo: continua derivado do `model`
+           salvo (provedorDoModelo), então nada muda no storage nem no worker. -->
+      <div class="eyebrow-row">
+        <span class="eyebrow">Provedor</span>
+        <span class="eyebrow-n" id="provCount"></span>
+      </div>
+      <div class="prov-grid" role="tablist" aria-label="Provedor de IA">
+        <button class="prov" type="button" id="provA" data-prov="anthropic" role="tab" aria-selected="false">
+          <span class="prov-i pa">A</span>
+          <span class="prov-n">Claude</span>
           <span class="kstate" id="kstateA">não configurada</span>
-        </summary>
-        <div class="keybox-in">
+        </button>
+        <button class="prov" type="button" id="provG" data-prov="gemini" role="tab" aria-selected="false">
+          <span class="prov-i pg">G</span>
+          <span class="prov-n">Gemini</span>
+          <span class="kstate" id="kstateG">não configurada</span>
+        </button>
+        <button class="prov" type="button" id="provO" data-prov="openai" role="tab" aria-selected="false">
+          <span class="prov-i po">O</span>
+          <span class="prov-n">GPT</span>
+          <span class="kstate" id="kstateO">não configurada</span>
+        </button>
+      </div>
+
+      <!-- Cartão do provedor ativo: chave, modelo e raciocínio num bloco só.
+           Os TRÊS inputs de chave seguem no DOM (só o do provedor ativo fica
+           visível), então o "Salvar" continua lendo os três — nenhuma mudança
+           no formato do storage. -->
+      <div class="provcard">
+        <div class="pc-sec" id="keyA" data-prov="anthropic">
+          <div class="pc-head">
+            <label for="apiKey">Chave da API — Anthropic (Claude)</label>
+            <button type="button" class="pc-trocar" data-alvo="apiKey" hidden>Trocar</button>
+          </div>
+          <div class="keymask" hidden><span class="km-v"></span><span class="km-t">local</span></div>
           <div class="pw-row">
             <input id="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off" aria-label="Chave da API da Anthropic" />
             <button class="toggle-pw" id="togglePw" type="button">mostrar</button>
           </div>
           <span class="hint">Não tem uma chave? <a href="help.html" target="_blank">Veja o passo a passo →</a></span>
         </div>
-      </details>
 
-      <details class="keybox" id="boxG">
-        <summary>
-          Chave da API — Google (Gemini)
-          <span class="kstate" id="kstateG">não configurada</span>
-        </summary>
-        <div class="keybox-in">
+        <div class="pc-sec" id="keyG" data-prov="gemini" hidden>
+          <div class="pc-head">
+            <label for="geminiApiKey">Chave da API — Google (Gemini)</label>
+            <button type="button" class="pc-trocar" data-alvo="geminiApiKey" hidden>Trocar</button>
+          </div>
+          <div class="keymask" hidden><span class="km-v"></span><span class="km-t">local</span></div>
           <div class="pw-row">
             <input id="geminiApiKey" type="password" placeholder="AIza..." autocomplete="off" aria-label="Chave da API do Google" />
             <button class="toggle-pw" id="togglePwG" type="button">mostrar</button>
           </div>
-          <span class="hint">Opcional. Crie em aistudio.google.com — <a href="help.html#gemini" target="_blank">passo a passo →</a></span>
+          <span class="hint">Crie em aistudio.google.com — <a href="help.html#gemini" target="_blank">passo a passo →</a></span>
         </div>
-      </details>
 
-      <details class="keybox" id="boxO">
-        <summary>
-          Chave da API — OpenAI (GPT)
-          <span class="kstate" id="kstateO">não configurada</span>
-        </summary>
-        <div class="keybox-in">
+        <div class="pc-sec" id="keyO" data-prov="openai" hidden>
+          <div class="pc-head">
+            <label for="openaiApiKey">Chave da API — OpenAI (GPT)</label>
+            <button type="button" class="pc-trocar" data-alvo="openaiApiKey" hidden>Trocar</button>
+          </div>
+          <div class="keymask" hidden><span class="km-v"></span><span class="km-t">local</span></div>
           <div class="pw-row">
             <input id="openaiApiKey" type="password" placeholder="sk-..." autocomplete="off" aria-label="Chave da API da OpenAI" />
             <button class="toggle-pw" id="togglePwO" type="button">mostrar</button>
           </div>
-          <span class="hint">Opcional. Crie em platform.openai.com — <a href="help.html#openai" target="_blank">passo a passo →</a></span>
+          <span class="hint">Crie em platform.openai.com — <a href="help.html#openai" target="_blank">passo a passo →</a></span>
         </div>
-      </details>
 
       <label class="field" for="model">Modelo</label>
       <select id="model">
-        <optgroup label="Claude (Anthropic)">
+        <optgroup label="Claude (Anthropic)" data-prov="anthropic">
           <option value="claude-haiku-4-5">Claude Haiku 4.5 (padrão — rápido e barato)</option>
           <option value="claude-sonnet-5">Claude Sonnet 5 (processos grandes — 1M tokens)</option>
           <option value="claude-opus-4-8">Claude Opus 4.8</option>
           <option value="claude-fable-5">Claude Fable 5 (mais capaz)</option>
         </optgroup>
-        <optgroup label="Gemini (Google)">
+        <optgroup label="Gemini (Google)" data-prov="gemini">
           <option value="gemini-3.6-flash">Gemini 3.6 Flash (recomendado — 1M tokens, rápido)</option>
           <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite (1M tokens — o mais barato)</option>
         </optgroup>
-        <optgroup label="GPT (OpenAI)">
+        <optgroup label="GPT (OpenAI)" data-prov="openai">
           <option value="gpt-5.6-luna">GPT-5.6 Luna (recomendado — 1M tokens, rápido e barato)</option>
           <option value="gpt-5.6-terra">GPT-5.6 Terra (1M tokens — equilibrado)</option>
           <option value="gpt-5.6-sol">GPT-5.6 (Sol — o mais capaz)</option>
         </optgroup>
       </select>
 
-      <label class="field" for="effort">Nível de raciocínio</label>
-      <div class="row2">
-        <select id="effort">
-          <option value="high" selected>Alto (recomendado)</option>
-          <option value="medium">Médio</option>
-          <option value="low">Baixo</option>
-        </select>
-        <span class="side-hint">Alto = mais qualidade; baixo = mais rápido e barato.</span>
+      <div class="pc-head pc-head-sp">
+        <label class="field" id="effortLab">Nível de raciocínio</label>
+        <span class="side-hint" id="effortHint">Alto (recomendado)</span>
       </div>
+      <!-- Segmented: os <input type=radio> ficam FORA DA TELA, nunca em
+           display:none — continuam sendo a fonte de verdade do estado e o par
+           label+input mantém foco por teclado, setas e leitor de tela. Exige
+           :has(input:focus-visible) no .seg-i, senão o anel de foco some junto.
+           Mesmo padrão do segmented da lista de peças (DESIGN.md §5). -->
+      <div class="seg" id="effort" role="radiogroup" aria-labelledby="effortLab">
+        <label class="seg-i"><input type="radio" name="effort" value="low" /><span>Baixo</span></label>
+        <label class="seg-i"><input type="radio" name="effort" value="medium" /><span>Médio</span></label>
+        <label class="seg-i"><input type="radio" name="effort" value="high" checked /><span>Alto</span></label>
+      </div>
+      </div><!-- /.provcard -->
 
       <label class="field" for="customPrompt">Instruções personalizadas (opcional)
         <span class="hint">Quem você é e como quer as respostas — vale para Claude, Gemini e GPT.</span>
       </label>
       <textarea id="customPrompt" rows="2" maxlength="4000" placeholder="Ex.: Sou advogado(a) da parte autora; aponte riscos e teses favoráveis…"></textarea>
+      <!-- Preenchem o campo (nunca salvam sozinhos): quem abre o popup pela
+           primeira vez não sabe o que escrever aqui, e um exemplo concreto
+           ensina mais rápido que a dica acima. -->
+      <div class="personas" id="personas">
+        <button type="button" class="persona" data-txt="Sou advogado(a). Aponte riscos processuais, teses favoráveis à minha parte e prazos em aberto.">Advogado(a)</button>
+        <button type="button" class="persona" data-txt="Sou servidor(a) do juízo. Priorize a triagem: o que está pendente de decisão, o que já preclui e o que falta juntar.">Servidor(a)</button>
+        <button type="button" class="persona" data-txt="Sou magistrado(a). Resuma controvérsia, provas produzidas e teses de cada parte, indicando o que ainda precisa ser decidido.">Magistrado(a)</button>
+      </div>
 
       <!-- O status do salvamento fica SOBRE o botão (posição absoluta): como
            bloco próprio ele reservava 30px vazios em toda abertura do popup. -->
       <div class="save-row">
-        <button class="btn" id="save">Salvar configuração</button>
+        <div class="save-acts">
+          <button class="btn btn-sec" id="testKey" type="button">Testar chave</button>
+          <button class="btn" id="save">Salvar configuração</button>
+        </div>
         <div class="save-status" id="saveStatus"></div>
+      </div>
+      <div class="lock-note">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+        As chaves ficam neste navegador — nunca em nossos servidores.
       </div>
 
       <!-- Passos do PRIMEIRO USO: popup.js esconde este bloco assim que existe
@@ -141,7 +187,7 @@
         </div>
         <div class="step">
           <div class="n">3</div>
-          <div class="txt">Clique no botão <b>⚖️ Analisar com IA</b> no canto inferior direito da página.</div>
+          <div class="txt">Clique no botão <b>Analisar com IA</b> no canto inferior direito da página.</div>
         </div>
       </div>
 
@@ -150,16 +196,11 @@
       </div>
 
       <div class="foot">
-        <a href="editor.html" target="_blank">📝 Minhas minutas</a>
-        <span class="sep">·</span>
-        <a href="modelos.html" target="_blank">📚 Modelos</a>
-        <span class="sep">·</span>
+        <a href="editor.html" target="_blank">Minhas minutas</a>
+        <a href="modelos.html" target="_blank">Modelos</a>
         <a href="#" id="abrirOpcoes">Configuração completa</a>
-        <span class="sep">·</span>
         <a href="help.html" target="_blank">Ajuda e preços</a>
-        <span class="sep">·</span>
-        <a href="changelog.html" target="_blank">✨ Novidades</a>
-        <span class="sep">·</span>
+        <a href="changelog.html" target="_blank">Novidades</a>
         <a href="https://github.com/marcosmarf27/pje-ia/blob/main/PRIVACY.md" target="_blank" rel="noopener">Privacidade</a>
       </div>
     </div>

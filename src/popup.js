@@ -18,9 +18,19 @@ const kstateG = document.getElementById("kstateG");
 const kstateO = document.getElementById("kstateO");
 const firstRun = document.getElementById("firstRun");
 const abrirOpcoes = document.getElementById("abrirOpcoes");
-const boxA = document.getElementById("boxA");
-const boxG = document.getElementById("boxG");
-const boxO = document.getElementById("boxO");
+// Layout "provedor em primeiro plano"
+const provCount = document.getElementById("provCount");
+const testKey = document.getElementById("testKey");
+const effortHint = document.getElementById("effortHint");
+const provs = [...document.querySelectorAll(".prov")];
+const keySecs = [...document.querySelectorAll(".pc-sec[data-prov]")];
+const personas = [...document.querySelectorAll(".persona")];
+
+const PROVS = ["anthropic", "gemini", "openai"];
+const NOME_PROVEDOR = { anthropic: "Anthropic", gemini: "Google", openai: "OpenAI" };
+// Primeiro modelo de cada provedor = o recomendado. Clicar num cartão troca
+// para ele; o provedor NÃO é gravado no storage — continua derivado do `model`.
+const PADRAO = { anthropic: "claude-haiku-4-5", gemini: "gemini-3.6-flash", openai: "gpt-5.6-luna" };
 
 // O chip reflete a chave do PROVEDOR do modelo selecionado: escolher um modelo
 // de um provedor sem a chave dele avisa na hora, antes mesmo de salvar. O
@@ -34,7 +44,6 @@ function provedorDoModelo() {
 function campoDoProvedor(p) {
   return p === "gemini" ? geminiKeyEl : p === "openai" ? openaiKeyEl : apiKeyEl;
 }
-const NOME_PROVEDOR = { anthropic: "Anthropic", gemini: "Google", openai: "OpenAI" };
 // Nome curto do modelo escolhido ("Claude Haiku 4.5"), tirado do próprio
 // <option> — sem duplicar aqui a tabela de nomes que já está no HTML.
 function nomeDoModelo() {
@@ -44,6 +53,25 @@ function nomeDoModelo() {
 function temChaveDigitada(el) {
   return !!(el && el.value.trim());
 }
+
+// O nível de raciocínio é um SEGMENTED nas duas páginas (os <input type=radio>
+// vivem fora da tela e continuam sendo a fonte de verdade). Não há mais o
+// caminho de <select> que existia enquanto options.html tinha layout próprio.
+function getEffort() {
+  if (!effortEl) return "high";
+  const m = effortEl.querySelector("input:checked");
+  return m ? m.value : "high";
+}
+function setEffort(v) {
+  if (!effortEl || !v) return;
+  const alvo = effortEl.querySelector('input[value="' + v + '"]');
+  if (alvo) alvo.checked = true;
+}
+const EFFORT_TXT = {
+  low: "Baixo — mais rápido e barato",
+  medium: "Médio — equilíbrio",
+  high: "Alto (recomendado)",
+};
 function setChip() {
   const prov = provedorDoModelo();
   const temChave = temChaveDigitada(campoDoProvedor(prov));
@@ -55,6 +83,12 @@ function setChip() {
   marcarChave(kstateA, apiKeyEl.value);
   marcarChave(kstateG, geminiKeyEl.value);
   marcarChave(kstateO, openaiKeyEl && openaiKeyEl.value);
+  if (provCount) {
+    const n = PROVS.filter((p) => temChaveDigitada(campoDoProvedor(p))).length;
+    provCount.textContent = n + " de 3 configurados";
+  }
+  if (effortHint) effortHint.textContent = EFFORT_TXT[getEffort()] || "";
+  pintarProvedores(prov);
 }
 function marcarChave(el, valor) {
   if (!el) return;
@@ -63,21 +97,50 @@ function marcarChave(el, valor) {
   el.textContent = tem ? "configurada" : "não configurada";
 }
 
-// Abre a chave que FALTA para o modelo ativo — no carregamento E a cada troca
-// de modelo: sem isto, escolher um modelo de um provedor sem chave mostrava o
-// aviso com o campo recolhido, e a linha fechada não parece clicável para quem
-// nunca a abriu. Só ABRE (as chaves nascem fechadas no HTML): fechar o que o
-// usuário abriu na mão seria hostil.
-function abrirChaveQueFalta() {
-  const prov = provedorDoModelo();
-  const faltaA = !apiKeyEl.value.trim();
-  const faltaG = !geminiKeyEl.value.trim();
-  const faltaO = !(openaiKeyEl && openaiKeyEl.value.trim());
-  const primeiroUso = faltaA && faltaG && faltaO;
-  if (boxA && faltaA && (primeiroUso || prov === "anthropic")) boxA.open = true;
-  if (boxG && faltaG && (primeiroUso || prov === "gemini")) boxG.open = true;
-  if (boxO && faltaO && (primeiroUso || prov === "openai")) boxO.open = true;
+// Só a chave do provedor ATIVO fica visível, e o <select> de modelo mostra só
+// os modelos dele. É o que troca três acordeões concorrentes por uma escolha.
+function pintarProvedores(prov) {
+  provs.forEach((b) => b.setAttribute("aria-selected", String(b.dataset.prov === prov)));
+  keySecs.forEach((s) => (s.hidden = s.dataset.prov !== prov));
+  if (modelEl && provs.length) {
+    for (const g of modelEl.querySelectorAll("optgroup")) {
+      const pg = g.dataset.prov || "";
+      if (pg) g.hidden = pg !== prov;
+    }
+  }
 }
+
+// Chave já salva vira linha mascarada: a chave inteira nunca volta à tela.
+function mascarar(v) {
+  const s = String(v || "").trim();
+  if (s.length <= 10) return "••••••••";
+  return s.slice(0, 4) + "••••••••••••" + s.slice(-4);
+}
+function pintarMascara(sec, valor) {
+  if (!sec) return;
+  const mask = sec.querySelector(".keymask");
+  const row = sec.querySelector(".pw-row");
+  const hint = sec.querySelector(".hint");
+  const trocar = sec.querySelector(".pc-trocar");
+  const tem = !!String(valor || "").trim();
+  if (!mask || !row) return;
+  mask.hidden = !tem;
+  row.hidden = tem;
+  if (hint) hint.hidden = tem;
+  if (trocar) trocar.hidden = !tem;
+  if (tem) mask.querySelector(".km-v").textContent = mascarar(valor);
+}
+function pintarMascaras() {
+  pintarMascara(document.getElementById("keyA"), apiKeyEl.value);
+  pintarMascara(document.getElementById("keyG"), geminiKeyEl.value);
+  pintarMascara(document.getElementById("keyO"), openaiKeyEl && openaiKeyEl.value);
+}
+
+// A função `abrirChaveQueFalta` foi removida com o layout de acordeão: ela abria
+// os `<details>` boxA/boxG/boxO, que não existem mais em nenhuma das duas telas.
+// Como todos os acessos eram guardados por `if (box…)`, ela já era um no-op
+// chamado a cada troca de modelo — e o comentário dela descrevia um layout
+// inexistente. Quem mostra a chave do provedor ativo agora é `pintarProvedores`.
 
 chrome.storage.local.get(
   ["apiKey", "geminiApiKey", "openaiApiKey", "model", "effort", "customPrompt"],
@@ -86,15 +149,15 @@ chrome.storage.local.get(
     if (v.geminiApiKey) geminiKeyEl.value = v.geminiApiKey;
     if (openaiKeyEl && v.openaiApiKey) openaiKeyEl.value = v.openaiApiKey;
     if (v.model) modelEl.value = v.model;
-    if (effortEl && v.effort) effortEl.value = v.effort;
+    if (v.effort) setEffort(v.effort);
     if (customEl && v.customPrompt) customEl.value = v.customPrompt;
+    pintarMascaras();
     setChip();
     // Os passos "Como usar" só existem enquanto NENHUMA chave foi salva: é
     // quando eles servem, e é o que faz o popup caber sem rolagem depois.
     // O critério é o que está SALVO (não o que está sendo digitado) — sumir no
     // meio da digitação seria um salto de layout no meio da tarefa.
     if (firstRun && (v.apiKey || v.geminiApiKey || v.openaiApiKey)) firstRun.hidden = true;
-    abrirChaveQueFalta();
   }
 );
 
@@ -110,13 +173,70 @@ ligarToggle(togglePw, apiKeyEl);
 ligarToggle(togglePwG, geminiKeyEl);
 ligarToggle(togglePwO, openaiKeyEl);
 
+// Clicar num cartão de provedor troca o modelo para o recomendado dele. Não
+// grava nada: o provedor segue derivado do `model` no próximo carregamento.
+provs.forEach((b) => {
+  b.addEventListener("click", () => {
+    const p = b.dataset.prov;
+    if (provedorDoModelo() !== p) modelEl.value = PADRAO[p];
+    setChip();
+  });
+});
+// "Trocar": devolve o campo editável e limpa o valor — quem troca digita
+// outra chave, não edita a atual (que nunca é exibida por inteiro).
+document.querySelectorAll(".pc-trocar").forEach((b) => {
+  b.addEventListener("click", () => {
+    const alvo = document.getElementById(b.dataset.alvo);
+    if (!alvo) return;
+    alvo.value = "";
+    pintarMascaras();
+    setChip();
+    alvo.focus();
+  });
+});
+personas.forEach((b) => {
+  b.addEventListener("click", () => {
+    if (!customEl) return;
+    const t = b.dataset.txt || "";
+    customEl.value = customEl.value.trim() ? customEl.value.trim() + "\n" + t : t;
+    customEl.focus();
+  });
+});
+
 modelEl.addEventListener("change", () => {
+  // setChip → pintarProvedores já revela a chave do provedor recém-escolhido.
   setChip();
-  abrirChaveQueFalta(); // trocou para um provedor sem chave: mostra o campo
 });
 apiKeyEl.addEventListener("input", setChip);
 geminiKeyEl.addEventListener("input", setChip);
 if (openaiKeyEl) openaiKeyEl.addEventListener("input", setChip);
+if (effortEl) effortEl.addEventListener("change", setChip);
+
+// "Testar chave": lista os modelos do provedor (GET), que valida a credencial
+// SEM consumir tokens. Roda no worker, que já sabe escolher a chave por
+// provedor — e assim a chave não passa por mais um contexto do que precisa.
+if (testKey) {
+  testKey.addEventListener("click", () => {
+    const prov = provedorDoModelo();
+    const chave = campoDoProvedor(prov).value.trim();
+    if (!chave) {
+      saveStatus.textContent = "Digite a chave da " + NOME_PROVEDOR[prov] + " primeiro.";
+      setTimeout(() => (saveStatus.textContent = ""), 2500);
+      return;
+    }
+    testKey.disabled = true;
+    saveStatus.textContent = "Testando…";
+    chrome.runtime.sendMessage({ type: "testarChave", provider: prov, key: chave }, (r) => {
+      testKey.disabled = false;
+      saveStatus.textContent = chrome.runtime.lastError
+        ? "Não foi possível testar agora."
+        : r && r.ok
+          ? "Chave válida."
+          : "Chave recusada: " + ((r && r.erro) || "verifique e tente de novo.");
+      setTimeout(() => (saveStatus.textContent = ""), 4000);
+    });
+  });
+}
 
 // "Configuração completa" (só no popup): a página de opções tem as mesmas
 // preferências com as explicações longas e espaço para escrever as instruções
@@ -134,9 +254,10 @@ saveBtn.addEventListener("click", () => {
   const geminiApiKey = geminiKeyEl.value.trim();
   const openaiApiKey = openaiKeyEl ? openaiKeyEl.value.trim() : "";
   const cfg = { apiKey, geminiApiKey, openaiApiKey, model: modelEl.value };
-  if (effortEl) cfg.effort = effortEl.value;
+  if (effortEl) cfg.effort = getEffort();
   if (customEl) cfg.customPrompt = customEl.value.trim();
   chrome.storage.local.set(cfg, () => {
+    pintarMascaras();
     setChip();
     // salvou a primeira chave: os passos de primeiro uso cumpriram seu papel
     if (firstRun && (apiKey || geminiApiKey || openaiApiKey)) firstRun.hidden = true;

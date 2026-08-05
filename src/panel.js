@@ -162,42 +162,106 @@ var PjePanel = (function () {
   // nova conversa (balão com +), expandir (seta horizontal dupla), lateral
   // (retângulo com coluna à direita), janela livre (janela com barra de
   // título), tela cheia (setas diagonais para os cantos) e fechar (X).
+  // ---------------------------------------------------------------------------
+  // Ícones. Traçado em grade de 24, fill:none, currentColor — nada de emoji, que
+  // renderiza diferente em cada sistema, não aceita currentColor e não alinha na
+  // grade óptica dos demais. A ESPESSURA varia por contexto (DESIGN.md §5): um
+  // valor único faz o ícone de 13px pesar mais que o de 18px.
+  // ---------------------------------------------------------------------------
+  const P = {
+    download: '<path d="M12 4v11"/><path d="M7 11l5 5 5-5"/><path d="M5 20h14"/>',
+    chat: '<path d="M20 15a3 3 0 0 1-3 3H9l-4 3v-4H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3z"/>',
+    close: '<path d="M6 6l12 12"/><path d="M18 6L6 18"/>',
+    x: '<path d="M6 6l12 12"/><path d="M18 6L6 18"/>',
+    copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 5H6a2 2 0 0 0-2 2v9"/>',
+    fold: '<path d="M13 7l-5 5 5 5"/><path d="M19 7l-5 5 5 5"/>',
+    // modos de layout — o retângulo é o painel; a divisória diz onde ele encosta
+    side: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M14 5v14"/>',
+    sideL: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 5v14"/>',
+    split: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/>',
+    expand: '<path d="M8 8L4 12l4 4"/><path d="M16 8l4 4-4 4"/><path d="M4 12h16"/>',
+    fs: '<path d="M14 4h6v6"/><path d="M10 20H4v-6"/><path d="M20 4l-7 7"/><path d="M4 20l7-7"/>',
+    fsOff: '<path d="M9 4H4v5"/><path d="M15 20h5v-5"/><path d="M4 4l6 6"/><path d="M20 20l-6-6"/>',
+    // a lista recolhe/expande: o chevron DENTRO do retângulo dá o sentido da
+    // ação (← recolhe, → traz de volta). Sem ele o ícone ficava idêntico ao do
+    // modo lateral e ninguém achava o botão.
+    docshide: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M9 5v14"/><path d="M16 8.5L12.5 12l3.5 3.5"/>',
+    docsshow: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M9 5v14"/><path d="M12.5 8.5L16 12l-3.5 3.5"/>',
+    lupa: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/>',
+    reload: '<path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 4v4h-4"/>',
+    check: '<path d="M20 6L9 17l-5-5"/>',
+    chevron: '<path d="M7 10l5 5 5-5"/>',
+    enviar: '<path d="M5 12h13"/><path d="M12 6l6 6-6 6"/>',
+    mais: '<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
+    lista: '<path d="M4 5h13"/><path d="M4 12h10"/><path d="M4 19h7"/>',
+    info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5"/><path d="M12 8h.01"/>',
+    doc: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',
+    ver: '<circle cx="12" cy="12" r="4.2"/><path d="M12 3.6v2.8"/><path d="M12 17.6v2.8"/><path d="M3.6 12h2.8"/><path d="M17.6 12h2.8"/>',
+    // toolbar
+    minuta: '<path d="M5 20h14"/><path d="M15 4l5 5-9 9H6v-5z"/>',
+    mapa: '<circle cx="12" cy="12" r="3"/><path d="M12 9V5"/><path d="M14.5 13.5l3 2.5"/><path d="M9.5 13.5l-3 2.5"/>',
+    prompts: '<path d="M12 4l1.8 4.2L18 10l-4.2 1.8L12 16l-1.8-4.2L6 10l4.2-1.8z"/><path d="M18 16l.9 2.1L21 19l-2.1.9L18 22l-.9-2.1L15 19l2.1-.9z"/>',
+    modelos: '<path d="M4 6h7v14H4z"/><path d="M13 6h7v14h-7z"/>',
+  };
+  // px = lado do ícone; w = stroke-width (a escala do DESIGN.md §5).
+  function ic(paths, px, w) {
+    return (
+      '<svg width="' + px + '" height="' + px + '" viewBox="0 0 24 24" fill="none" ' +
+      'stroke="currentColor" stroke-width="' + w + '" stroke-linecap="round" ' +
+      'stroke-linejoin="round" aria-hidden="true">' + paths + "</svg>"
+    );
+  }
+
+  // Botões da toolbar são <svg> + <span class="lbl">: trocar o texto do botão
+  // inteiro destruiria o ícone. Estes dois helpers mexem em um sem tocar no
+  // outro; se o .lbl não existir (botão sem ícone), caem no próprio elemento.
+  function rotulo(btn, txt) {
+    if (!btn) return;
+    const el = btn.querySelector(".lbl") || btn;
+    el.textContent = txt;
+  }
+  function icone(btn, svg) {
+    const el = btn && btn.querySelector("svg");
+    if (el) el.outerHTML = svg;
+  }
+
   const SVG = {
-    free:
-      '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.5" width="12.4" height="11" rx="1.5"/><path d="M1.8 5.4h12.4"/></svg>',
-    fs:
-      '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2.5h4v4M13.5 2.5L9 7M6.5 13.5h-4v-4M2.5 13.5L7 9"/></svg>',
-    expand:
-      '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M5 5.5L2.5 8 5 10.5M11 5.5L13.5 8 11 10.5"/></svg>',
-    side:
-      '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.5" width="12.4" height="11" rx="1.5"/><path d="M9.8 2.5v11"/></svg>',
-    // ocultar/exibir a lista de peças: o chevron DENTRO do retângulo dá o
-    // sentido da ação (← recolhe a coluna, → traz de volta) — sem ele o ícone
-    // ficava idêntico ao do modo lateral e ninguém achava o botão
-    docshide:
-      '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.5" width="12.4" height="11" rx="1.5"/><path d="M6.2 2.5v11"/><path d="M11.4 5.9L9.3 8l2.1 2.1"/></svg>',
-    docsshow:
-      '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.5" width="12.4" height="11" rx="1.5"/><path d="M6.2 2.5v11"/><path d="M9.3 5.9L11.4 8l-2.1 2.1"/></svg>',
-    fold:
-      '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 3.5L4 8l4.5 4.5M13 3.5L8.5 8l4.5 4.5"/></svg>',
-    ver:
-      '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="4.2"/><path d="M8 1.4v2.6M8 12v2.6M1.4 8h2.6M12 8h2.6"/></svg>',
-    close:
-      '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9"/></svg>',
-    reset:
-      '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 7.6c0 2.7-2.7 4.9-6 4.9-.8 0-1.6-.1-2.3-.4L2.6 13l1-2.3C2.6 9.8 2 8.8 2 7.6c0-2.7 2.7-4.9 6-4.9s6 2.2 6 4.9z"/><path d="M8 5.7v3.8M6.1 7.6h3.8"/></svg>',
-    download:
-      '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v7M5 6.7l3 3 3-3M3 13h10"/></svg>',
-    copy:
-      '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/></svg>',
-    doc:
-      '<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 1.5h-5a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V5z"/><path d="M9.5 1.5V5h3"/></svg>',
-    x:
-      '<svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9"/></svg>',
-    check:
-      '<svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5l3.5 3.5 7-8"/></svg>',
-    lupa:
-      '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.6 10.6L14 14"/></svg>',
+    free: ic(P.split, 15, 1.8),
+    fs: ic(P.fs, 15, 1.8),
+    fsOff: ic(P.fsOff, 15, 1.8),
+    expand: ic(P.expand, 15, 1.8),
+    side: ic(P.side, 15, 1.8),
+    sideL: ic(P.sideL, 15, 1.8),
+    docshide: ic(P.docshide, 15, 1.8),
+    docsshow: ic(P.docsshow, 15, 1.8),
+    fold: ic(P.fold, 13, 2),
+    ver: ic(P.ver, 12, 1.8),
+    close: ic(P.close, 15, 1.9),
+    reset: ic(P.chat, 15, 1.8),
+    download: ic(P.download, 15, 1.8),
+    copy: ic(P.copy, 13, 1.8),
+    doc: ic(P.doc, 11, 1.8),
+    x: ic(P.x, 9, 3),
+    check: ic(P.check, 10, 2),
+    lupa: ic(P.lupa, 12, 2),
+    // --- toolbar: a cor vem do CSS (currentColor), a espessura é 1.9 ---
+    cancel: ic(P.close, 13, 1.9), // ✕ no tamanho da toolbar, não o de chip
+    ia: ic(P.prompts, 13, 2),
+    novo: ic('<path d="M12 5v14"/><path d="M5 12h14"/>', 13, 2),
+    juris: ic(P.lupa, 13, 1.9),
+    minuta: ic(P.minuta, 13, 1.9),
+    mapa: ic(P.mapa, 13, 1.9),
+    prompts: ic(P.prompts, 13, 1.9),
+    modelos: ic(P.modelos, 13, 1.9),
+    // --- demais ---
+    info: ic(P.info, 15, 1.8),
+    enviar: ic(P.enviar, 14, 2),
+    chevron: ic(P.chevron, 11, 2.2),
+    mais: ic(P.mais, 15, 1.8),
+    lista: ic(P.lista, 15, 1.9),
+    reload: ic(P.reload, 13, 2),
+    zip: ic(P.download, 13, 2),
+    play: '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5l10 7-10 7z"/></svg>',
   };
 
   // Título curto da peça (sem o prefixo numérico do id) para chips e menções.
@@ -373,14 +437,14 @@ var PjePanel = (function () {
     "O PJe só carrega as peças conforme a linha do tempo é rolada — esta lista " +
     "pode estar incompleta. Clique em “Carregar tudo” para rolar a " +
     "linha do tempo até o fim.";
-  const TIP_PADRAO = "⚠️ " + TIP_PADRAO_ATTR;
+  const TIP_PADRAO = TIP_PADRAO_ATTR;
 
   // Tooltip do medidor: no painel estreito o texto visível é a forma curta, e
   // a frase completa é acrescentada AQUI pelo setContexto — o dado nunca some.
   const GAUGE_TITLE =
     "Quanto do limite do modelo esta conversa já ocupa (tokens e páginas de " +
-    "PDF). Ao encher, desmarque peças (libera espaço na hora) ou clique em ⟲ " +
-    "para começar uma nova conversa.";
+    "PDF). Ao encher, desmarque peças (libera espaço na hora) ou use o botão " +
+    "“Nova conversa”, no cabeçalho.";
 
   // Exemplos do estado vazio: clicar PREENCHE o campo (não envia — sem peça
   // marcada o envio falharia). Ensinam o gesto sem gastar um parágrafo.
@@ -425,6 +489,30 @@ var PjePanel = (function () {
     return livre ? promptTexto + "\n\n" + livre : promptTexto;
   }
 
+  // As @font-face vão para o <head> da PÁGINA, não para o Shadow DOM: regra
+  // @font-face dentro de shadow tree é ignorada pela spec de CSS Scoping (e o
+  // Chrome cumpre), então a família nunca seria registrada e todo o painel
+  // cairia no fallback — em silêncio, sem erro no console. Injetar só
+  // @font-face na página é inócuo: registra nomes, não altera nenhum estilo
+  // dela. E o prefixo relativo precisa virar absoluto porque o CSS é injetado
+  // como TEXTO (uma url() relativa resolveria contra o host do tribunal).
+  // Ver DESIGN.md §3.
+  function injetarFontes() {
+    if (document.getElementById("pje-ia-fontes")) return;
+    fetch(chrome.runtime.getURL("src/fontes.css"))
+      .then((r) => r.text())
+      .then((css) => {
+        const el = document.createElement("style");
+        el.id = "pje-ia-fontes";
+        el.textContent = css.replaceAll(
+          "../vendor/fontes/",
+          chrome.runtime.getURL("vendor/fontes/")
+        );
+        (document.head || document.documentElement).appendChild(el);
+      })
+      .catch(() => {}); // sem fonte a stack de fallback assume; nada quebra
+  }
+
   function mount() {
     const host = document.createElement("div");
     host.id = "pje-ia-host";
@@ -437,27 +525,32 @@ var PjePanel = (function () {
       .then((r) => r.text())
       .then((css) => (styleEl.textContent = css))
       .catch(() => {});
+    injetarFontes();
 
     const iconUrl = chrome.runtime.getURL("icons/icon48.png");
     const wrap = document.createElement("div");
     wrap.className = "wrap pulse";
     wrap.innerHTML = `
       <div class="backdrop"></div>
-      <button class="launcher"><span class="sc">⚖️</span> Analisar com IA</button>
+      <button class="launcher"><span class="sc">${SVG.prompts}</span> Analisar com IA</button>
       <div class="panel">
         <div class="hd">
-          <img class="mark" src="${iconUrl}" alt="">
+          <span class="mark"><img src="${iconUrl}" alt=""></span>
           <span class="tit-wrap">
             <span class="ttl">Assistente dos Autos</span>
             <span class="cnj" title="Número do processo em análise"></span>
           </span>
-          <button class="dl" title="Baixar a conversa em arquivo (.md)" aria-label="Baixar a conversa em arquivo">${SVG.download}</button>
-          <button class="reset" title="Nova conversa (zera o chat e o contexto)" aria-label="Nova conversa">${SVG.reset}</button>
-          <button class="docsvis" title="Ocultar a lista de peças (mais espaço para o chat)" aria-label="Ocultar ou exibir a lista de peças" aria-pressed="false">${SVG.docshide}</button>
-          <button class="expand" title="Painel largo (mostra as peças na lateral)" aria-label="Painel largo">${SVG.expand}</button>
-          <button class="side" title="Painel lateral (mantém o processo visível ao lado)" aria-label="Painel lateral">${SVG.side}</button>
-          <button class="free" title="Janela livre (arraste pelo título; redimensione pelo canto inferior direito)" aria-label="Janela livre">${SVG.free}</button>
-          <button class="fs" title="Tela cheia" aria-label="Tela cheia">${SVG.fs}</button>
+          <div class="hd-grp">
+            <button class="dl" title="Baixar a conversa em arquivo (.md)" aria-label="Baixar a conversa em arquivo">${SVG.download}</button>
+            <button class="reset" title="Nova conversa (zera o chat e o contexto)" aria-label="Nova conversa">${SVG.reset}</button>
+          </div>
+          <div class="hd-grp">
+            <button class="docsvis" title="Ocultar a lista de peças (mais espaço para o chat)" aria-label="Ocultar ou exibir a lista de peças" aria-pressed="false">${SVG.docshide}</button>
+            <button class="expand" title="Painel largo (mostra as peças na lateral)" aria-label="Painel largo">${SVG.expand}</button>
+            <button class="side" title="Painel lateral (mantém o processo visível ao lado)" aria-label="Painel lateral">${SVG.side}</button>
+            <button class="free" title="Janela livre (arraste pelo título; redimensione pelo canto inferior direito)" aria-label="Janela livre">${SVG.free}</button>
+            <button class="fs" title="Tela cheia" aria-label="Tela cheia">${SVG.fs}</button>
+          </div>
           <button class="close" title="Fechar o painel" aria-label="Fechar o painel">${SVG.close}</button>
         </div>
         <div class="content">
@@ -492,11 +585,11 @@ var PjePanel = (function () {
             </div>
             <div class="doclist" title="Arraste para marcar várias peças · Shift+clique marca até aqui · botão direito abre “marcar daqui para baixo/cima”"></div>
             <div class="docs-tip">
-              <span class="tip-i" role="note" tabindex="0" title="${TIP_PADRAO_ATTR}" aria-label="${TIP_PADRAO_ATTR}">⚠️</span>
+              <span class="tip-i" role="note" tabindex="0" title="${TIP_PADRAO_ATTR}" aria-label="${TIP_PADRAO_ATTR}">!</span>
               <span class="tip-txt"></span>
-              <button type="button" class="tip-load" title="Rola a linha do tempo do processo automaticamente até o fim para carregar TODAS as peças do processo na lista">⟳ Carregar tudo</button>
-              <button type="button" class="tip-ia" title="Envia à IA só a LISTA de peças (id, título, tipo e data — nenhum conteúdo) e pede que ela escolha as relevantes. Se houver texto no campo de pergunta, escolhe para AQUELA pergunta; vazio, escolhe as peças que descrevem o processo. Custa alguns centavos e leva poucos segundos.">✨ Escolher com IA</button>
-              <button type="button" class="tip-zip" title="Baixa os arquivos ORIGINAIS das peças (PDF, HTML) num único .zip, numerados na ordem do processo e com um índice de tipo, data e autor da juntada. Exporta as peças MARCADAS; sem nenhuma marcada, exporta todas as da lista.">⬇ Baixar .zip</button>
+              <button type="button" class="tip-load" title="Rola a linha do tempo do processo automaticamente até o fim para carregar TODAS as peças do processo na lista">${SVG.reload}<span class="lbl">Carregar tudo</span></button>
+              <button type="button" class="tip-ia" title="Envia à IA só a LISTA de peças (id, título, tipo e data — nenhum conteúdo) e pede que ela escolha as relevantes. Se houver texto no campo de pergunta, escolhe para AQUELA pergunta; vazio, escolhe as peças que descrevem o processo. Custa alguns centavos e leva poucos segundos.">${SVG.ia}<span class="lbl">Escolher com IA</span></button>
+              <button type="button" class="tip-zip" title="Baixa os arquivos ORIGINAIS das peças (PDF, HTML) num único .zip, numerados na ordem do processo e com um índice de tipo, data e autor da juntada. Exporta as peças MARCADAS; sem nenhuma marcada, exporta todas as da lista.">${SVG.zip}<span class="lbl">Baixar .zip</span></button>
             </div>
           </div>
           <div class="main">
@@ -527,11 +620,11 @@ var PjePanel = (function () {
               <div class="ctxbar" hidden></div>
               <div class="toolbar">
                 <div class="tools">
-                  <button class="tgl-search" aria-pressed="false" title="Liga/desliga a busca de jurisprudência e legislação em fontes oficiais (STF, STJ, Planalto…). Com a busca ligada, escreva a pergunta e use o botão Enviar normalmente.">🔍 Jurisprudência</button>
-                  <button class="btn-minuta" title="Liga o modo minuta: a instrução aparece no campo (edite à vontade) e o botão Enviar vira “Gerar minuta” — a resposta abre num editor de texto, em nova aba, de onde você copia para o PJe, baixa em Word (.docx) ou imprime.">📝 Minutar</button>
-                  <button class="btn-mapa" title="Liga o modo mapa mental: a instrução aparece no campo (edite à vontade) e o botão Enviar vira “Gerar mapa” — a resposta abre num mapa mental interativo, em nova aba.">🧠 Mapa mental</button>
-                  <button class="btn-plib" title="Seus prompts salvos: crie instruções reutilizáveis (título + texto) e insira-as na conversa digitando “/” no início do campo de mensagem. Sincronizam entre navegadores logados na mesma conta Google.">✦ Prompts</button>
-                  <button class="btn-mlib" title="Seus modelos de peças (sentenças, decisões, despachos, ofícios…): cadastre várias por categoria e, ao gerar uma minuta, escolha a categoria para o assistente seguir a estrutura e o estilo dos seus modelos — os fatos continuam saindo só das peças do processo.">📚 Modelos</button>
+                  <button class="tgl-search" aria-pressed="false" title="Liga/desliga a busca de jurisprudência e legislação em fontes oficiais (STF, STJ, Planalto…). Com a busca ligada, escreva a pergunta e use o botão Enviar normalmente.">${SVG.juris}<span class="lbl">Jurisprudência</span></button>
+                  <button class="btn-minuta" title="Liga o modo minuta: a instrução aparece no campo (edite à vontade) e o botão Enviar vira “Gerar minuta” — a resposta abre num editor de texto, em nova aba, de onde você copia para o PJe, baixa em Word (.docx) ou imprime.">${SVG.minuta}<span class="lbl">Minutar</span></button>
+                  <button class="btn-mapa" title="Liga o modo mapa mental: a instrução aparece no campo (edite à vontade) e o botão Enviar vira “Gerar mapa” — a resposta abre num mapa mental interativo, em nova aba.">${SVG.mapa}<span class="lbl">Mapa mental</span></button>
+                  <button class="btn-plib" title="Seus prompts salvos: crie instruções reutilizáveis (título + texto) e insira-as na conversa digitando “/” no início do campo de mensagem. Sincronizam entre navegadores logados na mesma conta Google.">${SVG.prompts}<span class="lbl">Prompts</span></button>
+                  <button class="btn-mlib" title="Seus modelos de peças (sentenças, decisões, despachos, ofícios…): cadastre várias por categoria e, ao gerar uma minuta, escolha a categoria para o assistente seguir a estrutura e o estilo dos seus modelos — os fatos continuam saindo só das peças do processo.">${SVG.modelos}<span class="lbl">Modelos</span></button>
                 </div>
                 <div class="metarow">
                   <div class="gauge" hidden title="${GAUGE_TITLE}">
@@ -542,36 +635,36 @@ var PjePanel = (function () {
                     <span class="custo-txt"><span class="g-full"></span><span class="g-short"></span></span>
                   </div>
                   <button class="modelo-badge" hidden title="Modelo de IA em uso nesta conversa — clique para trocar nas opções da extensão"></button>
-                  <span class="cite-note" hidden tabindex="0" role="note" title="Modelos Gemini: as citações de página aparecem no próprio texto da resposta (ex.: “conforme a Contestação, fl. 12”), sem os marcadores [n] automáticos dos modelos Claude." aria-label="Neste modelo as citações de página aparecem no próprio texto da resposta, sem os marcadores numerados dos modelos Claude.">ⓘ</span>
+                  <span class="cite-note" hidden tabindex="0" role="note" title="Modelos Gemini: as citações de página aparecem no próprio texto da resposta (ex.: “conforme a Contestação, fl. 12”), sem os marcadores [n] automáticos dos modelos Claude." aria-label="Neste modelo as citações de página aparecem no próprio texto da resposta, sem os marcadores numerados dos modelos Claude.">${SVG.info}</span>
                 </div>
               </div>
               <div class="minutabar" hidden>
-                <span class="docxbar-t">📝 <b>Modo minuta ligado</b> — revise a instrução abaixo e clique em <b>Gerar minuta</b>: a resposta abre num editor, em nova aba, pronta para revisar e levar ao PJe.</span>
-                <button class="minutabar-x" title="Cancelar a geração da minuta (Esc)">✕</button>
+                <span class="docxbar-t">${SVG.minuta} <b>Modo minuta ligado</b> — revise a instrução abaixo e clique em <b>Gerar minuta</b>: a resposta abre num editor, em nova aba, pronta para revisar e levar ao PJe.</span>
+                <button class="minutabar-x" title="Cancelar a geração da minuta (Esc)">${SVG.x}</button>
                 <label class="minuta-modelo" hidden>
                   <span class="mm-lab">Seguir modelos:</span>
                   <select class="minuta-modelo-sel" title="Escolha uma categoria: o assistente recebe as suas peças-modelo daquela espécie e segue a estrutura e o estilo da mais adequada ao caso — os fatos continuam vindo só das peças do processo."></select>
                 </label>
               </div>
               <div class="mapabar" hidden>
-                <span class="docxbar-t">🧠 <b>Modo mapa mental ligado</b> — revise a instrução abaixo e clique em <b>Gerar mapa</b>: a resposta vira um mapa mental interativo, que abre em nova aba.</span>
-                <button class="mapabar-x" title="Cancelar a geração do mapa mental (Esc)">✕</button>
+                <span class="docxbar-t">${SVG.mapa} <b>Modo mapa mental ligado</b> — revise a instrução abaixo e clique em <b>Gerar mapa</b>: a resposta vira um mapa mental interativo, que abre em nova aba.</span>
+                <button class="mapabar-x" title="Cancelar a geração do mapa mental (Esc)">${SVG.x}</button>
               </div>
               <div class="promptbar" hidden></div>
               <div class="inrow">
                 <textarea class="in" rows="1" placeholder="Pergunte sobre as peças… (@ cita uma peça)"></textarea>
-                <button class="send">Enviar</button>
+                <button class="send"><span class="lbl">Enviar</span>${SVG.enviar}</button>
               </div>
-              <div class="hint-key"><div class="hk-in"><b>@</b> cita peças &nbsp;·&nbsp; <b>/</b> insere um prompt salvo &nbsp;·&nbsp; <b>Enter</b> envia &nbsp;·&nbsp; <b>Shift+Enter</b> quebra linha</div></div>
+              <div class="hint-key"><div class="hk-in"><b>@</b> cita peças &nbsp;·&nbsp; <b>/</b> insere um prompt salvo &nbsp;·&nbsp; <b>Enter</b> envia <span class="hk-shift">&nbsp;·&nbsp; <b>Shift+Enter</b> quebra linha</span></div></div>
             </div>
           </div>
         </div>
         <div class="plib" hidden>
           <div class="plib-card" role="dialog" aria-modal="true" aria-label="Prompts salvos" tabindex="-1">
             <div class="plib-hd">
-              <span class="t">✦ Prompts salvos</span>
-              <button class="plib-new">✚ Novo</button>
-              <button class="plib-close" title="Fechar (Esc)" aria-label="Fechar o gerenciador de prompts">✕</button>
+              <span class="t">${SVG.prompts} Prompts salvos</span>
+              <button class="plib-new">${SVG.novo}<span class="lbl">Novo</span></button>
+              <button class="plib-close" title="Fechar (Esc)" aria-label="Fechar o gerenciador de prompts">${SVG.close}</button>
             </div>
             <div class="plib-list"></div>
             <div class="plib-form" hidden>
@@ -589,9 +682,9 @@ var PjePanel = (function () {
         <div class="mlib plib" hidden>
           <div class="mlib-card plib-card" role="dialog" aria-modal="true" aria-label="Modelos de peças" tabindex="-1">
             <div class="plib-hd">
-              <span class="t">📚 Modelos de peças</span>
-              <button class="mlib-new plib-new">✚ Novo</button>
-              <button class="mlib-close plib-close" title="Fechar (Esc)" aria-label="Fechar o gerenciador de modelos">✕</button>
+              <span class="t">${SVG.modelos} Modelos de peças</span>
+              <button class="mlib-new plib-new">${SVG.novo}<span class="lbl">Novo</span></button>
+              <button class="mlib-close plib-close" title="Fechar (Esc)" aria-label="Fechar o gerenciador de modelos">${SVG.close}</button>
             </div>
             <div class="mlib-list plib-list"></div>
             <div class="mlib-form plib-form" hidden>
@@ -690,8 +783,12 @@ var PjePanel = (function () {
         '<span class="big">Como posso ajudar?</span>' +
         '<div class="passos">' +
         '<div class="passo"><span class="pn">1</span><b>Marque as peças</b>' +
-        "<span>na lista ao lado — <b>chave</b> traz a espinha dorsal do processo; " +
-        "há também a busca e o <b>@</b> no campo</span></div>" +
+        // "ao lado" só é verdade nos modos largos: no estreito a lista fica
+        // ACIMA do chat. Duas versões no DOM, escolha no CSS — mesmo mecanismo
+        // dos rótulos longo/curto do segmented (.op-l/.op-s).
+        '<span><span class="p-lado">na lista ao lado</span>' +
+        '<span class="p-gaveta">na gaveta acima</span> — <b>chave</b> traz a ' +
+        "espinha dorsal do processo; há também a busca e o <b>@</b> no campo</span></div>" +
         '<div class="passo"><span class="pn">2</span><b>Peça o que precisa</b>' +
         "<span>resumo, linha do tempo, minuta — só o que foi marcado é lido</span></div>" +
         '<div class="passo"><span class="pn">3</span><b>Confira a origem</b>' +
@@ -714,7 +811,7 @@ var PjePanel = (function () {
         "pergunta e outra.</p>" +
         "<p><b>A lista pode vir incompleta:</b> o PJe só carrega as peças conforme a " +
         "linha do tempo é rolada. Antes de procurar uma peça antiga, use " +
-        "<b>⟳ Carregar tudo</b>, abaixo da lista.</p>" +
+        "<b>Carregar tudo</b>, abaixo da lista.</p>" +
         "<p><b>O contexto é limitado:</b> peças, perguntas e respostas precisam caber " +
         "na janela do modelo. O medidor ao lado das ferramentas mostra o quanto já foi " +
         "usado; se encher, desmarque peças (libera espaço na hora) ou comece uma " +
@@ -724,12 +821,12 @@ var PjePanel = (function () {
         // guia (fechado por padrão) para não engordar o estado vazio, mas com
         // destaque próprio — é a diferença entre "a extensão é lenta" e "a
         // minha conexão está ruim".
-        "<p><b>📶 Sua conexão manda no tempo de espera:</b> o PJe entrega as peças " +
+        "<p><b>Sua conexão manda no tempo de espera:</b> o PJe entrega as peças " +
         "<b>uma de cada vez</b> (cerca de 5 s cada). No Wi-Fi instável isso se " +
         "multiplica por dezenas de documentos e a extensão parece travada, quando na " +
         "verdade está esperando o tribunal. <b>Cabo de rede faz muita diferença</b> — " +
         "e marcar só as peças que interessam, mais ainda.</p>" +
-        '<p>💡 Para autos muito grandes, conheça o <a href="https://mcp.tecjustica.com/" ' +
+        '<p>Para autos muito grandes, conheça o <a href="https://mcp.tecjustica.com/" ' +
         'target="_blank" rel="noopener">TecJustiça MCP</a>, em que o contexto do processo ' +
         "é gerenciado automaticamente pelo código, e a demonstração com o PJe do Ceará em " +
         '<a href="https://pjece.tecjustica.com/" target="_blank" rel="noopener">' +
@@ -844,7 +941,11 @@ var PjePanel = (function () {
       // (left/top/width/height), e inline vence classe — sem esta limpeza os
       // valores vazariam e deformariam o expandido/lateral/flutuante.
       if (eraLivre && modo !== "livre") limparGeoLivre();
-      ajustarPlaceholderBusca();
+      // reavalia as classes de LARGURA aqui também: o ResizeObserver não dispara
+      // quando o painel troca de modo sem mudar de largura (flutuante ⇄ lateral
+      // numa janela estreita têm os mesmos 420px), e é ele quem chama o
+      // ajustarPlaceholderBusca.
+      atualizarLargura();
       try {
         chrome.storage.local.set({ layoutModo: modo === "cheia" ? "expandido" : modo });
       } catch {
@@ -874,14 +975,25 @@ var PjePanel = (function () {
     // lateral (como no expandido). Media query não serve: ela mede a viewport,
     // não o painel — a classe .livre-wide é alternada aqui e no ResizeObserver.
     const LIVRE_LARGO_PX = 740;
-    function atualizarLivreLargo() {
-      const on =
-        wrap.classList.contains("livre") && panelEl.offsetWidth >= LIVRE_LARGO_PX;
+    // Abaixo deste limiar cabe UMA fileira de botões e UMA coluna: entra a
+    // classe .estreito (DESIGN.md §5). NÃO é uma classe do modo lateral — o
+    // flutuante também tem 420px e a janela livre desce até 340. O piso de 1
+    // ignora o painel FECHADO, cujo offsetWidth é 0 (`.wrap.open .panel` é que
+    // liga o display): sem essa guarda a classe entraria com o painel oculto e
+    // o layout piscaria na abertura.
+    const ESTREITO_PX = 520;
+    function atualizarLargura() {
+      const w = panelEl.offsetWidth;
+      const on = wrap.classList.contains("livre") && w >= LIVRE_LARGO_PX;
       if (on !== wrap.classList.contains("livre-wide")) hidePreview(); // âncora muda de lugar
       wrap.classList.toggle("livre-wide", on);
-      // `livre-wide` é alternado AQUI, não em aplicarModo (media query mede a
-      // viewport e erraria no modo livre) — então o placeholder da busca, que
-      // depende da largura da COLUNA de peças, também precisa ser reavaliado.
+      const estreito = w >= 1 && w < ESTREITO_PX;
+      if (estreito !== wrap.classList.contains("estreito")) hidePreview();
+      wrap.classList.toggle("estreito", estreito);
+      // as classes de largura são alternadas AQUI, não em aplicarModo (media
+      // query mede a viewport e erraria no modo livre) — então o placeholder da
+      // busca, que depende da largura da COLUNA de peças, também precisa ser
+      // reavaliado.
       ajustarPlaceholderBusca();
     }
     function aplicarGeoLivre() {
@@ -898,7 +1010,7 @@ var PjePanel = (function () {
       panelEl.style.top = g.y + "px";
       panelEl.style.width = g.w + "px";
       panelEl.style.height = g.h + "px";
-      atualizarLivreLargo();
+      atualizarLargura();
     }
     function limparGeoLivre() {
       panelEl.style.left = "";
@@ -961,7 +1073,7 @@ var PjePanel = (function () {
     // Guardas: só no modo livre (ele também dispara em toda troca de layout)
     // e com o painel aberto (fechado, o rect é 0x0 e apagaria a geometria).
     const roLivre = new ResizeObserver(() => {
-      atualizarLivreLargo();
+      atualizarLargura();
       if (
         wrap.classList.contains("livre") &&
         wrap.classList.contains("open") &&
@@ -1064,7 +1176,9 @@ var PjePanel = (function () {
       tglSearch.setAttribute("aria-pressed", String(searchOn));
       tglSearch.classList.toggle("on", searchOn);
       // feedback imediato: o rótulo e o status dizem o que o toggle faz
-      tglSearch.textContent = searchOn ? "🔍 Jurisprudência ligada" : "🔍 Jurisprudência";
+      // SÓ o rótulo — o <svg> é irmão dele. Escrever no textContent do botão
+      // apagaria o ícone no primeiro clique (e sem erro nenhum).
+      rotulo(tglSearch, searchOn ? "Jurisprudência ligada" : "Jurisprudência");
       statusEl.textContent = searchOn
         ? "Busca de jurisprudência ligada: as próximas perguntas enviadas poderão consultar STF, STJ, Planalto e outras fontes oficiais."
         : "Busca de jurisprudência desligada.";
@@ -1088,8 +1202,9 @@ var PjePanel = (function () {
       minutaMode = on;
       minutabar.hidden = !on;
       btnMinuta.classList.toggle("on", on);
-      btnMinuta.textContent = on ? "✕ Cancelar minuta" : "📝 Minutar";
-      sendBtn.textContent = on ? "📝 Gerar minuta" : "Enviar";
+      rotulo(btnMinuta, on ? "Cancelar minuta" : "Minutar");
+      icone(btnMinuta, on ? SVG.cancel : SVG.minuta);
+      rotulo(sendBtn, on ? "Gerar minuta" : "Enviar");
       sendBtn.classList.toggle("docx", on);
       inEl.placeholder = on
         ? "Instrução da minuta — edite e clique em Gerar minuta…"
@@ -1135,8 +1250,9 @@ var PjePanel = (function () {
       mapaMode = on;
       mapabar.hidden = !on;
       btnMapa.classList.toggle("on", on);
-      btnMapa.textContent = on ? "✕ Cancelar mapa" : "🧠 Mapa mental";
-      sendBtn.textContent = on ? "🧠 Gerar mapa" : "Enviar";
+      rotulo(btnMapa, on ? "Cancelar mapa" : "Mapa mental");
+      icone(btnMapa, on ? SVG.cancel : SVG.mapa);
+      rotulo(sendBtn, on ? "Gerar mapa" : "Enviar");
       sendBtn.classList.toggle("docx", on); // mesmo halo azul do modo documento
       inEl.placeholder = on
         ? "Instrução do mapa mental — edite e clique em Gerar mapa…"
@@ -1371,7 +1487,7 @@ var PjePanel = (function () {
           temTipoOficial
             ? "Nenhuma peça desta lista foi reconhecida como “" + nome + "”."
             : "Nenhuma peça reconhecida como “" + nome + "” — a lista ainda não " +
-              "tem o tipo oficial de cada peça. Clique em ⟳ Carregar tudo para " +
+              "tem o tipo oficial de cada peça. Clique em “Carregar tudo” para " +
               "melhorar a classificação."
         );
         return;
@@ -1386,7 +1502,7 @@ var PjePanel = (function () {
       // sai sobre autos incompletos sem ninguém perceber.
       setSelNota(
         chk.checked && !temTipoOficial && nome === "chave"
-          ? alvo.length + " marcadas só pelo título — ⟳ Carregar tudo melhora a escolha."
+          ? alvo.length + " marcadas só pelo título — “Carregar tudo” melhora a escolha."
           : ""
       );
       syncSelection();
@@ -1602,7 +1718,11 @@ var PjePanel = (function () {
     // serializado: dois lotes ao mesmo tempo brigariam pela sessão JSF).
     function setZipOcupado(on) {
       tipZip.disabled = !!on;
-      tipZip.textContent = on ? "Baixando…" : "⬇ Documentos";
+      // rotulo(), nunca textContent: o botão é <svg> + <span class="lbl">, e
+      // escrever no botão inteiro apagaria o ícone no primeiro clique. Era o
+      // que acontecia aqui — e ainda com um rótulo ("⬇ Documentos") que nem
+      // batia com o do template ("Baixar .zip").
+      rotulo(tipZip, on ? "Baixando…" : "Baixar .zip");
     }
 
     // -------------------------------------------------------------------------
@@ -1635,7 +1755,7 @@ var PjePanel = (function () {
     });
     function setIaOcupado(on) {
       tipIa.disabled = !!on;
-      tipIa.textContent = on ? "Escolhendo…" : "✨ Escolher com IA";
+      rotulo(tipIa, on ? "Escolhendo…" : "Escolher com IA");
     }
     // Aplica a escolha da IA: marca os ids, DESMARCANDO o resto — aqui a
     // substituição é o contrato certo (ao contrário dos degraus, que somam):
@@ -1653,7 +1773,7 @@ var PjePanel = (function () {
         if (t) {
           const base = t.dataset.tituloOriginal || t.getAttribute("title") || "";
           if (!t.dataset.tituloOriginal) t.dataset.tituloOriginal = base;
-          t.setAttribute("title", m ? base + "\n\n✨ " + m : base);
+          t.setAttribute("title", m ? base + "\n\n" + m : base);
         }
       }
       syncSelection();
@@ -1676,7 +1796,9 @@ var PjePanel = (function () {
       const { texto = null, carregando = false } = estado || {};
       clearTimeout(tipTimer);
       tipLoad.disabled = carregando;
-      tipLoad.textContent = carregando ? "Carregando…" : "⟳ Carregar tudo";
+      // rotulo(), nunca textContent: o botão é <svg> + <span class="lbl"> e
+      // escrever no botão inteiro apagaria o ícone na primeira carga.
+      rotulo(tipLoad, carregando ? "Carregando…" : "Carregar tudo");
       if (!texto && !carregando) return repousoTip();
       tipTxt.textContent = texto || TIP_PADRAO;
       tipBox.classList.add("carregando");
@@ -2330,7 +2452,7 @@ var PjePanel = (function () {
         if (it.tipo === "prompt") {
           row.className = "mrow srow" + (i === slash.idx ? " active" : "");
           row.innerHTML =
-            '<span class="pchip-i" aria-hidden="true">✦</span>' +
+            '<span class="pchip-i" aria-hidden="true">' + SVG.prompts + '</span>' +
             '<span class="scol"><span class="t" title="' + escapeHtml(it.p.titulo) + '">' +
             escapeHtml(it.p.titulo) +
             '</span><span class="mrow-sub">' + escapeHtml(previaDe(it.p.texto)) +
@@ -2339,10 +2461,10 @@ var PjePanel = (function () {
           row.className = "mrow mrow-acao" + (i === slash.idx ? " active" : "");
           row.textContent =
             it.tipo === "salvar"
-              ? "✚ Salvar o texto atual como prompt…"
+              ? "Salvar o texto atual como prompt…"
               : promptsLib.length
-                ? "⚙ Gerenciar prompts…"
-                : "✚ Criar seu primeiro prompt…";
+                ? "Gerenciar prompts…"
+                : "Criar seu primeiro prompt…";
         }
         // mousedown (não click) para agir antes do blur do textarea
         row.addEventListener("mousedown", (e) => {
@@ -2405,7 +2527,7 @@ var PjePanel = (function () {
       const chip = document.createElement("span");
       chip.className = "pchip";
       chip.innerHTML =
-        '<span class="pchip-i" aria-hidden="true">✦</span>' +
+        '<span class="pchip-i" aria-hidden="true">' + SVG.prompts + '</span>' +
         '<span class="pchip-t" title="' + escapeHtml(promptAtivo.titulo) + '">' +
         escapeHtml(promptAtivo.titulo) + "</span>" +
         '<button class="chip-x pchip-x" title="Remover o prompt da mensagem" aria-label="Remover o prompt ' +
@@ -2493,7 +2615,7 @@ var PjePanel = (function () {
       plibListEl.innerHTML = "";
       if (!promptsLib.length) {
         plibListEl.innerHTML =
-          '<div class="plib-empty">Nenhum prompt salvo ainda.<br>Clique em <b>✚ Novo</b> para criar o primeiro — depois é só digitar <b>/</b> no campo de mensagem para usá-lo.</div>';
+          '<div class="plib-empty">Nenhum prompt salvo ainda.<br>Clique em <b>Novo</b> para criar o primeiro — depois é só digitar <b>/</b> no campo de mensagem para usá-lo.</div>';
         return;
       }
       for (const p of promptsLib) {
@@ -2850,7 +2972,7 @@ var PjePanel = (function () {
       mlibListEl.innerHTML = "";
       if (!modelosLib.length) {
         mlibListEl.innerHTML =
-          '<div class="plib-empty">Nenhum modelo cadastrado ainda.<br>Clique em <b>✚ Novo</b> para cadastrar sua primeira peça-modelo — depois, ao gerar uma minuta, escolha a categoria em <b>Seguir modelos</b>.</div>';
+          '<div class="plib-empty">Nenhum modelo cadastrado ainda.<br>Clique em <b>Novo</b> para cadastrar sua primeira peça-modelo — depois, ao gerar uma minuta, escolha a categoria em <b>Seguir modelos</b>.</div>';
         return;
       }
       for (const m of modelosLib) {
@@ -3412,41 +3534,82 @@ var PjePanel = (function () {
         if (el.__think && !el.__think.hidden && fullText) el.__think.open = false;
         let html = renderMd(fullText, cites);
         if (cites && cites.length) {
-          html +=
-            '<div class="cites">' +
-            cites
-              .map((c, i) => {
-                const rot = escapeHtml(c.label);
-                // O id só entra no DOM se for realmente numérico (vem do título
-                // da peça, que é conteúdo dos autos).
-                const id = /^\d+$/.test(String(c.id || "")) ? String(c.id) : "";
-                let corpo;
-                if (c.url && /^https?:\/\//.test(c.url)) {
-                  // fontes da web (busca de jurisprudência) viram links
-                  corpo =
-                    '<a href="' + escapeHtml(c.url) + '" target="_blank" rel="noopener">' +
-                    rot + "</a>";
-                } else if (id) {
-                  corpo =
-                    '<button type="button" class="cite-go" data-id="' + id + '"' +
-                    ' title="Ver esta peça na linha do tempo do processo">' +
-                    rot + ' <span class="cite-id">id ' + id + "</span></button>";
-                } else {
-                  corpo = rot;
-                }
-                // char_location não tem folha: o trecho citado é a única âncora.
-                if (c.trecho) {
-                  corpo +=
-                    ' <span class="cite-tr" title="' + escapeHtml(c.trecho) + '">“' +
-                    escapeHtml(c.trecho.slice(0, 60)) + "…”</span>";
-                }
-                return (
-                  '<span class="cite-row"><sup class="cit">' + (i + 1) + "</sup> " +
-                  corpo + "</span>"
-                );
-              })
-              .join("") +
-            "</div>";
+          // Peça dos autos e página da internet são coisas de natureza diferente
+          // — uma é prova no processo, a outra é fonte externa —, e até aqui as
+          // duas saíam na MESMA lista, com a mesma aparência. Num texto que mistura
+          // os autos com jurisprudência (o caso de uso principal) isso apagava a
+          // fronteira que mais importa juridicamente. Agora vão em grupos rotulados.
+          //
+          // O número (n) é capturado ANTES de agrupar e NADA é reordenado: ele é o
+          // mesmo do sobrescrito no corpo do texto (placeholder PUA → <sup> no
+          // renderMd), então mexer na ordem quebraria a correspondência entre a
+          // marca na frase e a linha da fonte.
+          const NIVEL_TITULO = {
+            superior: "Tribunal superior (STF/STJ)",
+            tribunal: "Tribunal deste processo",
+            outra: "Outra fonte jurídica",
+          };
+          const numeradas = cites.map((c, i) => ({ c, n: i + 1 }));
+          const ehWeb = (x) => !!(x.c.url && /^https?:\/\//.test(x.c.url));
+          const daWeb = numeradas.filter(ehWeb);
+          const dosAutos = numeradas.filter((x) => !ehWeb(x));
+
+          const linha = ({ c, n }) => {
+            const rot = escapeHtml(c.label);
+            // O id só entra no DOM se for realmente numérico (vem do título
+            // da peça, que é conteúdo dos autos).
+            const id = /^\d+$/.test(String(c.id || "")) ? String(c.id) : "";
+            let corpo;
+            if (c.url && /^https?:\/\//.test(c.url)) {
+              // fontes da web (busca de jurisprudência) viram links
+              corpo =
+                '<a href="' + escapeHtml(c.url) + '" target="_blank" rel="noopener">' +
+                rot + "</a>";
+              // Domínio de origem ao lado do título. No Gemini ele NÃO sai da URL
+              // (que é um redirecionador do Google) e sim do title — ver
+              // hostDaFonte em content.js. E quando o título JÁ É o domínio (o
+              // caso do Gemini, que não manda manchete), repetir daria
+              // "stj.jus.br stj.jus.br": mostra-se um só.
+              if (c.host && c.host.toLowerCase() !== String(c.label || "").trim().toLowerCase()) {
+                corpo +=
+                  ' <span class="cite-host" title="' +
+                  escapeHtml(NIVEL_TITULO[c.nivel] || "Fonte na web") + '">' +
+                  escapeHtml(c.host) + "</span>";
+              }
+            } else if (id) {
+              corpo =
+                '<button type="button" class="cite-go" data-id="' + id + '"' +
+                ' title="Ver esta peça na linha do tempo do processo">' +
+                rot + ' <span class="cite-id">id ' + id + "</span></button>";
+            } else {
+              corpo = rot;
+            }
+            // char_location não tem folha: o trecho citado é a única âncora.
+            if (c.trecho) {
+              corpo +=
+                ' <span class="cite-tr" title="' + escapeHtml(c.trecho) + '">“' +
+                escapeHtml(c.trecho.slice(0, 60)) + "…”</span>";
+            }
+            return (
+              '<span class="cite-row"' +
+              (c.nivel ? ' data-nivel="' + escapeHtml(c.nivel) + '"' : "") +
+              '><sup class="cit">' + n + "</sup> " + corpo + "</span>"
+            );
+          };
+
+          // O título de grupo só existe quando HÁ fonte web: sem ela, "veio dos
+          // autos" é a expectativa padrão do usuário e o rótulo seria só ruído.
+          let bloco = '<div class="cites">';
+          if (daWeb.length && dosAutos.length) {
+            bloco += '<div class="cites-h">Peças dos autos</div>';
+          }
+          bloco += dosAutos.map(linha).join("");
+          if (daWeb.length) {
+            bloco +=
+              '<div class="cites-h">Fontes na web (' + daWeb.length + ")</div>" +
+              daWeb.map(linha).join("");
+          }
+          html += bloco + "</div>";
         }
         el.__body.innerHTML = html;
         if (el.__entry) {
@@ -3504,12 +3667,12 @@ var PjePanel = (function () {
         if (entry) entry.text = info.md || ""; // exportar .md leva o mapa inteiro
         el.__body.innerHTML =
           '<div class="mapacard">' +
-          '<div class="mapacard-t">🧠 <b>Mapa mental gerado</b>' +
+          '<div class="mapacard-t">' + SVG.mapa + ' <b>Mapa mental gerado</b>' +
           (info.resumo ? " — " + escapeHtml(info.resumo) : "") +
           "</div>" +
           '<div class="mapacard-acts">' +
           '<button class="mapacard-abrir">Abrir mapa</button>' +
-          '<button class="mapacard-md">⬇ Baixar .md</button>' +
+          '<button class="mapacard-md">' + SVG.zip + ' Baixar .md</button>' +
           "</div>" +
           "<details class=\"mapacard-src\"><summary>Ver o texto do mapa</summary>" +
           '<div class="mapacard-md-body">' + renderMd(info.md || "") + "</div>" +
@@ -3538,12 +3701,12 @@ var PjePanel = (function () {
         if (entry) entry.text = info.md || "";
         el.__body.innerHTML =
           '<div class="mapacard minutacard">' +
-          '<div class="mapacard-t">📝 <b>Minuta gerada</b>' +
+          '<div class="mapacard-t">' + SVG.minuta + ' <b>Minuta gerada</b>' +
           (info.resumo ? " — " + escapeHtml(info.resumo) : "") +
           "</div>" +
           '<div class="mapacard-acts">' +
           '<button class="mapacard-abrir">Abrir no editor</button>' +
-          '<button class="mapacard-md">⬇ Baixar .md</button>' +
+          '<button class="mapacard-md">' + SVG.zip + ' Baixar .md</button>' +
           "</div>" +
           '<details class="mapacard-src"><summary>Ver o texto da minuta</summary>' +
           '<div class="mapacard-md-body">' + renderMd(info.md || "") + "</div>" +
@@ -3571,7 +3734,11 @@ var PjePanel = (function () {
         const box = document.createElement("div");
         box.className = "editor-act" + (info.destaque ? " destaque" : "");
         const b = document.createElement("button");
-        b.textContent = info.destaque ? "📝 Abrir no editor" : "📝 Editar como documento";
+        b.innerHTML =
+        SVG.minuta +
+        '<span class="lbl">' +
+        (info.destaque ? "Abrir no editor" : "Editar como documento") +
+        "</span>";
         b.title =
           "Abre esta resposta num editor de texto, em nova aba: revise, copie para " +
           "o PJe, baixe em Word (.docx) ou imprima.";
@@ -3723,7 +3890,7 @@ var PjePanel = (function () {
           return;
         }
         alertEl.innerHTML =
-          '<span class="alert-t">⚠️ ' + escapeHtml(msg) + "</span>" +
+          '<span class="alert-t">' + escapeHtml(msg) + "</span>" +
           '<button class="alert-reset" title="Começar uma nova conversa do zero">' +
           SVG.reset + " Nova conversa</button>";
         alertEl
@@ -3766,7 +3933,7 @@ var PjePanel = (function () {
           "gemini-3.5-flash-lite": "Gemini 3.5 Flash-Lite",
         };
         const EFFORTS = { high: "alto", medium: "médio", low: "baixo" };
-        let txt = "🧠 " + (NOMES[info.model] || info.model);
+        let txt = NOMES[info.model] || info.model;
         // modelos sem suporte a effort (Haiku) não mostram o nível — exibir
         // um valor que a API não recebe seria mentira
         if (info.comEffort && EFFORTS[info.effort]) {

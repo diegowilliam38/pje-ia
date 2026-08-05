@@ -115,9 +115,15 @@ quebrar:
   comuns — sem skill, sem code execution —, então funcionam nos DOIS provedores. A
   única capacidade condicionada por caps é a citação nativa por página
   (`citacoesNativas`); nenhum recurso da UI é gated por nome de modelo.
-- **Busca**: toggle Jurisprudência no Gemini declara `[{type:"google_search"}]` — sem
-  `allowed_domains` (a API não suporta); a priorização de fontes .jus.br vai por
-  instrução no system prompt. Custo: 5.000 buscas/mês grátis, depois US$ 14/1.000.
+- **Busca**: toggle Jurisprudência no Gemini declara `[{type:"google_search"}]` — a tool
+  não aceita parâmetro NENHUM (a doc da Interactions API não expõe `allowed_domains` nem
+  filtro por site), então este é o ÚNICO dos três provedores em que a priorização de
+  fontes .jus.br depende só de instrução no system prompt — garantia mole, que o modelo
+  pode ignorar. Custo: nos modelos **Gemini 3.x a cobrança é POR QUERY EXECUTADA**, não
+  por prompt (era por prompt no 2.5), e o modelo dispara várias buscas num mesmo turno —
+  o custo de um turno com Jurisprudência ligada é múltiplo do preço unitário. Os valores
+  antes anotados aqui (5.000 buscas/mês grátis, depois US$ 14/1.000) não constam da
+  página de docs, que remete à tabela de preços: reconferir antes de usar em cálculo.
 - **Troca de provedor no meio da conversa é BLOQUEADA** (`conversaProvider` em
   content.js): o histórico de um provedor não roda no outro (raciocínio assinado).
   `aplicarCapsNaUI` liga `ALERTA_TROCA_PROVEDOR` na troca do modelo e o envio tem
@@ -192,9 +198,14 @@ Regras que NÃO podem quebrar:
   `panel.setModoCitacoes("textual")` mostra o `ⓘ`. Annotations `url_citation` da busca viram
   citações web normais (`web_search_result_location`), ao vivo pelo evento
   `response.output_text.annotation.added`; `file_citation` é ignorada (sem página).
-- **Busca**: toggle Jurisprudência na OpenAI declara `[{type:"web_search"}]` — sem
-  `allowed_domains` (a priorização de fontes .jus.br vai por instrução no system prompt, como
-  no Gemini).
+- **Busca**: toggle Jurisprudência na OpenAI declara `[{type:"web_search"}]` — a tool
+  embutida da Responses API. Não voltar ao `web_search_preview`: é LEGADO e não aceita
+  `filters` (nem `external_web_access`/`return_token_budget`). Aqui a restrição de
+  domínios EXISTE, ao contrário do Gemini — e vai em **`filters.allowed_domains`**
+  (aninhado), não no topo do objeto como na Anthropic. Trocar o lugar não dá erro
+  amigável: ou 400 de campo extra, ou o filtro é ignorado em silêncio e a busca varre a
+  web inteira, devolvendo blog no lugar de fonte oficial. Teto de 100 domínios e nomes
+  **sem protocolo** (`stf.jus.br`, nunca `https://stf.jus.br/`).
 - **Troca de provedor no meio da conversa é BLOQUEADA** (`conversaProvider`): o histórico de
   um provedor não roda no outro (raciocínio assinado/criptografado). `ALERTA_TROCA_PROVEDOR`
   cobre os três; "Nova conversa" resolve.
@@ -216,6 +227,44 @@ Regras que NÃO podem quebrar:
 - countTokens OpenAI: `POST /v1/responses/input_tokens` (mesmo corpo do `/responses`) →
   `{input_tokens}` — endpoint dedicado e exato (conta arquivos/imagens/tools), análogo ao
   count_tokens da Anthropic. A guarda de 90% fica precisa.
+
+## Prioridade das fontes na busca web (os três provedores)
+
+As fontes da busca vivem em **três degraus** (`content.js`): `FONTES_SUPERIORES`
+(STF, STJ) → `FONTES_TRIBUNAL` (o tribunal deste processo, derivado da URL) →
+`FONTES_DEMAIS`. Num parecer "o STJ decidiu" e "um blog noticiou" não pesam igual,
+e até a v0.23 as dez fontes eram tratadas como equivalentes.
+
+- **A união dos degraus é o `allowed_domains`; a ORDEM é o `PROMPT_BUSCA`.**
+  `allowed_domains` é binário (dentro/fora) e nenhuma das três APIs tem parâmetro
+  de ranking — só o prompt expressa prioridade. Por isso `PROMPT_BUSCA` é um
+  trecho próprio, concatenado nos **DOIS** system prompts: antes disso a instrução
+  de busca existia só no `SYSTEM_PROMPT_CIT_TEXTUAL` e o caminho **Anthropic não
+  tinha instrução nenhuma** sobre fontes.
+- **`TRIBUNAL_DO_PROCESSO` é derivado no TOPO do IIFE**, não junto da lista de
+  domínios: o `PROMPT_BUSCA` o consome ~150 linhas antes, e declará-lo depois
+  lançaria `Cannot access before initialization` na montagem (a zona morta
+  temporal descrita em "Desenvolvimento e teste").
+- **`tjce.jus.br` deixou de ser hardcoded**: entra pelo 2º degrau quando o processo
+  é do TJCE. Num processo do TRF5, jurisprudência do TJCE é ruído.
+- **A garantia é desigual por provedor, e isso é estrutural**: Anthropic e OpenAI
+  aplicam a allowlist no servidor (garantia dura); o Gemini não tem o recurso e
+  depende só da instrução (garantia mole). Medido em smoke test real: com o
+  `PROMPT_BUSCA` em degraus o Gemini passou a emitir queries com `site stj jus br`,
+  mas ainda citou `tjro.jus.br` num processo do TJCE. **Não tentar "consertar" isso
+  na API** — não há como; o que existe é tornar o vazamento VISÍVEL na bolha.
+- **O host da fonte nem sempre sai da URL** (`hostDaFonte`): o Gemini devolve um
+  redirecionador opaco (`vertexaisearch.cloud.google.com/grounding-api-redirect/…`)
+  e põe o domínio verdadeiro no `title`. Sem essa resolução o rodapé anunciaria
+  "google.com" numa resposta cuja fonte é o STJ, e todo nível cairia em "outra". O
+  `title` só vira host quando ELE é um domínio — na Anthropic e na OpenAI o title é
+  a manchete da página, e usá-lo ali seria inventar origem.
+- **Peça dos autos e fonte da web são grupos SEPARADOS no rodapé da bolha**
+  (`updateAssistant`): uma é prova no processo, a outra é página da internet, e
+  misturá-las apagava a fronteira que mais importa juridicamente. O número do
+  rodapé é o MESMO do sobrescrito no texto (placeholder PUA → `<sup>`), então o
+  agrupamento **não reordena nada** — mexer na ordem quebraria a correspondência
+  entre a marca na frase e a linha da fonte.
 
 ## Invariantes importantes
 

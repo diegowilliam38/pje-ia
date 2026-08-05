@@ -68,12 +68,17 @@
   }
 
   // Confirmação sem alert()/confirm(): o próprio botão responde por 1,6 s.
+  // Os botões do cabeçalho são <svg> + <span>: escrever no BOTÃO apagaria o
+  // ícone — e para sempre, porque a restauração devolveria só o texto. Mesma
+  // regra do rotulo() em panel.js. Sem o <span> (botão sem ícone) cai no
+  // próprio botão, que é o comportamento antigo.
   function piscar(btn, texto) {
-    const antes = btn.textContent;
-    btn.textContent = texto;
+    const alvo = btn.querySelector("span") || btn;
+    const antes = alvo.textContent;
+    alvo.textContent = texto;
     btn.classList.add("feito");
     setTimeout(() => {
-      btn.textContent = antes;
+      alvo.textContent = antes;
       btn.classList.remove("feito");
     }, 1600);
   }
@@ -141,7 +146,7 @@
   function vazioHtml() {
     return (
       '<div class="vazio">Nenhuma minuta guardada. Gere uma pelo botão ' +
-      "“📝 Minutar” no painel do processo.</div>"
+      "“Minutar” no painel do processo.</div>"
     );
   }
 
@@ -158,9 +163,9 @@
       '<div class="vt">Nenhuma minuta guardada ainda</div>' +
       '<div class="vd">As minutas que você gerar aparecem aqui para reabrir e continuar ' +
       "depois. Para criar a primeira, abra os autos de um processo no PJe, marque as peças " +
-      "e clique em <b>✍️ Minutar</b> no painel da extensão.</div>" +
+      "e clique em <b>Minutar</b> no painel da extensão.</div>" +
       '<div class="vlinks">' +
-      '<a href="modelos.html">📚 Meus modelos de peças</a>' +
+      '<a href="modelos.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h7v14H4z"/><path d="M13 6h7v14h-7z"/></svg>Meus modelos de peças</a>' +
       '<a href="help.html" target="_blank">Como usar a extensão →</a>' +
       "</div></div>"
     );
@@ -429,7 +434,7 @@
           "text/plain": new Blob([texto], { type: "text/plain" }),
         }),
       ]);
-      piscar(btn, "✓ Copiado");
+      piscar(btn, "Copiado");
     } catch (e) {
       // Sem permissão de clipboard ou sem gesto: cai no caminho antigo, que
       // funciona porque a seleção é feita na própria página.
@@ -446,23 +451,28 @@
       const ok = document.execCommand("copy");
       sel.removeAllRanges();
       tmp.remove();
-      piscar(btn, ok ? "✓ Copiado" : "✕ Falhou");
+      piscar(btn, ok ? "Copiado" : "Falhou");
     }
   }
 
   async function baixarDocx(btn) {
     btn.disabled = true;
-    const antes = btn.textContent;
-    btn.textContent = "gerando…";
+    // MESMO cuidado do piscar() logo acima: o botão é <svg> + <span>, e escrever
+    // no BOTÃO apaga o ícone — de forma permanente, porque a restauração devolve
+    // só o texto e o <svg> não volta. Sem isto, o ícone do "Baixar .docx" some no
+    // primeiro clique e o piscar() seguinte já nem acha o <span> para restaurar.
+    const alvo = btn.querySelector("span") || btn;
+    const antes = alvo.textContent;
+    alvo.textContent = "gerando…";
     try {
       const blob = await EditorDocx.gerarBlob(editor.value, elTitulo.value);
       baixar(blob, nomeArquivo(".docx"));
-      btn.textContent = antes;
-      piscar(btn, "✓ Baixado");
+      alvo.textContent = antes;
+      piscar(btn, "Baixado");
     } catch (e) {
       console.error("[PJe IA] falha ao gerar .docx", e);
-      btn.textContent = antes;
-      piscar(btn, "✕ Falhou");
+      alvo.textContent = antes;
+      piscar(btn, "Falhou");
     } finally {
       btn.disabled = false;
     }

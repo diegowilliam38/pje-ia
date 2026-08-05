@@ -20,6 +20,16 @@
   // nada é injetado no DOM da página. O bootstrap fica no fim do arquivo.
   function iniciar() {
 
+  // Tribunal do processo aberto, derivado da URL (pje1g.trf5.jus.br → trf5.jus.br).
+  // Fica AQUI, no topo, e NÃO junto da lista de domínios lá embaixo: o system
+  // prompt logo abaixo o consome, e um `const` declarado depois disso lançaria
+  // "Cannot access before initialization" já na montagem — a zona morta temporal
+  // que já derrubou o painel inteiro uma vez (ver CLAUDE.md, "Desenvolvimento").
+  const TRIBUNAL_DO_PROCESSO = (() => {
+    const raiz = location.hostname.split(".").slice(-3).join(".");
+    return /\.jus\.br$/.test(raiz) ? raiz : null;
+  })();
+
   // Trechos comuns do system prompt; a parte de CITAÇÕES varia por provedor:
   // a Anthropic gera citações estruturadas por página (citations API); o
   // Gemini não tem esse recurso — o modelo é instruído a citar a peça e a
@@ -70,6 +80,26 @@
     "partes, pedidos) — quando a resposta tiver mais de um eixo; para uma pergunta",
     "pontual, responda em uma ou duas frases corridas, sem estruturar.",
   ];
+  // Ordem de prioridade das fontes na busca web. Vive em trecho PRÓPRIO porque os
+  // DOIS system prompts precisam dele: até aqui a instrução de busca existia só no
+  // caminho de citação textual (Gemini/OpenAI) e o caminho Anthropic não tinha
+  // NENHUMA — dependia só de `allowed_domains`, que é binário (dentro/fora) e não
+  // sabe dizer "STF e STJ primeiro". Prioridade é RANKING, e nenhuma das três APIs
+  // tem parâmetro de ranking: só o prompt expressa isso, nos três provedores.
+  const PROMPT_BUSCA = [
+    "Se usar a busca na web, siga esta ordem de prioridade das fontes:",
+    "(1) STF (stf.jus.br) e STJ (stj.jus.br) — súmulas, repetitivos e precedentes",
+    "vinculantes têm precedência sobre qualquer outra fonte;",
+    TRIBUNAL_DO_PROCESSO
+      ? "(2) o tribunal deste processo (" +
+        TRIBUNAL_DO_PROCESSO +
+        ") — a jurisprudência local aplicável ao caso;"
+      : "(2) o tribunal do próprio processo, quando identificável;",
+    "(3) as demais fontes (TST, CNJ, repositórios de jurisprudência) apenas quando",
+    "as anteriores não responderem — e, nesse caso, diga que a resposta não veio de",
+    "fonte superior. Para texto de lei, use planalto.gov.br.",
+    "Cite a fonte de cada informação obtida na web.",
+  ];
   const SYSTEM_PROMPT = PROMPT_INICIO.concat(
     [
       "As citações precisas de trechos são geradas automaticamente pelo sistema e já",
@@ -79,6 +109,7 @@
       "só nesse caso escreva a referência no próprio texto (ex.: 'na Contestação, id",
       "123456') e avise o usuário de que aquela peça não é citável.",
     ],
+    PROMPT_BUSCA,
     PROMPT_FIM
   ).join(" ");
   const SYSTEM_PROMPT_CIT_TEXTUAL = PROMPT_INICIO.concat(
@@ -87,10 +118,8 @@
       "no formato '(Contestação, id 123456, fl. 12)' — indique sempre a página do",
       "PDF de origem quando conseguir identificá-la; sem folha identificável, use",
       "'(Contestação, id 123456)'.",
-      "Se usar a busca na web, priorize fontes oficiais brasileiras: sites .jus.br",
-      "(tribunais, STF, STJ, TST, CNJ) e planalto.gov.br — cite a fonte de cada",
-      "informação obtida na web.",
     ],
+    PROMPT_BUSCA,
     PROMPT_FIM
   ).join(" ");
   // Instruções personalizadas do usuário (persona/preferências — magistrado,
@@ -220,31 +249,49 @@
   // Betas enviadas em todos os requests de chat (documentos por file_id).
   const BETAS_CHAT = ["files-api-2025-04-14"];
 
-  // Fontes confiáveis para a busca de jurisprudência/legislação (allowed_domains).
-  const DOMINIOS_JURIDICOS = [
-    "stf.jus.br",
-    "stj.jus.br",
+  // Fontes confiáveis da busca, em TRÊS DEGRAUS de autoridade. A distinção não é
+  // cosmética: num parecer, "o STJ decidiu" e "um blog jurídico noticiou" não têm
+  // o mesmo peso, e até aqui a extensão tratava as dez fontes como equivalentes.
+  //
+  // Os degraus servem a dois consumidores diferentes:
+  //  - `DOMINIOS_JURIDICOS` (a UNIÃO) é o que vai em `allowed_domains`: a API só
+  //    entende dentro/fora, então o filtro continua binário e nada é excluído;
+  //  - a ORDEM vai por PROMPT_BUSCA (nos três provedores) e o NÍVEL de cada fonte
+  //    citada vira rótulo na bolha (`nivelFonte`), para o usuário ver de onde veio.
+  const FONTES_SUPERIORES = ["stf.jus.br", "stj.jus.br"];
+  // Multi-PJe: o tribunal do processo entra como 2º degrau. Vindo da URL, cobre
+  // qualquer tribunal (pje1g.trf5.jus.br → trf5.jus.br) sem lista fixa — por isso
+  // "tjce.jus.br" deixou de ser hardcoded: num processo do TRF5, jurisprudência do
+  // TJCE é ruído, e num processo do TJCE ela entra por aqui de qualquer forma.
+  const FONTES_TRIBUNAL = TRIBUNAL_DO_PROCESSO ? [TRIBUNAL_DO_PROCESSO] : [];
+  const FONTES_DEMAIS = [
     "tst.jus.br",
-    "tjce.jus.br",
     "cnj.jus.br",
-    "planalto.gov.br",
+    "planalto.gov.br", // legislação, não jurisprudência
     "lexml.gov.br",
     "jusbrasil.com.br",
     "conjur.com.br",
     "migalhas.com.br",
   ];
-  // Multi-PJe: inclui o domínio-raiz do tribunal atual (ex.: pje1g.trf5.jus.br
-  // → trf5.jus.br) para a busca alcançar a jurisprudência do próprio tribunal.
-  {
-    const raiz = location.hostname.split(".").slice(-3).join(".");
-    if (/\.jus\.br$/.test(raiz) && !DOMINIOS_JURIDICOS.includes(raiz)) {
-      DOMINIOS_JURIDICOS.push(raiz);
-    }
+  const DOMINIOS_JURIDICOS = [
+    ...new Set([...FONTES_SUPERIORES, ...FONTES_TRIBUNAL, ...FONTES_DEMAIS]),
+  ];
+
+  // Nível de uma fonte pelo host, para o rótulo da citação. Sufixo além de
+  // igualdade porque a busca devolve subdomínio (noticias.stf.jus.br,
+  // processo.stj.jus.br — ambos vistos no smoke test real).
+  function nivelFonte(host) {
+    const casa = (d) => host === d || host.endsWith("." + d);
+    if (FONTES_SUPERIORES.some(casa)) return "superior";
+    if (FONTES_TRIBUNAL.some(casa)) return "tribunal";
+    return "outra";
   }
 
   // Ferramentas de busca web na versão suportada pelo modelo atual.
-  // Gemini: google_search não aceita allowed_domains — a priorização de
-  // fontes .jus.br vai por instrução no system prompt (SYSTEM_PROMPT_CIT_TEXTUAL).
+  // Gemini: google_search não aceita allowed_domains — ali a priorização de
+  // fontes depende SÓ da instrução do PROMPT_BUSCA (garantia mole). Nos outros
+  // dois a allowlist é aplicada no servidor (garantia dura); o PROMPT_BUSCA vai
+  // junto assim mesmo, porque é ele que expressa a ORDEM entre os três degraus.
   function toolsBusca() {
     if (!modelCaps) return [];
     if (modelCaps.provider === "gemini") return [{ type: "google_search" }];
@@ -1580,9 +1627,41 @@
   // O `id` sai como campo PRÓPRIO (não colado no rótulo): é ele que o painel usa
   // para tornar a citação clicável (rola a timeline até a peça). O id vem de
   // graça no document_title, que é o `title` que montarBlocos enviou.
+  // Redirecionadores de busca. O Gemini NÃO devolve a URL da fonte: devolve um
+  // link opaco do Vertex (vertexaisearch.cloud.google.com/grounding-api-redirect/…)
+  // que só resolve no clique. Medido no smoke test real — e ali o `title` traz o
+  // domínio verdadeiro ("stj.jus.br"), que é justamente o que o usuário precisa
+  // ver antes de clicar. Sem esta correção o rodapé anunciaria "google.com" numa
+  // resposta cuja fonte é o STJ, e a etiqueta de nível cairia sempre em "outra".
+  const REDIRECIONADORES = ["vertexaisearch.cloud.google.com"];
+  function hostDeUrl(u) {
+    try {
+      return new URL(u).hostname.replace(/^www\./, "");
+    } catch {
+      return "";
+    }
+  }
+  function hostDaFonte(c) {
+    const h = hostDeUrl(c.url);
+    const opaco = !h || REDIRECIONADORES.some((r) => h === r || h.endsWith("." + r));
+    if (!opaco) return h;
+    // O `title` só pode virar host se ELE for um domínio (caso Gemini). Na
+    // Anthropic e na OpenAI o title é a manchete da página ("Bem de família do
+    // fiador…") e usá-lo como origem seria inventar um domínio.
+    const t = String(c.title || "").trim();
+    if (/^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(t)) return t.replace(/^www\./, "");
+    return h;
+  }
+
   function infoCitacao(c) {
     if (c.type === "web_search_result_location") {
-      return { label: c.title || c.url || "fonte na web", url: c.url };
+      const host = hostDaFonte(c);
+      return {
+        label: c.title || host || c.url || "fonte na web",
+        url: c.url,
+        host: host || undefined,
+        nivel: host ? nivelFonte(host) : undefined,
+      };
     }
     const bruto = String(c.document_title || "");
     const id = (bruto.match(/^(\d{6,})\s*-\s*/) || [])[1] || null;

@@ -1,0 +1,57 @@
+/* Famílias vendorizadas — ver DESIGN.md §3.
+   ARQUIVO ÚNICO, consumido de duas formas:
+
+   1. Páginas da extensão (popup, opções, ajuda, editor, modelos, mapa):
+      <link rel="stylesheet" href="fontes.css"> — a base URL é
+      chrome-extension://<id>/src/, então "../vendor/fontes/…" resolve certo.
+
+   2. Painel: `mount()` em panel.js faz fetch deste arquivo, troca o prefixo
+      "../vendor/fontes/" por chrome.runtime.getURL("vendor/fontes/") e injeta
+      num <style> no **document.head da página do tribunal** — NÃO no Shadow
+      DOM. Duas razões, ambas obrigatórias:
+        - @font-face dentro de shadow tree é ignorado pela spec de CSS Scoping
+          (o Chrome cumpre): a família nunca seria registrada e tudo cairia no
+          fallback, em silêncio.
+        - o CSS do painel é injetado como TEXTO, então uma url() relativa
+          resolveria contra o host do tribunal e daria 404 mudo.
+
+   Newsreader e IBM Plex Sans são VARIABLE fonts: um arquivo cobre 400–600, e é
+   por isso que há um só .woff2 para os três pesos. IBM Plex Mono é estática,
+   daí os dois arquivos. Todas SIL OFL — ver vendor/LICENSES.md.
+   Subset `latin` (U+0000–00FF), que cobre toda a acentuação do português. */
+
+@font-face {
+  font-family: "Newsreader";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("../vendor/fontes/newsreader.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Newsreader";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../vendor/fontes/newsreader-italic.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("../vendor/fontes/plexsans.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../vendor/fontes/plexmono-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../vendor/fontes/plexmono-500.woff2") format("woff2");
+}

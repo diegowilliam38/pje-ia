@@ -4,6 +4,9 @@ Arquivos baixados dos pacotes oficiais e usados **sem qualquer modificação**, 
 páginas próprias da extensão (`chrome-extension://`) — `src/mapa.html` (mapa mental) e
 `src/editor.html` (editor de minutas). **Não** são carregados nas páginas do PJe.
 
+> **Exceção: as fontes em `fontes/` SÃO carregadas na página do tribunal** (é onde o
+> painel roda). Ver a segunda tabela.
+
 | Arquivo | Pacote | Versão | Página | Origem | Licença |
 |---|---|---|---|---|---|
 | `d3.min.js` | [d3](https://d3js.org) | 7.9.0 | mapa | `https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js` | ISC — © Mike Bostock |
@@ -26,3 +29,22 @@ de páginas de extensão bloqueia. A conversão Markdown → árvore de nós é 
 
 Para atualizar, baixe novamente a mesma URL com a versão nova, rode `node --check` no arquivo
 e atualize a tabela acima.
+
+## Fontes
+
+Subset `latin` (U+0000–00FF, cobre toda a acentuação do português), baixado da API do
+Google Fonts e servido **localmente** — nunca de CDN, porque o painel roda na página do
+tribunal e um `<link>` externo seria barrado pela CSP de vários deles e vazaria uma
+requisição a partir da tela dos autos. Declaradas em `src/fontes.css`; ver DESIGN.md §3.
+
+| Arquivo | Família | Tipo | Licença |
+|---|---|---|---|
+| `fontes/newsreader.woff2` | [Newsreader](https://fonts.google.com/specimen/Newsreader) | variable, 400–600 | SIL OFL 1.1 — © Production Type |
+| `fontes/newsreader-italic.woff2` | Newsreader | itálico 400 | SIL OFL 1.1 |
+| `fontes/plexsans.woff2` | [IBM Plex Sans](https://fonts.google.com/specimen/IBM+Plex+Sans) | variable, 400–600 | SIL OFL 1.1 — © IBM |
+| `fontes/plexmono-400.woff2` / `-500.woff2` | [IBM Plex Mono](https://fonts.google.com/specimen/IBM+Plex+Mono) | estática | SIL OFL 1.1 — © IBM |
+
+Newsreader e Plex Sans são **variable fonts**: um arquivo cobre 400, 500 e 600, e é por
+isso que há um `.woff2` só para os três pesos (a API do Google devolve o mesmo arquivo
+para cada peso pedido). Plex Mono é estática, daí os dois arquivos. Total ~264 KB, dos
+quais ~188 KB no caminho comum — o itálico e o mono 500 só baixam quando usados.

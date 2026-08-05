@@ -3,47 +3,80 @@
    panel.css — ao mudar um valor aqui, mude lá também (o painel vive em Shadow
    DOM e não pode importar este arquivo). */
 :root {
-  --pje: #12729f;
-  --pje-2: #0f5f85;
-  --pje-3: #0d5b80;
-  --hd-de: #0f4d72;
-  --hd-para: #1a6d9c;
-  --ink: #0f3346;
+  --pje: #14607e;
+  --pje-2: #0e4459;
+  --pje-3: #0e4e69;
+  /* Cabeçalho CHAPADO — o gradiente 96deg saiu no refinamento (DESIGN.md §2). */
+  --hd: #0e4459;
+  --mark-de: #2e7e9c;
+  --mark-para: #175d79;
+  --btn-de: #1c6c8b;
+  --btn-para: #125a78;
+  --btn-de-h: #22789a;
+  --btn-para-h: #0e4e69;
+  --line-focus: #6fa5b9;
+  --ring: 0 0 0 3px rgba(46, 126, 156, 0.13);
+  --ink: #0e323f;
   --ink-2: #0b2a3a;
   --cream: #eaf2f7;
   --paper: #f6f9fb;
   --canvas: #e9eef3;
-  --text: #123240;
-  --text-2: #1b3d4f;
-  --text-3: #2b566d;
-  --muted: #6b8494;
-  --muted-2: #7e97a8;
-  --muted-3: #93a9b8;
-  --surface-2: #fbfdfe;
-  --hover-2: #f2f9fd;
-  --accent-bg: #e8f2f8;
-  --line: #e1ebf2;
-  --line-card: #e3edf3;
-  --line-input: #dbe6ee;
-  --line-strong: #cadcea;
-  --ok: #1f9d6b;
-  --ok-bg: #eaf5ee;
-  --warn: #dd8b2c;
-  --warn-bg: #fbf1dc;
+  --text: #0e323f;
+  --text-2: #3e5561;
+  --text-3: #234e5e;
+  --muted: #6b7c85;
+  --muted-2: #74858e;
+  --muted-3: #93a3ac;
+  --eyebrow: #a0aeb6;
+  --surface-2: #fafcfc;
+  --surface-card: #fcfdfd;
+  --hover-2: #f5fafc;
+  --accent-bg: #dfeaee;
+  --accent-bg-2: #e4edf0;
+  --line: #e2eaee;
+  --line-2: #edf1f3;
+  --line-card: #e4ebee;
+  --line-input: #dae3e8;
+  --line-strong: #d8e2e6;
+  --line-check: #c3cfd5;
+  /* Categorias de peça — o mesmo conjunto do panel.css (DESIGN.md §2). Só a
+     de petição é usada hoje (a inicial do cartão da Anthropic), mas elas são um
+     conjunto semântico: definir uma só convidaria à próxima omissão. */
+  --cat-decisao: #de8b2c;
+  --cat-audiencia: #2f9268;
+  --cat-peticao: #6a62c0;
+  --cat-prova: #c1508a;
+  --ok: #2f9268;
+  --ok-bg: #eaf4ef;
+  --ok-line: #cbe3d8;
+  --ok-ink: #1e5c44;
+  --warn: #de8b2c;
+  --warn-bg: #fbead2;
   /* Espelham panel.css (ver DESIGN.md §1) — aviso suave, que informa sem
      impedir de continuar. */
   --warn-line: #eeddba;
-  --warn-ink: #8a5a12;
+  --warn-ink: #a96b14;
   --erro: #a5301f;
-  --ff-sans: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
-  --ff-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --erro-hd: #b4402f;
+  /* Alerta que BLOQUEIA — espelha panel.css (DESIGN.md §2). */
+  --alerta: #b4402f;
+  --alerta-bg: #fbeee6;
+  --alerta-line: #e0b7a0;
+  --alerta-ink: #7c3212;
+  /* Famílias vendorizadas em vendor/fontes/ — os @font-face ficam no topo deste
+     arquivo. Aqui as url() são relativas normais: estas páginas são servidas
+     pela própria extensão, ao contrário do painel (DESIGN.md §3). */
+  --ff-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --ff-serif: "Newsreader", Georgia, "Times New Roman", serif;
   --ff-mono: "IBM Plex Mono", "Cascadia Mono", Consolas, monospace;
-  --sh-card: 0 1px 2px rgba(16, 60, 85, 0.04);
-  --sh-btn: 0 1px 2px rgba(16, 60, 85, 0.18);
-  --sh-pop: 0 8px 28px -8px rgba(16, 60, 85, 0.35);
+  --sh-card: 0 1px 2px rgba(14, 50, 63, 0.04);
+  --sh-seg: 0 1px 2px rgba(14, 50, 63, 0.1);
+  --sh-btn: 0 1px 2px rgba(14, 50, 63, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  --sh-pop: 0 1px 2px rgba(14, 50, 63, 0.1), 0 24px 60px -18px rgba(14, 50, 63, 0.34);
   /* raios — mesma escala do painel (DESIGN.md §4) */
-  --r-xs: 4px; --r-sm: 7px; --r-md: 8px; --r-lg: 11px; --r-xl: 12px;
-  --r-2xl: 14px; --r-pill: 999px;
+  --r-xs: 4px; --r-tight: 6px; --r-sm: 7px; --r-md: 8px; --r-ctrl: 9px;
+  --r-box: 10px; --r-lg: 11px; --r-xl: 12px; --r-2xl: 14px;
+  --r-pill: 20px;
   /* Escala tipográfica — sete degraus inteiros (DESIGN.md §3). Faltavam aqui:
      o checklist do §7 exige que um token criado exista NOS DOIS arquivos de
      variáveis, e sem eles as páginas de popup/opções/ajuda ficavam livres para
@@ -56,8 +89,9 @@
   --fs-lg: 15px;     /* títulos de seção */
   --fs-lead: 17px;   /* título de página */
   --fs-hero: 26px;   /* título de destaque */
-  /* ritmo vertical (DESIGN.md §4) */
-  --sp-1: 4px; --sp-2: 6px; --sp-3: 10px; --sp-4: 14px; --sp-5: 20px; --sp-6: 28px;
+  /* ritmo vertical — oito degraus (DESIGN.md §4) */
+  --sp-1: 4px; --sp-2: 6px; --sp-2b: 8px; --sp-3: 10px;
+  --sp-3b: 12px; --sp-4: 14px; --sp-5: 20px; --sp-6: 28px;
 }
 
 * { box-sizing: border-box; }
@@ -70,11 +104,23 @@ body {
   background: var(--paper);
   color: var(--text);
   font-family: var(--ff-sans);
-  font-size: 14px;
+  font-size: var(--fs-body);
   line-height: 1.5;
 }
 
 .serif { font-family: var(--ff-serif); }
+
+/* Ícone DENTRO de uma frase — o guia e o histórico nomeiam botões do painel
+   ("clique em ⟨ícone⟩ Minutar"), e desde que os botões deixaram de usar emoji o
+   texto precisa mostrar o mesmo desenho que está na tela. `vertical-align`
+   negativo em vez de flex: estes ícones vivem no meio de um parágrafo, e
+   transformar o <strong> em flex quebraria a quebra de linha. */
+.ic-in {
+  vertical-align: -2px;
+  margin-right: 5px;
+  color: var(--pje);
+}
+.ic-marca { vertical-align: -3px; border-radius: 3px; }
 
 .brand {
   display: flex;
@@ -83,20 +129,29 @@ body {
   padding: 18px 20px;
   background:
     radial-gradient(120% 140% at 100% 0%, rgba(98, 169, 199, 0.28), transparent 60%),
-    linear-gradient(96deg, var(--hd-de) 0%, var(--hd-para) 100%);
+    var(--hd);
   color: #fff;
 }
-.brand img { width: 40px; height: 40px; border-radius: 10px; }
+/* Mesma marca do painel: quadrado com gradiente vertical e inset branco, e a
+   imagem MENOR que ele — é o gradiente em volta que capta a luz (DESIGN.md §2). */
+.brand img {
+  width: 38px; height: 38px; border-radius: var(--r-lg);
+  padding: 8px; box-sizing: border-box;
+  background: linear-gradient(180deg, var(--mark-de), var(--mark-para));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
 .brand .t {
   font-family: var(--ff-serif);
-  font-size: 18px;
-  letter-spacing: 0.3px;
+  font-size: var(--fs-lead);
+  font-weight: 500;
+  letter-spacing: 0.005em;
   line-height: 1.15;
 }
 .brand .s {
-  font-size: 11.5px;
+  font-family: var(--ff-mono);
+  font-size: var(--fs-nano);
   color: rgba(255, 255, 255, 0.72);
-  letter-spacing: 0.4px;
+  letter-spacing: 0.11em;
   text-transform: uppercase;
 }
 
@@ -106,10 +161,10 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  font-size: 12.5px;
+  font-size: var(--fs-ui);
   font-weight: 600;
   padding: 6px 11px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   margin-bottom: 16px;
 }
 .status-chip .dot { width: 8px; height: 8px; border-radius: 50%; }
@@ -118,74 +173,43 @@ body {
 .status-chip.warn { background: var(--warn-bg); color: var(--warn); }
 .status-chip.warn .dot { background: var(--warn); }
 
-label.field { display: block; margin: 14px 0 6px; font-weight: 600; font-size: 13px; }
-label.field .hint { display: block; font-weight: 400; font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+label.field { display: block; margin: 14px 0 6px; font-weight: 600; font-size: var(--fs-ui); }
+label.field .hint { display: block; font-weight: 400; font-size: var(--fs-meta); color: var(--muted); margin-top: 2px; }
 
 /* Estado de CADA chave: o chip do topo fala só do provedor do modelo ativo,
    então sem isto não dá para saber, de relance, se a outra chave está salva (o
    caso comum de quem usa Claude e Gemini). O seletor NÃO pode ser escopado em
    label.field: no popup o mesmo elemento vive dentro de um <summary>. */
 .kstate {
-  font-weight: 600; font-size: 11px;
+  font-weight: 600; font-size: var(--fs-micro);
   display: inline-flex; align-items: center; gap: 5px;
   color: var(--muted);
 }
 .kstate::before {
   content: ""; width: 7px; height: 7px; border-radius: 50%;
-  background: #c3ced7;
+  background: var(--line-check);
 }
 .kstate.on { color: var(--ok); }
 .kstate.on::before { background: var(--ok); }
 label.field .kstate { float: right; }
 
-/* Chave recolhível (só no popup, onde a altura é limitada a 600px). Fechada,
-   ela é uma linha de ESTADO; aberta, é o campo de sempre. */
-.keybox { margin: 10px 0; }
-.keybox > summary {
-  list-style: none; cursor: pointer;
-  display: flex; align-items: center; gap: 8px;
-  font-weight: 600; font-size: 13px; color: var(--text);
-  padding: 7px 10px;
-  border: 1px solid var(--line); border-radius: 9px; background: #fff;
-}
-.keybox > summary::-webkit-details-marker { display: none; }
-.keybox > summary::before {
-  content: ""; flex: none;
-  border-left: 5px solid var(--muted);
-  border-top: 4px solid transparent; border-bottom: 4px solid transparent;
-  transition: transform 0.15s;
-}
-.keybox[open] > summary::before { transform: rotate(90deg); }
-.keybox > summary:hover { border-color: var(--pje); }
-.keybox > summary .kstate { float: none; margin-left: auto; }
-/* Aberta, cabeçalho e campo formam UM cartão só — solto, o input parecia
-   pertencer ao bloco seguinte. */
-.keybox[open] > summary {
-  border-bottom: none; border-radius: 9px 9px 0 0; background: var(--cream);
-}
-.keybox[open] .keybox-in {
-  border: 1px solid var(--line); border-top: none; border-radius: 0 0 9px 9px;
-  background: #fff;
-}
-.keybox-in { padding: 10px; }
-.keybox-in .hint { display: block; font-size: 11.5px; color: var(--muted); margin-top: 6px; }
 
 /* Linha de dois campos: controle curto à esquerda, explicação ao lado — em vez
    de a dica empurrar mais uma linha inteira para baixo da dobra. */
-.row2 { display: flex; align-items: center; gap: 12px; }
-.row2 > select, .row2 > input { flex: 0 1 200px; }
-.row2 .side-hint { flex: 1; min-width: 0; font-size: 11.5px; color: var(--muted); line-height: 1.4; }
 
 /* Rodapé de links: o que era bloco vira uma linha. */
 .foot {
   margin-top: 16px; padding-top: 12px;
   border-top: 1px dashed var(--line);
-  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;
-  font-size: 11.5px; color: var(--muted);
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-5);
+  font-size: var(--fs-meta); color: var(--muted);
 }
 .foot a { color: var(--pje-2); font-weight: 600; text-decoration: none; }
 .foot a:hover { text-decoration: underline; }
-.foot .sep { color: #aebdc7; } /* --line não contrasta com o fundo do popup */
+/* O separador era um <span>·</span> entre os links. Como item de flex ele
+   viaja na quebra de linha e fica pendurado no fim da fileira — um ponto solto
+   apontando para nada. Agora quem separa é o próprio `gap`: mais largo, sem
+   glifo para sobrar, e a fileira quebra onde precisar. */
 
 input, select, textarea {
   width: 100%;
@@ -201,7 +225,7 @@ textarea { resize: vertical; min-height: 58px; }
 input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--pje);
-  box-shadow: 0 0 0 3px rgba(18, 114, 159, 0.18);
+  box-shadow: 0 0 0 3px rgba(20, 96, 126, 0.18);
 }
 
 .pw-row { position: relative; }
@@ -213,7 +237,7 @@ input:focus, select:focus, textarea:focus {
   border: none;
   background: transparent;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--fs-meta);
   cursor: pointer;
   padding: 6px 8px;
 }
@@ -224,10 +248,10 @@ input:focus, select:focus, textarea:focus {
   border: none;
   border-radius: 10px;
   padding: 12px 16px;
-  font-weight: 700;
-  font-size: 14px;
+  font-weight: 600;
+  font-size: var(--fs-body);
   cursor: pointer;
-  background: linear-gradient(96deg, var(--hd-de) 0%, var(--hd-para) 100%);
+  background: var(--hd);
   color: #fff;
   transition: filter 0.15s, transform 0.05s;
 }
@@ -235,14 +259,14 @@ input:focus, select:focus, textarea:focus {
 .btn:active { transform: translateY(1px); }
 .btn.secondary { background: #fff; color: var(--ink); border: 1px solid var(--line); }
 
-.save-status { margin-top: 12px; font-size: 13px; font-weight: 600; color: var(--ok); min-height: 18px; }
+.save-status { margin-top: 12px; font-size: var(--fs-ui); font-weight: 600; color: var(--ok); min-height: 18px; }
 
 .steps {
   margin-top: 18px;
   border-top: 1px dashed var(--line);
   padding-top: 16px;
 }
-.steps h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); margin: 0 0 10px; }
+.steps h3 { font-size: var(--fs-meta); text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); margin: 0 0 10px; }
 .step { display: flex; gap: 11px; margin-bottom: 11px; align-items: flex-start; }
 .step .n {
   flex: none;
@@ -250,20 +274,20 @@ input:focus, select:focus, textarea:focus {
   border-radius: 50%;
   background: var(--pje);
   color: #fff;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--fs-meta);
+  font-weight: 600;
   display: flex; align-items: center; justify-content: center;
 }
-.step .txt { font-size: 12.8px; color: var(--text); }
+.step .txt { font-size: var(--fs-ui); color: var(--text); }
 .step .txt b { color: var(--ink); }
 
 .note {
   margin-top: 16px;
   background: var(--warn-bg);
-  border: 1px solid #f0dcae;
+  border: 1px solid var(--warn-line);
   border-radius: 8px;
   padding: 9px 11px;
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
   color: var(--warn);
 }
 /* Variante de UMA linha para o popup: o aviso de sigilo precisa estar sempre
@@ -271,7 +295,7 @@ input:focus, select:focus, textarea:focus {
    Salvar para baixo da dobra a cada abertura. */
 .note.slim {
   margin-top: 12px; padding: 7px 10px; line-height: 1.4;
-  background: transparent; border: none; border-left: 3px solid #e2c98e;
+  background: transparent; border: none; border-left: 3px solid var(--warn-line);
   border-radius: 0;
 }
 
@@ -282,7 +306,7 @@ input:focus, select:focus, textarea:focus {
    do painel, o que obrigava a abrir um processo qualquer para cadastrar um
    modelo. Linhas, não cartões coloridos: é navegação, não chamada para ação. */
 .sec-tit {
-  font-size: 17px;
+  font-size: var(--fs-lead);
   color: var(--ink);
   margin: 26px 0 10px;
   padding-top: 20px;
@@ -303,21 +327,142 @@ input:focus, select:focus, textarea:focus {
 }
 .lib:hover {
   border-color: var(--pje);
-  background: #fbfdfe;
+  background: var(--surface-2);
   transform: translateX(2px);
 }
-.lib .ic { font-size: 20px; flex: none; line-height: 1; }
+.lib .ic { flex: none; line-height: 0; color: var(--pje); }
 .lib .tx { flex: 1; min-width: 0; }
-.lib .tx b { display: block; font-size: 14px; color: var(--ink); }
+.lib .tx b { display: block; font-size: var(--fs-body); color: var(--ink); }
 .lib .tx i {
   display: block;
   font-style: normal;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--muted);
   line-height: 1.45;
   margin-top: 2px;
 }
-.lib .arrow { flex: none; color: var(--pje); font-size: 15px; opacity: 0.55; }
+.lib .arrow { flex: none; color: var(--pje); font-size: var(--fs-lg); opacity: 0.55; }
 .lib:hover .arrow { opacity: 1; }
-.libs-nota { font-size: 11.5px; color: var(--muted); margin: 9px 2px 0; }
-.libs-nota b { color: #4a5a68; }
+.libs-nota { font-size: var(--fs-meta); color: var(--muted); margin: 9px 2px 0; }
+.libs-nota b { color: var(--text-2); }
+
+/* ===================================================================
+   PROVEDOR EM PRIMEIRO PLANO (popup e opções) — DESIGN.md §5
+   Escolhe-se o provedor, e só a chave dele aparece. Antes eram três
+   acordeões disputando a mesma altura de 600px do popup do Chrome.
+   =================================================================== */
+.eyebrow-row { display: flex; align-items: baseline; justify-content: space-between; margin: 14px 0 8px; }
+.eyebrow {
+  font-family: var(--ff-mono); font-size: var(--fs-nano);
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--eyebrow);
+}
+.eyebrow-n { font-size: var(--fs-micro); color: var(--muted-3); }
+
+.prov-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-2b); }
+.prov {
+  display: flex; flex-direction: column; align-items: center; gap: var(--sp-2);
+  border: 1px solid var(--line-input); border-radius: var(--r-lg);
+  background: #fff; padding: var(--sp-3b) var(--sp-3); cursor: pointer;
+  font-family: inherit; transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+.prov:hover { border-color: var(--line-strong); }
+.prov[aria-selected="true"] {
+  border: 1.5px solid var(--btn-de); background: var(--hover-2); box-shadow: var(--ring);
+  padding: 11.5px var(--sp-3); /* compensa a borda de 1.5px: sem isto o cartão
+                                  ativo cresce 1px e a linha inteira dança */
+}
+/* A inicial em serif dá a cada provedor um sinal próprio sem precisar de logo
+   de terceiro no pacote (que exigiria licença de marca). */
+.prov-i {
+  width: 26px; height: 26px; border-radius: var(--r-md);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--ff-serif); font-size: var(--fs-lg); font-weight: 600;
+}
+.prov-i.pa { background: #f1eef9; color: var(--cat-peticao); }
+.prov-i.pg { background: #e3f0f4; color: var(--pje); }
+.prov-i.po { background: var(--ok-bg); color: #2f7a5b; }
+.prov-n { font-size: var(--fs-meta); font-weight: 600; color: var(--text-2); }
+.prov[aria-selected="true"] .prov-n { color: var(--ink); }
+.prov .kstate { font-size: var(--fs-nano); font-weight: 400; }
+/* Nota sob os cartões — só na página de opções, que é a versão com as
+   explicações longas; no popup os 600px de altura não sobram para ela. */
+.prov-nota {
+  margin: var(--sp-2b) 0 0;
+  font-size: var(--fs-micro); line-height: 1.5; color: var(--muted);
+}
+
+.provcard {
+  border: 1px solid var(--line-input); border-radius: var(--r-xl);
+  background: #fff; box-shadow: var(--sh-card);
+  margin-top: var(--sp-3b); padding: var(--sp-4);
+}
+.pc-sec + .pc-sec, .provcard > label.field { margin-top: var(--sp-4); }
+.pc-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3); }
+.pc-head label { font-size: var(--fs-ui); font-weight: 600; color: var(--ink); }
+.pc-head-sp { margin-top: var(--sp-4); }
+.pc-head .field { margin: 0; }
+.pc-trocar {
+  border: 0; background: none; padding: 0; cursor: pointer; font-family: inherit;
+  font-size: var(--fs-micro); font-weight: 500; color: var(--pje);
+}
+.pc-trocar:hover { text-decoration: underline; }
+/* Chave já salva: linha mascarada. A chave inteira NUNCA volta à tela — quem
+   precisa trocá-la digita outra, não relê a atual. */
+.keymask {
+  display: flex; align-items: center; gap: var(--sp-2b);
+  height: 40px; padding: 0 var(--sp-3b); margin-top: var(--sp-2);
+  border: 1px solid var(--line-input); border-radius: var(--r-ctrl);
+  background: var(--surface-2);
+}
+.keymask::before {
+  content: ""; flex: none; width: 14px; height: 14px;
+  background: var(--ok); border-radius: 50%;
+  -webkit-mask: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E") center/contain no-repeat;
+  mask: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E") center/contain no-repeat;
+}
+.km-v { flex: 1; font-family: var(--ff-mono); font-size: var(--fs-meta); color: var(--muted); letter-spacing: 0.04em; }
+.km-t { flex: none; font-size: var(--fs-micro); color: var(--muted-3); }
+
+/* Segmented de raciocínio. O radio fica fora da tela (nunca display:none) para
+   preservar teclado e leitor de tela — ver DESIGN.md §5. */
+.seg { display: flex; gap: 3px; padding: 3px; margin-top: var(--sp-2); background: var(--line-2); border-radius: var(--r-ctrl); }
+.seg-i { flex: 1; position: relative; }
+.seg-i input { position: absolute; opacity: 0; width: 0; height: 0; }
+.seg-i span {
+  display: flex; align-items: center; justify-content: center; height: 32px;
+  border-radius: var(--r-tight); cursor: pointer;
+  font-size: var(--fs-meta); font-weight: 500; color: var(--muted-2);
+  transition: background 0.14s ease, color 0.14s ease;
+}
+.seg-i:hover span { color: var(--ink); }
+.seg-i input:checked + span {
+  background: #fff; color: var(--ink); font-weight: 600; box-shadow: var(--sh-seg);
+}
+.seg-i:has(input:focus-visible) span { outline: 2px solid var(--pje); outline-offset: 1px; }
+
+/* Chips de persona: preenchem o campo, nunca salvam sozinhos. */
+.personas { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-2b); }
+.persona {
+  border: 1px solid var(--line); border-radius: var(--r-pill); background: #fff;
+  padding: 5px var(--sp-3b); font-family: inherit; font-size: var(--fs-micro);
+  color: var(--text-2); cursor: pointer; transition: border-color 0.14s ease, color 0.14s ease;
+}
+.persona:hover { border-color: var(--line-focus); color: var(--pje-2); }
+
+.save-acts { display: flex; gap: var(--sp-3); }
+/* `.btn` é `width: 100%` (ele nasceu sozinho na coluna). Numa linha flex isso
+   vira a base dos DOIS, e como o secundário não encolhe (`flex: none`) o
+   primário era empurrado para fora do cartão — o "Salvar configuração" ficava
+   cortado na borda. O secundário passa a ser do tamanho do texto e o primário
+   fica com o resto da linha. */
+.save-acts .btn { margin-top: 0; width: auto; }
+.save-acts .btn:not(.btn-sec) { flex: 1; min-width: 0; }
+.btn-sec {
+  flex: none; background: #fff; color: var(--text-2);
+  border: 1px solid var(--line); box-shadow: none;
+}
+.btn-sec:hover { border-color: var(--line-focus); color: var(--pje-2); background: #fff; }
+.lock-note {
+  display: flex; align-items: center; justify-content: center; gap: var(--sp-2);
+  margin-top: var(--sp-3); font-size: var(--fs-micro); color: var(--muted-3);
+}

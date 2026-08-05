@@ -285,6 +285,34 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return;
   }
 
+  // Valida a chave SEM custo: cada provedor tem um endpoint de LISTAGEM DE
+  // MODELOS que responde 200 com credencial boa e 401/403 com credencial ruim,
+  // e não consome token nenhum. Roda aqui, e não no popup, para a chave não
+  // atravessar mais um contexto do que precisa.
+  if (msg.type === "testarChave") {
+    const key = String(msg.key || "").trim();
+    const p = msg.provider;
+    const req =
+      p === "gemini"
+        ? ["https://generativelanguage.googleapis.com/v1beta/models", { "x-goog-api-key": key }]
+        : p === "openai"
+          ? ["https://api.openai.com/v1/models", { Authorization: "Bearer " + key }]
+          : [
+              "https://api.anthropic.com/v1/models",
+              { "x-api-key": key, "anthropic-version": "2023-06-01" },
+            ];
+    fetch(req[0], { headers: req[1] })
+      .then((r) =>
+        r.ok
+          ? sendResponse({ ok: true })
+          : r.status === 401 || r.status === 403
+            ? sendResponse({ ok: false, erro: "chave inválida ou sem permissão." })
+            : sendResponse({ ok: false, erro: "o provedor respondeu " + r.status + "." })
+      )
+      .catch(() => sendResponse({ ok: false, erro: "sem resposta do provedor." }));
+    return true; // resposta assíncrona
+  }
+
   if (msg.type === "caps") {
     // model + effort vão junto: o painel mostra o que está ATIVO (o usuário
     // não deveria precisar confiar às cegas no que salvou nas opções).
