@@ -26,7 +26,7 @@ partes, pedidos, provas — direto na página do processo, com a interface na pa
 do próprio PJe.
 
 <p align="center">
-  <img src="docs/painel-expandido.jpg" alt="Painel expandido: peças categorizadas por cor, chips de contexto e resposta em tabela" width="720">
+  <img src="docs/painel-expandido.png" alt="Painel expandido sobre a tela de autos do PJe: a lista de peças categorizadas por cor à esquerda, os três passos e as perguntas de exemplo no centro, e a barra com Jurisprudência, Minutar, Mapa mental, Prompts e Modelos no rodapé" width="820">
 </p>
 
 ## 🎯 O que ele é — e o que ele não é
@@ -73,6 +73,7 @@ investigação aberta, um agente com MCP é o caminho — o próprio painel suge
 ### Seleção de peças
 
 - **Checkboxes por documento** — só o que você marcar é enviado; chips acima do campo mostram as peças no contexto (com `×` para remover) e o contador indica `x/y`.
+- **Seleção em faixa: arrastar, `Shift+clique` e botão direito** — marcar quarenta petições em sequência não custa quarenta cliques. **Arrastar** sobre a lista marca todas por onde o ponteiro passar (inclusive a peça de origem); **`Shift+clique`** marca do último item tocado até este; e o **botão direito** abre *marcar daqui para baixo / para cima*, que resolve quando a outra ponta do intervalo está fora da tela. Os três respeitam a busca ativa.
 - **Três degraus de seleção — `chave | principais | todas`** — degraus encaixados, do mais enxuto ao mais amplo. **chave** traz a espinha dorsal do processo (petição inicial, contestação, réplica, saneador, laudo, ata de instrução, memoriais, sentença, acórdão e recursos): num processo de 200 peças costumam ser cerca de uma dúzia, e são elas que respondem a maioria das perguntas. **principais** acrescenta as demais peças de conteúdo — decisões, audiências, petições e provas —, deixando de fora o expediente (certidões de intimação, avisos de recebimento, guias, procurações). **todas** marca a lista inteira. Os três somam à seleção, nunca desmarcam o que você escolheu à mão, e respeitam a busca ativa.
 - **✨ Escolher com IA** — quando o título das peças não basta (sete "Petição" seguidas, um "Documento 3"), envia à IA só a **lista** — id, título, tipo e data, nenhum conteúdo — e deixa que ela escolha. Se houver uma pergunta escrita no campo, a escolha é feita para **aquela** pergunta; vazio, ela escolhe as peças que descrevem o processo. Custa alguns centavos, leva poucos segundos, e o motivo de cada peça aparece ao passar o mouse.
 - **Peças categorizadas por cor** — decisões (dourado), audiências (verde), petições (roxo) e provas (magenta) ganham destaque automático, com vocabulário criminal (inquérito, flagrante, interrogatório, pronúncia…) e cível (reconvenção, acordo, quesitos…).
@@ -93,6 +94,7 @@ investigação aberta, um agente com MCP é o caminho — o próprio painel suge
 
 ### Interface
 
+- **Visita guiada no primeiro uso** — na primeira vez, o painel oferece um passeio de treze passos desenhado **sobre a própria interface**, com o gesto **animado ao lado**: a mão descendo pela lista e marcando a faixa, o menu do botão direito abrindo, as peças acendendo enquanto a IA ainda escolhe. Sete dos treze passos são sobre **marcar peças**, que são os atalhos que quase ninguém descobre sozinho. Ela **não altera nada** no seu processo (os gestos são demonstrados numa lista de exemplo) e abre uma vez só — depois fica no botão **Ver como funciona**, no início de toda conversa nova.
 - **Quatro modos de painel** — flutuante, expandido, tela cheia e **lateral** (o processo fica visível e clicável ao lado do chat).
 - **Ocultar a lista de peças** — nos modos expandido/tela cheia, um botão no cabeçalho colapsa a coluna de documentos para dar todo o espaço ao chat (a seleção continua valendo).
 - **Progresso por peça** — card com o estado de cada peça (aguardando → baixando → pronta) ao preparar a análise.
@@ -248,6 +250,10 @@ pela própria biblioteca. Como a minuta manda os autos inteiros **mais** os seus
 o recurso exige um modelo de IA com janela de **1 milhão de tokens** — no Haiku 4.5
 (padrão) o botão fica desativado, explicando o porquê.
 
+<p align="center">
+  <img src="docs/modelos-de-pecas.png" alt="Biblioteca de modelos de peças: as peças-modelo agrupadas por espécie, cada uma com a categoria, o título e a descrição, e os botões Importar (vários .docx de uma vez) e Novo" width="820">
+</p>
+
 <!-- VITRINE: grave a tela "✍️ Minutar → Gerar minuta → editor" e salve como docs/minutar.gif;
      depois troque este comentário pelo bloco abaixo:
 <p align="center">
@@ -269,7 +275,7 @@ extensão não injeta nada.
 > das instalações do CNJ.
 
 <p align="center">
-  <img src="docs/mencao-arroba.jpg" alt="Popup de menção @: busca de peças com badges de contexto e ícones por categoria" width="720">
+  <img src="docs/prompt-salvo.png" alt="Painel aberto sobre um processo real: a lista de peças com o tipo oficial e o id de cada uma, e o popup “Inserir prompt salvo” aberto pelo atalho / no campo de mensagem" width="820">
 </p>
 
 ## 🏗️ Arquitetura
