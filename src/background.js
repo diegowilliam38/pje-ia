@@ -539,9 +539,20 @@ const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 // Executa um turno completo (com continuações pause_turn), emitindo o progresso
 // pelo Port. Retorna {content, stopReason}; lança erro em falha ou recusa.
 // payload: {system, messages, tools?, betas?, maxTokens?}
+// Níveis aceitos no override de effort (o payload vem do content script, que é
+// nosso, mas um valor fora da escala viraria 400 na API em vez de erro claro).
+const EFFORTS = new Set(["low", "medium", "high"]);
+
 async function executarTurno(port, payload) {
   const cfg = await getCfg();
-  const { model, effort } = cfg;
+  const { model } = cfg;
+  // O effort é o da configuração, SALVO quando o turno pede outro. Turnos
+  // utilitários — a triagem do "Escolher com IA" é o caso — são classificação
+  // sobre metadados, não análise jurídica: com raciocínio alto o usuário espera
+  // dezenas de segundos por uma lista de ids, e é disso que a qualidade da
+  // escolha menos depende (depende dos SINAIS que vão na lista). O override é
+  // por turno e não toca na preferência salva, que continua valendo para o chat.
+  const effort = EFFORTS.has(payload.effort) ? payload.effort : cfg.effort;
   const caps = capsDe(model);
   const provider = caps.provider || "anthropic";
   const apiKey = chaveDe(cfg, provider);

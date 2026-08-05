@@ -964,10 +964,44 @@ padrão instantâneo e é a única que funciona sem chave, offline e em 0 ms. O 
 vive na `.docs-tip` (escopo "lista toda", regra do DESIGN.md §5), ao lado de
 `⟳ Carregar tudo` e `⬇ Baixar .zip`.
 
-- **Só a LISTA sai no request** — `id | título | tipo | data de juntada`, nenhum byte
-  de conteúdo de peça. É um chat comum e ISOLADO (sem tools, sem blocos `document`,
-  fora de `conversation`/`pecasNaConversa`), como a minuta e o mapa: por isso funciona
-  nos três provedores.
+- **Só a LISTA sai no request** — `#nº | id | título | tipo | data | quem juntou |
+  etiqueta da triagem local | páginas`, nenhum byte de conteúdo de peça. É um chat
+  comum e ISOLADO (sem tools, sem blocos `document`, fora de
+  `conversation`/`pecasNaConversa`), como a minuta e o mapa: por isso funciona nos três
+  provedores. ~28 tokens por peça (200 peças ≈ 5,7 mil tokens).
+- **A lista vai em ordem CRONOLÓGICA, e isso é correção de um defeito**
+  (`listaParaIA` reusa `PjeExport.ordenarCronologico`, a mesma da exportação em
+  `.zip`): a lista da tela vem do mais RECENTE para o mais antigo, e o prompt
+  antigo dizia "a primeira 'Petição' costuma ser a inicial" — apontando o modelo
+  para a petição mais recente, o oposto do que se queria, justamente na peça mais
+  importante do processo. As linhas são numeradas e o critério da ordenação (dado
+  ou premissa) vai DITO no texto.
+- **Os SINAIS valem mais que o raciocínio** — é a aposta desta camada. Cada linha
+  leva também **quem juntou** (distingue a petição do autor da do réu), o **tipo
+  oficial** (só quando difere do título — senão é token puro), a **etiqueta da
+  triagem local** (`classificarPeca`, apresentada como palpite, não veredito) e o
+  **nº de páginas** quando a peça já foi baixada (uma "Petição" de 2 páginas é
+  encaminhamento; de 40, é a inicial). `docsCache` é um **Map**: acesso por
+  colchetes devolveria `undefined` sempre, e a falha seria muda.
+- **`effort` BAIXO, qualquer que seja a preferência salva** (`EFFORT_TRIAGEM`, via
+  `payload.effort` → override em `executarTurno`): a triagem é classificação sobre
+  metadados, e com raciocínio alto o usuário esperava dezenas de segundos por uma
+  lista de ids — a queixa que originou a rodada. O override é por turno e não toca
+  na configuração, que segue valendo para o chat.
+- **System PRÓPRIO e enxuto** (`systemTriagem`): o system do chat traz regras de
+  citação por página, de não-invenção, de busca web e do inventário — nada disso se
+  aplica a quem não lê peça nenhuma, e ainda são ~900 tokens a conciliar. O que
+  importa dali é a FICHA do processo (classe, assunto, partes), que `contextoDoProcesso`
+  já monta e diz o que é relevante NESTE caso.
+- **Marcação AO VIVO** (`idsParciais` + `marcarParcial`): os `ids` são o primeiro
+  campo do JSON, então as peças acendem na lista enquanto o modelo ainda escreve os
+  motivos — a espera vira progresso visível. Só id fechado entre aspas conta (um id
+  pela metade marcaria a peça errada). Como isso mexe na seleção antes de o turno
+  terminar, o painel manda a seleção anterior no callback (`iaCb(docs, texto,
+  getSelected())`) e **erro ou resultado vazio restauram o estado do usuário**.
+- **Acima de `MAX_LINHAS_IA` (400) o corte é pelo MEIO**, não pelas pontas: a
+  inicial está no começo e a sentença no fim; o miolo é onde vive o expediente
+  repetitivo. A omissão vai dita numa linha própria — sem cap silencioso.
 - **Sob demanda, nunca automático**: nada acontece sem o usuário pedir — zero custo
   surpresa, zero latência não solicitada, e o resultado é sempre atribuível a uma ação
   dele (coerente com o guia do painel afirmar que a extensão não é agente autônomo).

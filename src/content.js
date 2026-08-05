@@ -2386,30 +2386,133 @@
   // consome. Mas o custo aparece no rodapé como qualquer outro turno.
   // ---------------------------------------------------------------------------
   const MAX_LINHAS_IA = 400; // teto de sanidade; acima disso o pedido já não cabe bem
-  const SUFIXO_ESCOLHA = [
-    " Responda APENAS com um objeto JSON válido, sem preâmbulo, sem comentário e sem",
-    "blocos de código (sem cercas ```). Formato exato:",
-    '{"ids":["123456","123457"],"motivos":{"123456":"petição inicial"},"resumo":"frase curta"}.',
-    "Em `ids`, os ids das peças escolhidas, na ordem em que aparecem na lista, usando",
-    "EXATAMENTE os ids informados — nunca invente um id nem devolva um que não esteja",
-    "na lista. Em `motivos`, no máximo 6 palavras por peça dizendo por que ela entrou.",
-    "Em `resumo`, uma frase dizendo o critério que você usou.",
-    "Escolha o MENOR conjunto que responda bem ao objetivo: peças demais encarecem e",
-    "diluem a análise, peças de menos a inviabilizam. Prefira as peças de conteúdo",
-    "(petições, decisões, laudos, atas) e deixe de fora o expediente (certidões de",
-    "intimação, avisos de recebimento, guias, procurações, termos de juntada), a menos",
-    "que o objetivo peça justamente esses. Quando várias peças tiverem o mesmo título,",
-    "use a DATA e a posição na lista para deduzir qual é qual (a primeira 'Petição' de",
-    "um processo costuma ser a inicial).",
-  ].join(" ");
+  // Raciocínio BAIXO nesta chamada, qualquer que seja a preferência salva. A
+  // triagem é classificação sobre metadados, não análise jurídica: com effort
+  // alto o usuário espera dezenas de segundos por uma lista de ids — foi a
+  // queixa que originou esta rodada. E o que decide a qualidade aqui não é o
+  // tempo de raciocínio, são os SINAIS da lista (ordem cronológica, quem
+  // juntou, tipo oficial, a triagem local), que esta rodada multiplicou.
+  const EFFORT_TRIAGEM = "low";
 
-  function linhasDaLista(docs) {
-    return docs.slice(0, MAX_LINHAS_IA).map((d) => {
-      const p = [d.titulo];
-      if (d.tipo) p.push("tipo: " + d.tipo);
-      if (d.juntadoEm) p.push("juntada: " + d.juntadoEm);
-      return "- " + p.join(" | ");
-    });
+  // System PRÓPRIO. O system do chat traz as regras de citação por página, de
+  // não-invenção, de busca na web e do inventário de peças — nada disso se
+  // aplica a quem não vai ler peça nenhuma, e ainda ocupa ~900 tokens de
+  // instrução que o modelo precisa conciliar com a tarefa real. O que importa
+  // do contexto é a FICHA do processo (classe, assunto, partes): é ela que diz
+  // o que é relevante NESTE caso, e `contextoDoProcesso` já a monta.
+  function systemTriagem() {
+    return (
+      "Você é um assistente de triagem de autos judiciais brasileiros. A partir da LISTA " +
+      "de peças de um processo — apenas metadados, você NÃO tem o conteúdo delas —, indica " +
+      "quais precisam ser lidas para um objetivo. Responde SEMPRE apenas com o JSON pedido, " +
+      "sem preâmbulo e sem cercas de código." +
+      contextoDoProcesso()
+    );
+  }
+
+  // As regras de escolha. Vão no TEXTO do turno (não no system) porque mudam
+  // junto com o formato da lista, que é montada aqui.
+  const REGRAS_ESCOLHA = [
+    "COMO LER A LISTA: uma peça por linha, em ordem CRONOLÓGICA — a nº 1 é a mais ANTIGA " +
+      "do processo e a última é a mais RECENTE. Os campos vêm separados por “ | ”: número, " +
+      "id, título, tipo oficial, data de juntada, quem juntou e a etiqueta da triagem " +
+      "automática desta extensão (essencial, relevante, comum, expediente) — um palpite por " +
+      "palavra-chave, que serve de ponto de partida e não de veredito.",
+    "COMO ESCOLHER:",
+    "• A espinha dorsal do processo quase sempre entra: petição inicial (costuma estar entre " +
+      "as PRIMEIRAS linhas), contestação ou defesa, réplica, decisão saneadora, laudos e " +
+      "perícias, atas e termos de audiência, alegações finais ou memoriais, sentença, " +
+      "recursos e a decisão que os julga.",
+    "• Vá além do título: peças de mesmo nome se distinguem pela DATA, por QUEM as juntou e " +
+      "pela posição. Uma “Petição” da parte autora no começo é a inicial; uma da parte ré " +
+      "logo depois da citação é a contestação.",
+    "• Petição de encaminhamento (“Em anexo”, “junta documentos”) não tem conteúdo próprio: " +
+      "ao escolher uma, escolha TAMBÉM os documentos juntados na mesma data.",
+    "• Deixe de fora o expediente que não decide nada — certidões de intimação, avisos de " +
+      "recebimento, comprovantes de publicação, guias, procurações, termos de juntada —, " +
+      "salvo quando o objetivo for justamente prazo, intimação ou representação.",
+    "• TAMANHO: escolha o MENOR conjunto que resolva o objetivo. Na maioria dos processos " +
+      "isso fica entre 8 e 20 peças; num processo pequeno pode ser bem menos, e passar de 40 " +
+      "só se o objetivo exigir (“todos os laudos”, “todas as decisões”). Peças demais " +
+      "encarecem e diluem a análise; de menos, inviabilizam.",
+  ].join("\n");
+
+  const SUFIXO_ESCOLHA = [
+    "FORMATO DA RESPOSTA — apenas este objeto JSON, sem preâmbulo, sem comentário e sem " +
+      "cercas de código:",
+    '{"ids":["123456","123457"],"motivos":{"123456":"petição inicial"},"resumo":"frase curta"}',
+    "Em `ids`, os ids das peças escolhidas em ordem cronológica, EXATAMENTE como informados " +
+      "— nunca invente um id nem devolva um que não esteja na lista. Em `motivos`, no máximo " +
+      "6 palavras por peça dizendo por que ela entrou. Em `resumo`, uma frase com o critério " +
+      "que você usou.",
+  ].join("\n");
+
+  // Etiqueta da triagem local (camada 1) que vai como DICA em cada linha. Os
+  // nomes internos viram palavras que o modelo entende sem glossário.
+  const ROTULO_REL = {
+    essencial: "essencial",
+    relevante: "relevante",
+    neutro: "comum",
+    ruido: "expediente",
+  };
+
+  function linhaDaPeca(d, n) {
+    const nome = tituloLimpo(d.titulo) || "(sem título)";
+    const campos = ["#" + n, d.id, nome];
+    // O tipo oficial só entra quando ACRESCENTA: na maioria das peças ele
+    // repete o título ("Contestação | Contestação") e seria token puro.
+    if (d.tipo && d.tipo.trim().toLowerCase() !== nome.trim().toLowerCase()) campos.push(d.tipo);
+    if (d.juntadoEm) campos.push(String(d.juntadoEm).slice(0, 16));
+    if (d.juntadoPor) campos.push(String(d.juntadoPor).slice(0, 40));
+    const rel = panel.classificarPeca ? panel.classificarPeca(d).rel : null;
+    if (rel && ROTULO_REL[rel]) campos.push(ROTULO_REL[rel]);
+    // Páginas só existem para peça já baixada (prefetch, preview, turno
+    // anterior) — quando existem, são o melhor sinal de substância que há:
+    // uma "Petição" de 2 páginas é encaminhamento, de 40 é a inicial.
+    // `docsCache` é um Map: acesso por colchetes devolveria undefined SEMPRE,
+    // e a falha seria muda (a linha sairia sem o número de páginas).
+    const c = docsCache.get(d.id);
+    if (c && c.pages) campos.push(c.pages + " pág.");
+    return campos.join(" | ");
+  }
+
+  // Ordena cronologicamente (a mesma função da exportação em .zip: data de
+  // juntada quando a grid foi lida, senão a inversa da ordem da tela) e, se a
+  // lista passar do teto, corta pelo MEIO. Cortar as primeiras jogaria fora a
+  // inicial; cortar as últimas, a sentença. O miolo é onde vive o expediente
+  // repetitivo, e a omissão vai DITA no texto — sem cap silencioso.
+  function listaParaIA(docs) {
+    const ord = window.PjeExport
+      ? PjeExport.ordenarCronologico(docs)
+      : { docs: docs.slice().reverse(), criterio: "inversa da ordem da tela" };
+    const emOrdem = ord.docs;
+    if (emOrdem.length <= MAX_LINHAS_IA) {
+      return { linhas: emOrdem.map((d, i) => linhaDaPeca(d, i + 1)), omitidas: 0, criterio: ord.criterio };
+    }
+    const metade = Math.floor(MAX_LINHAS_IA / 2);
+    const inicio = emOrdem.slice(0, metade).map((d, i) => linhaDaPeca(d, i + 1));
+    const desde = emOrdem.length - (MAX_LINHAS_IA - metade);
+    const fim = emOrdem.slice(desde).map((d, i) => linhaDaPeca(d, desde + i + 1));
+    const omitidas = emOrdem.length - MAX_LINHAS_IA;
+    return {
+      linhas: inicio.concat(["… " + omitidas + " peças do meio do processo omitidas por limite de tamanho …"], fim),
+      omitidas,
+      criterio: ord.criterio,
+    };
+  }
+
+  // Ids já COMPLETOS dentro do array "ids" de um JSON ainda em construção — é o
+  // que permite marcar as peças AO VIVO, conforme o modelo as emite, em vez de
+  // deixar o usuário olhando para um botão "Escolhendo…" por vários segundos.
+  // Só aceita id fechado entre aspas: um id pela metade marcaria a peça errada.
+  function idsParciais(texto) {
+    const i = texto.indexOf('"ids"');
+    if (i < 0) return [];
+    const abre = texto.indexOf("[", i);
+    if (abre < 0) return [];
+    const fecha = texto.indexOf("]", abre);
+    const trecho = texto.slice(abre + 1, fecha < 0 ? texto.length : fecha);
+    return (trecho.match(/"(\d{3,})"/g) || []).map((s) => s.slice(1, -1));
   }
 
   // O modelo pode devolver o JSON cercado por ``` ou com um preâmbulo, apesar da
@@ -2425,59 +2528,86 @@
     }
   }
 
-  panel.onEscolherIA(async (docs, objetivo) => {
+  panel.onEscolherIA(async (docs, objetivo, selAntes) => {
     if (busy || bloqueadoPelaExportacao()) return;
     if (!docs || !docs.length) return;
     busy = true;
     panel.setIaOcupado(true);
     panel.setStatus("Lendo a lista de peças e escolhendo as relevantes…", true);
+    // Marcar ao vivo significa mexer na seleção do usuário antes de saber se o
+    // turno termina bem: guardamos o estado anterior para poder devolvê-lo.
+    const selOriginal = Array.isArray(selAntes) ? selAntes.slice() : null;
+    let mexeuNaSelecao = false;
     try {
       await garantirCaps();
       const alvo = objetivo
         ? 'responder a esta pergunta do usuário: "' + objetivo.slice(0, 500) + '"'
         : "entender o processo: quem são as partes, o que se pede, o que a outra " +
           "parte responde, que provas há e como o feito está hoje";
+      const lista = listaParaIA(docs);
       const texto =
-        "Abaixo está a lista COMPLETA de peças de um processo judicial do PJe — " +
-        "apenas id, título, tipo e data de juntada; você NÃO tem o conteúdo delas. " +
-        "Escolha as peças que precisam ser lidas para " + alvo + "." +
-        SUFIXO_ESCOLHA +
-        "\n\nLISTA DE PEÇAS:\n" +
-        linhasDaLista(docs).join("\n") +
-        (docs.length > MAX_LINHAS_IA
-          ? "\n(lista truncada em " + MAX_LINHAS_IA + " de " + docs.length + " peças)"
-          : "");
+        "OBJETIVO: escolher, na lista de peças abaixo, quais precisam ser lidas para " +
+        alvo + ".\n\n" +
+        REGRAS_ESCOLHA + "\n\n" +
+        SUFIXO_ESCOLHA + "\n\n" +
+        "LISTA DE PEÇAS (" + docs.length + " no total, em ordem cronológica; critério: " +
+        lista.criterio + "):\n" +
+        lista.linhas.join("\n");
 
+      const validos = new Set(docs.map((d) => d.id));
       let acc = "";
+      let marcados = 0;
+      // A marcação ao vivo é o antídoto da espera: os `ids` são o PRIMEIRO
+      // campo do JSON, então as peças acendem na lista bem antes de o modelo
+      // terminar de escrever os motivos e o resumo.
+      function marcarParcial() {
+        const ids = [...new Set(idsParciais(acc))].filter((id) => validos.has(id));
+        if (ids.length <= marcados) return;
+        marcados = ids.length;
+        mexeuNaSelecao = true;
+        panel.aplicarEscolhaIA(ids, null);
+        panel.setStatus(
+          "Escolhendo… " + marcados + " peça" + (marcados > 1 ? "s" : "") + " até agora",
+          true
+        );
+      }
       const fim = await stream(
         prepararEnvio([{ role: "user", content: [{ type: "text", text: texto }] }], null),
         {
           onDelta(d) {
             acc += d;
+            marcarParcial();
           },
           onThinking() {},
           onTool() {},
           onTrunc() {},
           onRetry() {
             acc = "";
+            marcados = 0; // a re-tentativa recomeça o JSON do zero
             panel.setStatus("Instabilidade momentânea na API — tentando de novo…", true);
           },
           onReinicio() {
             acc = "";
+            marcados = 0;
             panel.setStatus("O serviço da extensão reiniciou — tentando de novo…", true);
           },
-        }
+        },
+        // System próprio e raciocínio baixo: ver EFFORT_TRIAGEM/systemTriagem.
+        { system: systemTriagem(), effort: EFFORT_TRIAGEM }
       );
       registrarCusto(fim);
 
       const r = lerJsonEscolha(acc);
       // Só ids que EXISTEM na lista: um id inventado marcaria nada e faria a
       // contagem mentir. Também dedup, porque o modelo às vezes repete.
-      const validos = new Set(docs.map((d) => d.id));
       const ids = [...new Set((r && Array.isArray(r.ids) ? r.ids : []).map(String))].filter(
         (id) => validos.has(id)
       );
       if (!ids.length) {
+        // Nada aproveitável: a seleção que o usuário tinha volta como estava —
+        // a marcação ao vivo não pode deixar a lista num estado que ele não
+        // pediu e que só ele saberia desfazer.
+        if (mexeuNaSelecao && selOriginal) panel.aplicarEscolhaIA(selOriginal, null);
         panel.setStatus(
           "A IA não conseguiu escolher peças desta lista. Use os atalhos chave/principais."
         );
@@ -2493,6 +2623,9 @@
           ". Passe o mouse numa peça para ver o motivo; ajuste à vontade."
       );
     } catch (e) {
+      // Erro no meio do stream: desfaz a marcação parcial pelo mesmo motivo do
+      // caso "nenhum id" — a seleção era do usuário e o turno não terminou.
+      if (mexeuNaSelecao && selOriginal) panel.aplicarEscolhaIA(selOriginal, null);
       const msg = (e && e.message) || String(e);
       panel.setStatus("Não foi possível escolher com IA: " + msg);
       if (e && e.ctxCheio) panel.setAlerta(ALERTA_CTX_CHEIO);

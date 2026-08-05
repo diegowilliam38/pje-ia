@@ -90,7 +90,7 @@
     <div class="page">
       <h1 class="serif">O que mudou na extensão</h1>
       <p class="lead">
-        Da primeira versão (19 de julho de 2026) até hoje foram <strong>50 versões</strong>. Esta
+        Da primeira versão (19 de julho de 2026) até hoje foram <strong>51 versões</strong>. Esta
         página agrupa o que foi feito <strong>por recurso</strong> — é assim que se usa a
         extensão, não versão a versão. O
         <a class="link" href="#historico">histórico completo</a>, com data e uma linha por
@@ -99,7 +99,34 @@
 
       <div class="card destaque">
         <p class="eyebrow" style="color: rgba(255,255,255,0.7)">A novidade mais recente</p>
-        <h2><span class="v novo">v0.25.2</span> A escolha dos seus modelos de peça reaparece na minuta</h2>
+        <h2><span class="v novo">v0.26.0</span> Escolher com IA: em segundos, e escolhendo melhor</h2>
+        <p>
+          A escolha assistida demorava dezenas de segundos porque rodava com o
+          <strong>raciocínio no nível alto</strong> — o mesmo da análise dos autos — para uma
+          tarefa que é triagem de uma lista. Agora ela roda no nível baixo (a sua preferência
+          de raciocínio continua valendo para o chat, intacta), e as peças
+          <strong>vão sendo marcadas ao vivo</strong>, conforme o modelo as escolhe: em vez de
+          um botão “Escolhendo…” parado, você vê a lista acender e o contador subir.
+        </p>
+        <p>
+          E ela passou a escolher melhor, porque recebe informação melhor. A lista ia na ordem
+          da tela — <strong>da peça mais recente para a mais antiga</strong> —, mas a instrução
+          dizia que a primeira “Petição” costuma ser a inicial: o modelo era apontado para a
+          petição errada, justamente na peça mais importante do processo. Agora a lista vai em
+          <strong>ordem cronológica</strong> e numerada, e cada peça leva também
+          <strong>quem a juntou</strong> (o que separa a petição do autor da do réu), o tipo
+          oficial, o número de páginas quando já se conhece, e a etiqueta da triagem automática
+          da própria extensão. O assistente também recebe a <strong>ficha do processo</strong> —
+          classe, assunto e partes —, que diz o que é relevante naquele caso.
+        </p>
+        <p>
+          Em processos com mais de 400 peças, o corte da lista deixou de ser pelas pontas e
+          passou a ser <strong>pelo meio</strong>: a petição inicial está no começo e a sentença
+          no fim; o miolo é onde vive o expediente repetitivo. E o que ficou de fora vai dito,
+          em vez de sumir em silêncio.
+        </p>
+
+        <h2><span class="v">v0.25.2</span> A escolha dos seus modelos de peça reaparece na minuta</h2>
         <p>
           Ao ligar o <strong>modo minuta</strong>, a faixa mostra agora a linha
           <strong>"Seguir modelos"</strong> mesmo quando a sua biblioteca ainda está vazia —
@@ -592,7 +619,7 @@
 
       <h1 class="serif" id="historico">Histórico completo</h1>
       <p class="lead">
-        As 50 versões, da mais recente à primeira. As marcadas com
+        As 51 versões, da mais recente à primeira. As marcadas com
         <span class="dot-marco"></span> mudaram o produto de forma visível.
       </p>
 
@@ -602,7 +629,8 @@
             <tr><th>Versão</th><th>Data</th><th>O que mudou</th></tr>
           </thead>
           <tbody>
-            <tr><td><span class="v novo">0.25.2</span></td><td>05/08/2026</td><td>A linha <strong>Seguir modelos</strong> do modo minuta aparece mesmo com a biblioteca vazia, com atalho para cadastrar; respostas de chat que parecem uma peça ganham o caminho <strong>Refazer seguindo seus modelos</strong>, que devolve o pedido ao campo; regra prática do guia atualizada para o novo modelo padrão</td></tr>
+            <tr class="marco"><td><span class="v novo">0.26.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span><strong>Escolher com IA</strong> responde em segundos (raciocínio baixo nesta tarefa) e marca as peças ao vivo; a lista vai em ordem cronológica — antes a instrução apontava para a petição errada — e leva quem juntou, tipo, páginas e a triagem local; corte pelo meio em listas gigantes</td></tr>
+            <tr><td><span class="v">0.25.2</span></td><td>05/08/2026</td><td>A linha <strong>Seguir modelos</strong> do modo minuta aparece mesmo com a biblioteca vazia, com atalho para cadastrar; respostas de chat que parecem uma peça ganham o caminho <strong>Refazer seguindo seus modelos</strong>, que devolve o pedido ao campo; regra prática do guia atualizada para o novo modelo padrão</td></tr>
             <tr class="marco"><td><span class="v">0.25.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span><strong>Gemini 3.6 Flash</strong> passa a ser o modelo padrão (1.000 páginas por análise, contra 100 do anterior); com Jurisprudência ligada, a 2ª pergunta da conversa não falha mais; erros da API do Google explicam o motivo; lupa animada enquanto a busca acontece</td></tr>
             <tr class="marco"><td><span class="v">0.24.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span>Peça dos autos e fonte da web separadas no rodapé da resposta, com o domínio de origem à vista; prioridade <strong>STF/STJ → tribunal do processo → demais</strong> na busca; tipografia própria embarcada; painel estreito e telas de apoio redesenhados; botão <strong>Testar chave</strong></td></tr>
             <tr class="marco"><td><span class="v">0.23.0</span></td><td>04/08/2026</td><td><span class="dot-marco"></span>Três degraus de seleção (<strong>chave · principais · todas</strong>) e <strong><svg class="ic-in" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4l1.8 4.2L18 10l-4.2 1.8L12 16l-1.8-4.2L6 10l4.2-1.8z"/><path d="M18 16l.9 2.1L21 19l-2.1.9L18 22l-.9-2.1L15 19l2.1-.9z"/></svg>Escolher com IA</strong>; upload em paralelo ao download; peças do editor do PJe deixam de falhar com "retornou vazia"; ficha do processo e lista das peças não marcadas vão ao assistente</td></tr>

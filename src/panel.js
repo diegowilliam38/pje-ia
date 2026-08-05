@@ -1753,7 +1753,11 @@ var PjePanel = (function () {
         return;
       }
       setSelNota("");
-      iaCb(allDocs, inEl.value.trim());
+      // A seleção ATUAL vai junto: a escolha marca as peças ao vivo, conforme
+      // os ids chegam, e o content script precisa saber ao que voltar se o
+      // turno falhar no meio — sem isso uma falha deixaria a lista num estado
+      // parcial que o usuário não pediu nem consegue desfazer.
+      iaCb(allDocs, inEl.value.trim(), getSelected());
     });
     function setIaOcupado(on) {
       tipIa.disabled = !!on;
