@@ -329,12 +329,28 @@ function stepsParaBlocos(oficiais) {
   const blocos = [];
   for (const s of oficiais) {
     if (!s) continue;
+    // Só achata para texto puro o que for REALMENTE puro. Tudo o mais volta
+    // verbatim — foi assim que o reenvio funcionou em teste contra a API real.
+    // Duas condições que faltavam e quebravam o 2º turno COM busca ligada:
+    //  - `annotations`: com google_search, as partes de texto do model_output
+    //    carregam as url_citation (é delas que saem as fontes na bolha).
+    //    Achatar descartava-as, e o histórico do turno seguinte deixava de ser
+    //    o que o modelo produziu.
+    //  - `length > 0`: `[].every()` é `true` por vacuidade, então um
+    //    model_output de conteúdo vazio passava por "texto puro" e sumia do
+    //    histórico inteiro, em vez de voltar como o step que era.
     const soTexto =
       s.type === "model_output" &&
       !s.signature &&
       Array.isArray(s.content) &&
+      s.content.length > 0 &&
       s.content.every(
-        (it) => it && it.type === "text" && !it.signature && !it.thought_signature
+        (it) =>
+          it &&
+          it.type === "text" &&
+          !it.signature &&
+          !it.thought_signature &&
+          !it.annotations
       );
     if (soTexto) {
       for (const it of s.content) {
