@@ -1436,12 +1436,35 @@ button > svg { flex: none; }
   background: var(--pje);
   -webkit-mask: var(--ic-lupa-busca) center / contain no-repeat;
   mask: var(--ic-lupa-busca) center / contain no-repeat;
-  animation: pje-ia-lupa 1.6s ease-in-out infinite;
+  transform-origin: 62% 62%; /* o punho da lupa, não o centro da caixa */
+  animation: pje-ia-lupa 2.6s cubic-bezier(0.45, 0, 0.3, 1) infinite;
 }
-/* Varredura curta: sugere procurar, sem a agitação de um spinner. */
+/* Uma lupa que PROCURA: varre um trajeto elíptico e para duas vezes para
+   "focar" (a escala sobe e a opacidade fecha nesses instantes). O movimento
+   circular é o que distingue procurar de esperar — um vaivém reto lê como
+   spinner disfarçado. A inclinação vem do punho (transform-origin), como uma
+   lente segurada na mão, e é sutil de propósito: 6° bastam para dar vida, 15°
+   viraria desenho animado numa interface que analisa autos.
+   Um ciclo longo (2,6 s) também comunica: busca leva segundos, não milissegundos. */
 @keyframes pje-ia-lupa {
-  0%, 100% { transform: translateX(-1.5px) scale(0.92); opacity: 0.6; }
-  50%      { transform: translateX(1.5px) scale(1.06); opacity: 1; }
+  0%   { transform: translate(-2px, 0.5px) rotate(-6deg) scale(0.94); opacity: 0.55; }
+  22%  { transform: translate(0, -1.5px) rotate(0deg) scale(1); opacity: 0.85; }
+  38%  { transform: translate(2px, 0.5px) rotate(6deg) scale(1.08); opacity: 1; }   /* foca */
+  54%  { transform: translate(2px, 0.5px) rotate(6deg) scale(1.02); opacity: 0.9; }
+  72%  { transform: translate(0, 1.5px) rotate(0deg) scale(1); opacity: 0.8; }
+  88%  { transform: translate(-2px, 0.5px) rotate(-6deg) scale(1.08); opacity: 1; }  /* foca */
+  100% { transform: translate(-2px, 0.5px) rotate(-6deg) scale(0.94); opacity: 0.55; }
+}
+/* Quem pediu menos movimento recebe o estado, não a coreografia: a lupa fica
+   parada e só respira. O ícone continua dizendo O QUE está acontecendo. */
+@media (prefers-reduced-motion: reduce) {
+  .status.busy.buscando::before {
+    animation: pje-ia-lupa-suave 2s ease-in-out infinite;
+  }
+  @keyframes pje-ia-lupa-suave {
+    0%, 100% { opacity: 0.55; }
+    50%      { opacity: 1; }
+  }
 }
 @keyframes pje-ia-girar { to { transform: rotate(360deg); } }
 
