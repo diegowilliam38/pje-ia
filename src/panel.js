@@ -641,10 +641,12 @@ var PjePanel = (function () {
               <div class="minutabar" hidden>
                 <span class="docxbar-t">${SVG.minuta} <b>Modo minuta ligado</b> — revise a instrução abaixo e clique em <b>Gerar minuta</b>: a resposta abre num editor, em nova aba, pronta para revisar e levar ao PJe.</span>
                 <button class="minutabar-x" title="Cancelar a geração da minuta (Esc)">${SVG.x}</button>
-                <label class="minuta-modelo" hidden>
+                <div class="minuta-modelo" hidden>
                   <span class="mm-lab">Seguir modelos:</span>
-                  <select class="minuta-modelo-sel" title="Escolha uma categoria: o assistente recebe as suas peças-modelo daquela espécie e segue a estrutura e o estilo da mais adequada ao caso — os fatos continuam vindo só das peças do processo."></select>
-                </label>
+                  <select class="minuta-modelo-sel" aria-label="Categoria de peças-modelo que a minuta deve seguir" title="Escolha uma categoria: o assistente recebe as suas peças-modelo daquela espécie e segue a estrutura e o estilo da mais adequada ao caso — os fatos continuam vindo só das peças do processo."></select>
+                  <span class="mm-vazio" hidden>nenhuma peça-modelo cadastrada — a minuta sai no estilo padrão</span>
+                  <button class="mm-add" hidden title="Cadastre uma sentença, decisão, despacho ou ofício seu: nas próximas minutas o assistente segue a estrutura e o estilo dela.">${SVG.novo}<span class="lbl">Cadastrar modelo</span></button>
+                </div>
               </div>
               <div class="mapabar" hidden>
                 <span class="docxbar-t">${SVG.mapa} <b>Modo mapa mental ligado</b> — revise a instrução abaixo e clique em <b>Gerar mapa</b>: a resposta vira um mapa mental interativo, que abre em nova aba.</span>
@@ -2746,6 +2748,8 @@ var PjePanel = (function () {
     const mlibErr = $(".mlib-err");
     const minutaModeloWrap = $(".minuta-modelo");
     const minutaModeloSel = $(".minuta-modelo-sel");
+    const minutaModeloVazio = $(".mm-vazio");
+    const minutaModeloAdd = $(".mm-add");
 
     let modelosLib = []; // espelho ordenado de MLIB.listar
     let mlibEditId = null;
@@ -2834,6 +2838,10 @@ var PjePanel = (function () {
     const MODELOS_TETO_CHARS = 180000; // ~45 mil tokens no total
     function modelosMinutaSelecionados() {
       if (!minutaModeloSel || !minutaModeloWrap || minutaModeloWrap.hidden) return [];
+      // A linha aparece também no estado VAZIO (só o convite para cadastrar):
+      // ali o <select> está oculto e não há o que enviar. Sem esta guarda a
+      // função dependeria de o select estar sem opções para devolver [].
+      if (minutaModeloSel.hidden) return [];
       const cat = minutaModeloSel.value;
       if (!cat) return [];
       const doGrupo = modelosLib
@@ -2863,14 +2871,35 @@ var PjePanel = (function () {
     // Mostra/esconde e popula o seletor conforme o modo minuta, a existência de
     // modelos e o modelo ativo (só 1M). Chamada por setMinutaMode, pelo aoMudar
     // do MLIB e por setModelosHabilitado.
+    // Biblioteca VAZIA não esconde a linha: mostra o convite. Sumir era o
+    // defeito — quem nunca cadastrou um modelo ligava o modo minuta e não via
+    // vestígio nenhum de que a feature existe, concluindo (com razão) que ela
+    // não estava lá. É a mesma regra da `.sel-nota` nos degraus de seleção:
+    // conjunto vazio se explica, não desaparece. O gate de janela (1M) e a
+    // ausência do MLIB continuam escondendo tudo — ali o botão da barra de
+    // ferramentas, desabilitado com tooltip, já é a explicação.
     function atualizarSeletorMinuta(on) {
       if (!minutaModeloWrap) return;
-      if (!on || !temMlib || !modelosHabilitado || !modelosLib.length) {
+      if (!on || !temMlib || !modelosHabilitado) {
         minutaModeloWrap.hidden = true;
         return;
       }
-      popularSeletorModelos(detectarCategoria(inEl.value));
+      const vazio = !modelosLib.length;
+      if (minutaModeloVazio) minutaModeloVazio.hidden = !vazio;
+      if (minutaModeloAdd) minutaModeloAdd.hidden = !vazio;
+      minutaModeloSel.hidden = vazio;
+      if (!vazio) popularSeletorModelos(detectarCategoria(inEl.value));
       minutaModeloWrap.hidden = false;
+    }
+    // Atalho do estado vazio: abre o gerenciador já no formulário — o caminho
+    // até aqui (barra de ferramentas → Modelos → Novo) é justamente o que
+    // ninguém percorre sem saber que existe.
+    if (minutaModeloAdd) {
+      minutaModeloAdd.addEventListener("click", (e) => {
+        e.preventDefault();
+        if (!temMlib || !modelosHabilitado) return;
+        abrirMlib({ form: true });
+      });
     }
 
     // Liga/desliga toda a feature de modelos conforme a janela do modelo ativo
@@ -3744,6 +3773,26 @@ var PjePanel = (function () {
           "o PJe, baixe em Word (.docx) ou imprima.";
         b.addEventListener("click", () => info.onAbrir && info.onAbrir(b));
         box.appendChild(b);
+        // Quem pede a peça no CHAT comum nunca passa pela barra do modo minuta
+        // — e é lá que vive a escolha dos modelos. Sem esta ação a biblioteca
+        // fica invisível justamente para quem acabou de pedir uma peça
+        // redigida, que é o público dela. Só quando a heurística reconheceu o
+        // pedido (`destaque`) e a feature está disponível: numa resposta
+        // analítica qualquer, a linha seria ruído.
+        if (info.destaque && temMlib && modelosHabilitado && modelosLib.length) {
+          const alt = document.createElement("button");
+          alt.className = "editor-alt";
+          alt.textContent = "Refazer seguindo seus modelos";
+          alt.title =
+            "Liga o modo minuta, onde você escolhe a categoria das suas peças-modelo: " +
+            "o assistente segue a estrutura e o estilo delas (os fatos continuam saindo " +
+            "só das peças do processo).";
+          alt.addEventListener("click", () => {
+            if (!minutaMode) btnMinuta.click(); // reusa validação e instrução padrão
+            inEl.focus();
+          });
+          box.appendChild(alt);
+        }
         el.appendChild(box);
         msgs.scrollTop = msgs.scrollHeight;
       },

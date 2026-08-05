@@ -1577,6 +1577,24 @@ button > svg { flex: none; }
 .minuta-modelo-sel:focus {
   outline: none; border-color: var(--pje); box-shadow: 0 0 0 3px rgba(20, 96, 126, 0.15);
 }
+.minuta-modelo-sel[hidden] { display: none; }
+/* Estado VAZIO da biblioteca: a linha não some, explica. Tom informativo
+   (--muted), não de aviso: nada está errado — o usuário só ainda não cadastrou
+   modelo nenhum, e a minuta sai no estilo padrão. */
+.mm-vazio { flex: 1; min-width: 0; color: var(--muted); }
+.mm-vazio[hidden] { display: none; }
+.mm-add {
+  flex: none; display: inline-flex; align-items: center; gap: 5px;
+  border: 1px solid var(--pje); background: #fff; color: var(--pje-2);
+  border-radius: var(--r-sm); padding: 3px 9px;
+  font: inherit; font-size: var(--fs-meta); font-weight: 600; cursor: pointer;
+}
+.mm-add:hover { background: var(--accent-bg); }
+.mm-add[hidden] { display: none; }
+/* No painel estreito sobra pouca linha: fica o ícone, e o texto do convite
+   encurta para não empurrar o botão para fora. */
+.wrap.estreito .mm-add .lbl { display: none; }
+.wrap.estreito .mm-vazio { font-size: var(--fs-micro); }
 /* o botão Enviar vira "✍️ Gerar minuta" / "🧠 Gerar mapa" — halo azul para
    marcar a mudança (a classe .docx é histórica; vale para os dois modos) */
 .send.docx { box-shadow: 0 0 0 3px rgba(20, 96, 126, 0.28); }
@@ -1619,7 +1637,7 @@ button > svg { flex: none; }
    Fica FORA do .body da bolha (é irmã dele), para sobreviver a um
    updateAssistant posterior. Em repouso é discreta: só vira botão cheio
    quando a heurística reconhece um pedido de peça redigida. */
-.editor-act { margin-top: 8px; }
+.editor-act { margin-top: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .editor-act button {
   border: 1px dashed var(--line); background: transparent; color: var(--muted);
   border-radius: 8px; padding: 5px 11px; font-size: var(--fs-micro);
@@ -1632,6 +1650,21 @@ button > svg { flex: none; }
   color: #fff; font-weight: 600; padding: 6px 12px;
 }
 .editor-act.destaque button:hover { filter: brightness(1.06); color: #fff; }
+/* Ação SECUNDÁRIA ao lado de "Abrir no editor": leva ao modo minuta, onde se
+   escolhe a categoria das peças-modelo. Precisa reafirmar o estilo discreto
+   porque a regra `.editor-act.destaque button` acima pinta TODO botão do bloco
+   com o gradiente da ação principal — dois botões em destaque disputariam o
+   mesmo clique. */
+.editor-act .editor-alt,
+.editor-act.destaque .editor-alt {
+  border: 1px dashed var(--line); background: transparent; color: var(--muted);
+  font-size: var(--fs-micro); font-weight: 400; padding: 5px 11px;
+}
+.editor-act .editor-alt:hover,
+.editor-act.destaque .editor-alt:hover {
+  border-style: solid; border-color: var(--pje); color: var(--pje-2);
+  background: transparent; filter: none;
+}
 
 /* ---------- Gerenciador de prompts salvos (modal no Shadow DOM) ---------- */
 .plib {
