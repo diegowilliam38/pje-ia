@@ -171,6 +171,9 @@ var PjePanel = (function () {
   const P = {
     download: '<path d="M12 4v11"/><path d="M7 11l5 5 5-5"/><path d="M5 20h14"/>',
     chat: '<path d="M20 15a3 3 0 0 1-3 3H9l-4 3v-4H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3z"/>',
+    // Conversas guardadas: pilha de balões — o mesmo balão do "Nova conversa",
+    // repetido, para os dois se lerem como a mesma família.
+    convs: '<path d="M17 12a3 3 0 0 1-3 3H8l-3 2.5V15H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3z"/><path d="M8 17v1a3 3 0 0 0 3 3h5l3 2.5V20h1a3 3 0 0 0 3-3v-5a3 3 0 0 0-3-3"/>',
     close: '<path d="M6 6l12 12"/><path d="M18 6L6 18"/>',
     x: '<path d="M6 6l12 12"/><path d="M18 6L6 18"/>',
     copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 5H6a2 2 0 0 0-2 2v9"/>',
@@ -241,6 +244,7 @@ var PjePanel = (function () {
     ver: ic(P.ver, 12, 1.8),
     close: ic(P.close, 15, 1.9),
     reset: ic(P.chat, 15, 1.8),
+    convs: ic(P.convs, 15, 1.8),
     download: ic(P.download, 15, 1.8),
     copy: ic(P.copy, 13, 1.8),
     doc: ic(P.doc, 11, 1.8),
@@ -547,7 +551,8 @@ var PjePanel = (function () {
           </span>
           <div class="hd-grp">
             <button class="dl" title="Baixar a conversa em arquivo (.md)" aria-label="Baixar a conversa em arquivo">${SVG.download}</button>
-            <button class="reset" title="Nova conversa (zera o chat e o contexto)" aria-label="Nova conversa">${SVG.reset}</button>
+            <button class="convs" title="Conversas guardadas deste processo" aria-label="Conversas guardadas deste processo" aria-haspopup="true" aria-expanded="false" hidden>${SVG.convs}</button>
+            <button class="reset" title="Nova conversa (a atual fica guardada)" aria-label="Nova conversa">${SVG.reset}</button>
           </div>
           <div class="hd-grp">
             <button class="docsvis" title="Ocultar a lista de peças (mais espaço para o chat)" aria-label="Ocultar ou exibir a lista de peças" aria-pressed="false">${SVG.docshide}</button>
@@ -800,6 +805,105 @@ var PjePanel = (function () {
     // download, upload e tokens. O dado vive no content script; o painel só o
     // reflete, via setPecasEnviadas.
     let pecasEnviadas = new Set();
+
+    // -------------------------------------------------------------------------
+    // Conversas guardadas do processo. O menu é `position: fixed` pela mesma
+    // razão do `.selmenu` e da `.confirmbox`: o `.wrap` é um container de
+    // tamanho ZERO (quem tem dimensão é o `.panel`), e posicionar por dentro
+    // dele jogaria o menu para fora da tela.
+    // -------------------------------------------------------------------------
+    let convLista = [];
+    let convAtualId = null;
+    let trocarConvCb = null;
+    let apagarConvCb = null;
+    let convMenu = null;
+    const convBtn = $(".convs");
+
+    function fecharConvMenu() {
+      if (!convMenu) return;
+      convMenu.remove();
+      convMenu = null;
+      convBtn.setAttribute("aria-expanded", "false");
+    }
+
+    function abrirConvMenu() {
+      fecharConvMenu();
+      convMenu = document.createElement("div");
+      convMenu.className = "convmenu";
+      const h = document.createElement("div");
+      h.className = "cm-h";
+      h.textContent = "Conversas deste processo";
+      convMenu.appendChild(h);
+
+      for (const c of convLista) {
+        const row = document.createElement("div");
+        row.className = "cm-row" + (c.convId === convAtualId ? " atual" : "");
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "cm-abrir";
+        // textContent, nunca innerHTML: o título é a primeira pergunta do
+        // usuário, que pode conter qualquer coisa vinda dos autos.
+        const tt = document.createElement("span");
+        tt.className = "cm-t";
+        tt.textContent = c.titulo || "Conversa sem pergunta";
+        const meta = document.createElement("span");
+        meta.className = "cm-m";
+        meta.textContent =
+          (c.convId === convAtualId ? "aberta agora · " : "") +
+          c.mensagens + " mensagem(ns)";
+        b.appendChild(tt);
+        b.appendChild(meta);
+        b.addEventListener("click", () => {
+          fecharConvMenu();
+          if (c.convId !== convAtualId && trocarConvCb) trocarConvCb(c.convId);
+        });
+        row.appendChild(b);
+
+        // Excluir em DOIS cliques, como em toda exclusão da extensão.
+        const x = document.createElement("button");
+        x.type = "button";
+        x.className = "cm-x";
+        x.title = "Excluir esta conversa";
+        x.textContent = "excluir";
+        let armado = false;
+        x.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (!armado) {
+            armado = true;
+            x.classList.add("armado");
+            x.textContent = "excluir?";
+            setTimeout(() => {
+              if (!armado) return;
+              armado = false;
+              x.classList.remove("armado");
+              x.textContent = "excluir";
+            }, 4000);
+            return;
+          }
+          if (apagarConvCb) apagarConvCb(c.convId);
+          row.remove();
+        });
+        row.appendChild(x);
+        convMenu.appendChild(row);
+      }
+
+      wrap.appendChild(convMenu);
+      const r = convBtn.getBoundingClientRect();
+      convMenu.style.top = Math.round(r.bottom + 6) + "px";
+      // Ancorado à DIREITA do botão: o menu tem ~300px e o cabeçalho fica no
+      // canto direito do painel — alinhar pela esquerda o jogaria para fora.
+      convMenu.style.left =
+        Math.max(8, Math.round(r.right - convMenu.offsetWidth)) + "px";
+      convBtn.setAttribute("aria-expanded", "true");
+    }
+
+    convBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (convMenu) fecharConvMenu();
+      else abrirConvMenu();
+    });
+    // Fecha ao clicar fora e no Esc, como os demais popovers do painel.
+    root.addEventListener("click", () => fecharConvMenu());
 
     // Seleção restaurada da memória de caso, esperando as rows aparecerem. A
     // timeline do PJe é lazy: no boot só existe o trecho já rolado, e as demais
@@ -4179,6 +4283,7 @@ var PjePanel = (function () {
         if (info.onEsquecer) {
           const b = document.createElement("button");
           b.type = "button";
+          b.className = "ret-esq";
           b.textContent = "Esquecer este processo";
           // Exclusão em DOIS cliques, nunca confirm() nativo: o dialog da página
           // vive fora do Shadow DOM e congela a extensão junto com o PJe.
@@ -4202,6 +4307,28 @@ var PjePanel = (function () {
           el.appendChild(b);
         }
         msgs.insertBefore(el, msgs.firstChild);
+      },
+
+      // ----------------------------------------------------------------------
+      // Conversas do processo.
+      //
+      // O botão só existe quando há mais de uma conversa gravada: com uma só,
+      // ele seria uma lista de um item — ruído no cabeçalho, que já tem oito
+      // controles. A entrada aparece quando passa a ter função.
+      // ----------------------------------------------------------------------
+      setConversas(lista, atualId) {
+        convLista = Array.isArray(lista) ? lista : [];
+        convAtualId = atualId || null;
+        const mostrar = convLista.length > 1;
+        convBtn.hidden = !mostrar;
+        if (!mostrar) fecharConvMenu();
+        else convBtn.title = convLista.length + " conversas guardadas neste processo";
+      },
+      onTrocarConversa(cb) {
+        trocarConvCb = cb;
+      },
+      onApagarConversa(cb) {
+        apagarConvCb = cb;
       },
 
       // Marca os checkboxes da seleção anterior. NÃO marca nada agora: guarda os

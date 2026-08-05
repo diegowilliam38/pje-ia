@@ -33,11 +33,13 @@
 // vai ao modelo.
 
 const DB_NOME = "pje-casos";
-// v2 acrescentou o índice `porAtualizacao`. O `onupgradeneeded` cria só o que
-// falta, então subir a versão é seguro para quem já tem o banco da v1.
-const DB_VERSAO = 2;
+// v2 acrescentou o índice `porAtualizacao`; v3, o store `conversas`. O
+// `onupgradeneeded` cria só o que falta, então subir a versão é seguro para
+// quem já tem o banco de uma versão anterior.
+const DB_VERSAO = 3;
 const CASOS = "casos";
 const PECAS = "pecas";
+const CONVERSAS = "conversas";
 
 // Poda: mesma política das minutas (7 dias/10) e dos mapas (5), calibrada para
 // o volume maior de um caso. São tetos de HIGIENE, não de cota — o disco
@@ -45,6 +47,10 @@ const PECAS = "pecas";
 // contrapartida.
 export const MAX_CASOS = 20;
 export const MAX_DIAS = 14;
+// Conversas guardadas POR PROCESSO. Um processo trabalhado a sério rende umas
+// poucas linhas de investigação ("e a prescrição?", "monte a linha do tempo");
+// acima disso a lista deixa de ajudar a escolher e vira arquivo morto.
+export const MAX_CONVERSAS = 12;
 
 // Teto de sanidade do texto de UMA peça. Acima disso grava só os metadados e a
 // peça re-baixa quando for usada. NÃO cortar em MAX_CHARS_TEXTO (60.000): quem
@@ -82,6 +88,50 @@ function abrir() {
         // processo inteiro sem varrer o store.
         const st = db.createObjectStore(PECAS, { keyPath: ["chave", "id"] });
         st.createIndex("porCaso", "chave", { unique: false });
+      }
+      // Store próprio para as CONVERSAS, e não um array dentro do caso: a
+      // conversa aberta é reescrita a cada turno, e guardá-las juntas faria
+      // cada gravação reserializar TODAS as conversas do processo. É a mesma
+      // razão que separou as peças.
+      if (!db.objectStoreNames.contains(CONVERSAS)) {
+        const st = db.createObjectStore(CONVERSAS, { keyPath: ["chave", "convId"] });
+        st.createIndex("porCaso", "chave", { unique: false });
+
+        // MIGRAÇÃO v2→v3. Na v2 a conversa vivia INLINE no caso (um caso, uma
+        // conversa). Quem já usou aquela versão tem trabalho gravado ali, e uma
+        // atualização não pode fazê-lo sumir — move-se para o store novo em vez
+        // de abandonar os campos. `openCursor` aqui é aceitável: roda UMA vez,
+        // na atualização, e não no caminho quente.
+        const cur = casos.openCursor();
+        cur.onsuccess = () => {
+          const c = cur.result;
+          if (!c) return;
+          const v = c.value;
+          if (Array.isArray(v.conversation) && v.conversation.length) {
+            const convId = crypto.randomUUID();
+            st.put({
+              chave: v.chave,
+              convId,
+              titulo: tituloDaConversa(v.transcript),
+              criadoEm: v.criadoEm || v.atualizadoEm || 0,
+              atualizadoEm: v.atualizadoEm || 0,
+              conversation: v.conversation,
+              transcript: v.transcript || [],
+              pecasNaConversa: v.pecasNaConversa || [],
+              selecao: v.selecao || [],
+              custoConversaUsd: v.custoConversaUsd || 0,
+              conversaProvider: v.conversaProvider || null,
+              buscaNaConversa: !!v.buscaNaConversa,
+              ultimoTotalExato: v.ultimoTotalExato || 0,
+            });
+            v.convAtual = convId;
+          }
+          // Os campos inline saem do caso: deixá-los seria uma segunda fonte de
+          // verdade para o mesmo dado, e a próxima leitura não saberia qual vale.
+          for (const campo of CAMPOS_DE_SESSAO) delete v[campo];
+          c.update(v);
+          c.continue();
+        };
       }
     };
     req.onsuccess = () => {
@@ -138,6 +188,17 @@ function pedir(req) {
   });
 }
 
+// Título de uma conversa: a PRIMEIRA pergunta do usuário, encurtada. É o que
+// ele reconhece na lista — "e a prescrição?" diz mais do que qualquer data. Sem
+// pergunta nenhuma (conversa só com minuta/mapa), cai num rótulo neutro que o
+// chamador substitui se souber mais.
+export function tituloDaConversa(transcript) {
+  const t = (transcript || []).find((e) => e && e.role === "user" && e.text);
+  if (!t) return "Conversa sem pergunta";
+  const txt = String(t.text).replace(/\s+/g, " ").trim();
+  return txt.length > 70 ? txt.slice(0, 70).replace(/\s\S*$/, "") + "…" : txt;
+}
+
 // ---------------------------------------------------------------- leitura
 
 // Lê o caso e TODAS as suas peças de uma vez: a hidratação precisa dos dois
@@ -145,11 +206,38 @@ function pedir(req) {
 export async function lerCaso(chave) {
   if (!chave) return null;
   const db = await abrir();
-  const tx = db.transaction([CASOS, PECAS], "readonly");
+  const tx = db.transaction([CASOS, PECAS, CONVERSAS], "readonly");
   const caso = await pedir(tx.objectStore(CASOS).get(chave));
   if (!caso) return null;
   const pecas = await pedir(tx.objectStore(PECAS).index("porCaso").getAll(chave));
-  return { ...caso, pecas: pecas || [] };
+  const todas = (await pedir(tx.objectStore(CONVERSAS).index("porCaso").getAll(chave))) || [];
+  todas.sort((a, b) => (b.atualizadoEm || 0) - (a.atualizadoEm || 0));
+  // A conversa ATUAL vem inteira; das outras vem só o resumo que a lista mostra.
+  // Carregar o histórico completo de 12 conversas para desenhar 12 linhas seria
+  // desperdício no worker, que é o processo que o Chrome mata primeiro.
+  const atual =
+    todas.find((c) => c.convId === caso.convAtual) || todas[0] || null;
+  return {
+    ...caso,
+    pecas: pecas || [],
+    conversa: atual,
+    conversas: todas.map((c) => ({
+      convId: c.convId,
+      titulo: c.titulo || tituloDaConversa(c.transcript),
+      criadoEm: c.criadoEm || 0,
+      atualizadoEm: c.atualizadoEm || 0,
+      mensagens: (c.transcript || []).length,
+      atual: !!atual && c.convId === atual.convId,
+    })),
+  };
+}
+
+// Uma conversa inteira, para quando o usuário troca de conversa na lista.
+export async function lerConversa(chave, convId) {
+  if (!chave || !convId) return null;
+  const db = await abrir();
+  const tx = db.transaction([CONVERSAS], "readonly");
+  return (await pedir(tx.objectStore(CONVERSAS).get([chave, convId]))) || null;
 }
 
 // Lista os casos SEM as peças e SEM a conversa — é o que a tela de gestão
@@ -183,27 +271,21 @@ export async function listarCasos() {
 // Grava o caso. `patch` é MESCLADO sobre o que já existe: o content script salva
 // ora a conversa, ora só a seleção, ora só a grid, e um put cru apagaria os
 // campos ausentes daquela chamada.
-// `base` é o `atualizadoEm` que o chamador leu quando hidratou. Serve para
-// detectar DUAS ABAS no mesmo processo: se o registro mudou desde então, quem
-// está gravando tem um retrato velho da conversa.
-//
-// A resolução não é um merge — merge de conversas é impossível: são duas
-// sequências de turnos com raciocínio assinado, e intercalá-las produziria um
-// histórico que nenhuma API aceita. O que se faz é separar o que CONFLITA do
-// que não conflita: `conversation`/`transcript`/`selecao`/custo são estado de
-// UMA sessão e ficam de fora; o resto (as peças e a ficha do processo) é
-// aditivo e passa. Assim a aba parada deixa de apagar a conversa da aba ativa,
-// e o download que ela adiantou continua aproveitado pelas duas.
+// Campos que ANTES viviam no caso (v2, uma conversa por processo) e hoje vivem
+// no store `conversas`. A lista só sobrevive para a migração v2→v3 poder
+// limpá-los do registro antigo — deixá-los seria uma segunda fonte de verdade
+// para o mesmo dado.
 const CAMPOS_DE_SESSAO = [
   "conversation", "transcript", "selecao", "custoConversaUsd",
   "conversaProvider", "buscaNaConversa", "ultimoTotalExato",
 ];
 
-export async function salvarCaso(chave, patch, base) {
+// O caso guarda só o que é do PROCESSO: ficha, grid e qual conversa está
+// aberta. O que é de uma sessão de trabalho mora em `conversas`.
+export async function salvarCaso(chave, patch) {
   if (!chave) return null;
   const db = await abrir();
   const agora = Date.now();
-  let conflito = false;
   let carimbo = agora;
   let criado = false;
   await transacao(db, [CASOS], "readwrite", (tx) => {
@@ -212,19 +294,11 @@ export async function salvarCaso(chave, patch, base) {
     req.onsuccess = () => {
       criado = !req.result;
       const antes = req.result || { chave, criadoEm: agora };
-      let usar = patch;
-      if (base && antes.atualizadoEm && antes.atualizadoEm > base) {
-        conflito = true;
-        usar = { ...patch };
-        for (const c of CAMPOS_DE_SESSAO) delete usar[c];
-      }
-      // O carimbo é ESTRITAMENTE monotônico, e não `Date.now()` cru: duas
-      // gravações dentro do mesmo milissegundo (comum — o debounce de uma aba
-      // e o fim de turno de outra) deixariam `atualizadoEm` igual à `base`, e
-      // a comparação `>` acima deixaria o conflito passar. Perde-se a precisão
-      // de "quando" por alguns ms; ganha-se um contador que nunca empata.
+      // Carimbo ESTRITAMENTE monotônico, e não `Date.now()` cru: duas gravações
+      // dentro do mesmo milissegundo deixariam `atualizadoEm` igual à base que
+      // a outra aba tem em mãos, e a detecção de conflito passaria batida.
       carimbo = Math.max(agora, (antes.atualizadoEm || 0) + 1);
-      st.put({ ...antes, ...usar, chave, atualizadoEm: carimbo });
+      st.put({ ...antes, ...patch, chave, atualizadoEm: carimbo });
     };
     return agora;
   });
@@ -241,7 +315,96 @@ export async function salvarCaso(chave, patch, base) {
       /* faxina é best-effort */
     }
   }
-  return { atualizadoEm: carimbo, conflito };
+  return { atualizadoEm: carimbo };
+}
+
+// Grava (ou cria) UMA conversa. `convId` novo nasce aqui — quem chama não
+// precisa inventar id. Mescla, como o caso: o content script salva ora a
+// conversa, ora só a seleção daquela conversa.
+// `base` é o `atualizadoEm` que esta aba leu ao abrir a conversa. Se o registro
+// mudou desde então, é outra aba trabalhando na MESMA conversa — e a gravação
+// vai para uma conversa NOVA em vez de sobrescrever.
+//
+// Ramificar é melhor do que qualquer alternativa aqui: merge de conversas é
+// impossível (são sequências de turnos com raciocínio assinado, e intercalá-las
+// produz um histórico que nenhuma API aceita), e descartar o trabalho de uma das
+// abas é justamente o que a memória existe para evitar. Com múltiplas conversas
+// o conflito deixou de ser perda e virou um ramo — que aparece na lista.
+export async function salvarConversa(chave, convId, patch, base) {
+  if (!chave) return null;
+  const db = await abrir();
+  const agora = Date.now();
+  let id = convId || crypto.randomUUID();
+  let criada = false;
+  let ramificou = false;
+  await transacao(db, [CONVERSAS, CASOS], "readwrite", (tx) => {
+    const st = tx.objectStore(CONVERSAS);
+    const req = st.get([chave, id]);
+    req.onsuccess = () => {
+      if (base && req.result && (req.result.atualizadoEm || 0) > base) {
+        ramificou = true;
+        id = crypto.randomUUID();
+      }
+      const antes = ramificou ? { chave, convId: id, criadoEm: agora } : req.result || { chave, convId: id, criadoEm: agora };
+      criada = ramificou || !req.result;
+      const novo = { ...antes, ...patch, chave, convId: id, atualizadoEm: agora };
+      // O título é derivado, não digitado: recalculado a cada gravação porque a
+      // primeira pergunta só existe depois do primeiro turno — e uma conversa
+      // que nasceu "sem pergunta" precisa ganhar nome quando ela chega.
+      novo.titulo = tituloDaConversa(novo.transcript);
+      st.put(novo);
+    };
+    // O caso aponta para a conversa aberta, e é isso que a próxima sessão
+    // retoma. Vai na MESMA transação: um `convAtual` apontando para uma
+    // conversa que não chegou a ser gravada deixaria o processo sem conversa.
+    const stc = tx.objectStore(CASOS);
+    const rc = stc.get(chave);
+    rc.onsuccess = () => {
+      const c = rc.result || { chave, criadoEm: agora };
+      stc.put({ ...c, chave, convAtual: id, atualizadoEm: agora });
+    };
+  });
+  if (criada) {
+    try {
+      await podarConversas(chave);
+    } catch {
+      /* faxina é best-effort */
+    }
+  }
+  return { convId: id, atualizadoEm: agora, ramificou };
+}
+
+export async function apagarConversa(chave, convId) {
+  if (!chave || !convId) return 0;
+  const db = await abrir();
+  await transacao(db, [CONVERSAS], "readwrite", (tx) => {
+    tx.objectStore(CONVERSAS).delete([chave, convId]);
+  });
+  return 1;
+}
+
+// Mantém as MAX_CONVERSAS mais recentes de um processo. Usa `openKeyCursor` no
+// índice pelo mesmo motivo da poda de casos — aqui o valor seria o histórico
+// inteiro de cada conversa.
+export async function podarConversas(chave, max = MAX_CONVERSAS) {
+  const db = await abrir();
+  const pares = await new Promise((resolve, reject) => {
+    const tx = db.transaction([CONVERSAS], "readonly");
+    const req = tx.objectStore(CONVERSAS).index("porCaso").openCursor(IDBKeyRange.only(chave));
+    const out = [];
+    req.onsuccess = () => {
+      const cur = req.result;
+      if (!cur) return resolve(out);
+      out.push({ convId: cur.value.convId, quando: cur.value.atualizadoEm || 0 });
+      cur.continue();
+    };
+    req.onerror = () => reject(req.error);
+  });
+  if (pares.length <= max) return 0;
+  pares.sort((a, b) => b.quando - a.quando);
+  const apagar = pares.slice(max);
+  for (const p of apagar) await apagarConversa(chave, p.convId);
+  return apagar.length;
 }
 
 // Grava um lote de peças. Cada peça é MESCLADA sobre a anterior pelo mesmo
@@ -290,8 +453,17 @@ export async function salvarPecas(chave, lista) {
 export async function esquecerCaso(chave) {
   if (!chave) return 0;
   const db = await abrir();
-  await transacao(db, [CASOS, PECAS], "readwrite", (tx) => {
+  await transacao(db, [CASOS, PECAS, CONVERSAS], "readwrite", (tx) => {
     tx.objectStore(CASOS).delete(chave);
+    // As conversas saem junto: esquecer o processo tem de ser completo, e um
+    // registro órfão aqui ficaria invisível e ocuparia disco para sempre.
+    const rc = tx.objectStore(CONVERSAS).index("porCaso").openKeyCursor(IDBKeyRange.only(chave));
+    rc.onsuccess = () => {
+      const cur = rc.result;
+      if (!cur) return;
+      tx.objectStore(CONVERSAS).delete(cur.primaryKey);
+      cur.continue();
+    };
     // Apagar por CURSOR no índice, não por range no keyPath: a chave composta é
     // ["chave", id] e um IDBKeyRange sobre ela dependeria da ordem lexicográfica
     // dos ids, que não é garantida para o que queremos.
@@ -316,9 +488,10 @@ export async function esquecerTudo() {
     req.onsuccess = () => resolve(req.result || 0);
     req.onerror = () => reject(req.error);
   });
-  await transacao(db, [CASOS, PECAS], "readwrite", (tx) => {
+  await transacao(db, [CASOS, PECAS, CONVERSAS], "readwrite", (tx) => {
     tx.objectStore(CASOS).clear();
     tx.objectStore(PECAS).clear();
+    tx.objectStore(CONVERSAS).clear();
   });
   return n;
 }

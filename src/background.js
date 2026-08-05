@@ -25,7 +25,10 @@ import {
 } from "./openai.js";
 import {
   lerCaso,
+  lerConversa,
   salvarCaso,
+  salvarConversa,
+  apagarConversa,
   salvarPecas,
   esquecerCaso,
   esquecerTudo,
@@ -547,7 +550,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     msg.type === "casoSalvar" ||
     msg.type === "casoPecas" ||
     msg.type === "casoEsquecer" ||
-    msg.type === "casoListar"
+    msg.type === "casoListar" ||
+    msg.type === "convLer" ||
+    msg.type === "convSalvar" ||
+    msg.type === "convApagar"
   ) {
     (async () => {
       try {
@@ -563,14 +569,28 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             n: chave ? await esquecerCaso(chave) : await esquecerTudo(),
           });
         }
+        if (msg.type === "convApagar") {
+          // Apagar funciona mesmo com a memória desligada, pela mesma razão do
+          // `casoEsquecer`: é o que alguém que acabou de desligá-la quer fazer.
+          return sendResponse({ ok: true, n: await apagarConversa(chave, msg.convId) });
+        }
         if (!memoriaCaso) return sendResponse({ ok: true, desligado: true, caso: null, casos: [] });
         if (msg.type === "casoLer") return sendResponse({ ok: true, caso: await lerCaso(chave) });
         if (msg.type === "casoListar") return sendResponse({ ok: true, casos: await listarCasos() });
         if (msg.type === "casoPecas") {
           return sendResponse({ ok: true, n: await salvarPecas(chave, msg.pecas) });
         }
-        const r = await salvarCaso(chave, msg.patch || {}, msg.base);
-        sendResponse({ ok: true, atualizadoEm: r.atualizadoEm, conflito: r.conflito });
+        if (msg.type === "convLer") {
+          return sendResponse({ ok: true, conversa: await lerConversa(chave, msg.convId) });
+        }
+        if (msg.type === "convSalvar") {
+          const c = await salvarConversa(chave, msg.convId, msg.patch || {}, msg.base);
+          return sendResponse({
+            ok: true, convId: c.convId, atualizadoEm: c.atualizadoEm, ramificou: c.ramificou,
+          });
+        }
+        const r = await salvarCaso(chave, msg.patch || {});
+        sendResponse({ ok: true, atualizadoEm: r.atualizadoEm });
       } catch (e) {
         // Cota estourada é o único erro que vale uma segunda tentativa: poda
         // metade dos casos e repete UMA vez. Se falhar de novo, o content

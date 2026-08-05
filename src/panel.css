@@ -676,10 +676,10 @@ button > svg { flex: none; }
 .tip-txt { display: none; flex: 1 1 100%; order: 4; line-height: 1.4; }
 /* O texto aparece durante o carregamento E no hover/foco do ícone: o title
    sozinho deixaria de fora quem navega por teclado (o aviso é informação
-   necessária, não decoração — só deixou de ser permanente). */
-.docs-tip.carregando .tip-txt,
-.docs-tip:has(.tip-i:hover) .tip-txt,
-.docs-tip:has(.tip-i:focus) .tip-txt { display: block; }
+   necessária, não decoração — só deixou de ser permanente).
+   As regras de exibição vivem juntas mais abaixo, em "O aviso no HOVER não
+   pode mexer no layout da faixa" — estavam aqui e lá, e a duplicata foi o que
+   permitiu que a versão com `flex-wrap` sobrevivesse a uma correção. */
 /* "Carregar tudo", "Escolher com IA" e "Baixar .zip" são ações IRMÃS sobre a
    lista inteira — compartilham a regra de propósito, para não divergirem com o
    tempo. */
@@ -708,15 +708,37 @@ button > svg { flex: none; }
 .docs-tip { flex-wrap: nowrap; }
 .tip-load { flex: 0 1 auto; min-width: 0; overflow: hidden; }
 .tip-load .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Quem libera a quebra são os MESMOS três gatilhos que revelam o .tip-txt, e o
-   texto ocupa a linha inteira (`flex: 1 1 100%` na declaração dele).
-   A regra anterior testava `:has(.tip-txt:not([hidden]))`, que casa SEMPRE — o
-   .tip-txt nunca recebe o atributo hidden, quem o esconde é o `display:none`
-   acima. Com especificidade maior e vindo depois, ela devolvia flex-wrap:wrap
-   em repouso e anulava o nowrap: a fileira única existia no papel, não na tela. */
-.docs-tip.carregando,
-.docs-tip:has(.tip-i:hover),
-.docs-tip:has(.tip-i:focus) { flex-wrap: wrap; }
+/* ----- O aviso no HOVER não pode mexer no layout da faixa -----
+   LOOP DE LAYOUT, já visto na tela como a faixa "piscando": o `.tip-i` fica à
+   direita por `margin-left:auto`, e trocar `nowrap` por `wrap` no hover
+   RECALCULA a fileira e desloca o próprio ícone. Ele sai de debaixo do
+   ponteiro, o `:hover` deixa de casar, o layout volta ao normal, o ponteiro
+   está em cima de novo — e o ciclo se repete dezenas de vezes por segundo.
+
+   Por isso o hover NÃO libera a quebra: o texto vira um popover ABSOLUTO,
+   ancorado na faixa (que ganhou `position: relative`), por cima da lista. Ele
+   não ocupa espaço, não empurra nada e o ícone fica parado.
+
+   O estado `.carregando` continua no FLUXO: ali o texto é feedback contínuo
+   (não some ao mover o mouse) e não há hover envolvido, logo não há loop. */
+.docs-tip { position: relative; }
+.docs-tip.carregando { flex-wrap: wrap; }
+.docs-tip.carregando .tip-txt { display: block; }
+
+.docs-tip:has(.tip-i:hover) .tip-txt,
+.docs-tip:has(.tip-i:focus) .tip-txt {
+  display: block;
+  position: absolute;
+  left: var(--sp-3); right: var(--sp-3);
+  /* abre para CIMA: a faixa mora no rodapé da lista, e o espaço livre está
+     acima dela */
+  bottom: calc(100% + 6px);
+  z-index: 12;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--warn-line); border-left: 3px solid var(--warn);
+  border-radius: var(--r-md); box-shadow: var(--sh-pop);
+  padding: var(--sp-2b) var(--sp-3);
+}
 
 /* ----- Rótulo só onde a lista é LARGA -----
    Só "Carregar tudo" mantém o rótulo sempre: é o botão que o texto do aviso
@@ -832,6 +854,41 @@ button > svg { flex: none; }
 .retomada .ret-esq.armado {
   border-color: var(--erro); color: var(--erro); background: #fff;
 }
+/* ---------- Menu de conversas guardadas do processo ----------
+   `position: fixed` pela mesma razão do .selmenu e da .confirmbox: o .wrap é um
+   container de tamanho ZERO (quem tem dimensão é o .panel), e posicionar por
+   dentro dele jogaria o menu para fora da tela. */
+.convmenu {
+  position: fixed; z-index: 40; width: 300px; max-height: 60vh; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 10px; box-shadow: var(--sh-pop); padding: 5px;
+}
+.convmenu .cm-h {
+  font-size: var(--fs-micro); color: var(--muted); font-weight: 600;
+  padding: 5px 8px 7px; border-bottom: 1px solid var(--line-2); margin-bottom: 4px;
+}
+.convmenu .cm-row { display: flex; align-items: stretch; gap: 2px; border-radius: 7px; }
+.convmenu .cm-row:hover { background: var(--hover); }
+/* A conversa aberta fica marcada por uma barra à esquerda, não por cor de fundo:
+   o fundo já é o estado de hover e os dois se confundiriam. */
+.convmenu .cm-row.atual { box-shadow: inset 3px 0 0 var(--pje); }
+.convmenu .cm-abrir {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;
+  text-align: left; background: none; border: 0; cursor: pointer;
+  padding: 7px 8px; border-radius: 7px; color: inherit;
+}
+.convmenu .cm-t {
+  font-size: var(--fs-meta); font-weight: 600; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.convmenu .cm-m { font-size: var(--fs-micro); color: var(--muted); }
+.convmenu .cm-x {
+  flex: none; align-self: center; background: none; border: 0; cursor: pointer;
+  font-size: var(--fs-micro); color: var(--muted); padding: 4px 7px; border-radius: 6px;
+}
+.convmenu .cm-x:hover { color: var(--erro); background: var(--hover-2); }
+.convmenu .cm-x.armado { color: var(--erro); font-weight: 700; }
+
 /* Card de minuta/mapa numa conversa RETOMADA: sem os botões de ação (a aba do
    mapa morreu com o navegador; a minuta vive na sua própria lista), só a linha
    que diz onde o documento está. */

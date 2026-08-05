@@ -54,15 +54,31 @@ var CASO = (function () {
       return { caso: (r && r.caso) || null, desligado: !!(r && r.desligado) };
     },
 
-    // Mescla `patch` sobre o caso. `{ok:false, cheio:true}` avisa que o disco
-    // encheu mesmo depois da poda de emergência — é o único erro que o chamador
-    // precisa distinguir, porque a resposta certa a ele é parar de tentar.
-    // `base` é o `atualizadoEm` do retrato que este contexto tem em mãos. Sem
-    // ele o worker grava tudo; com ele, detecta que OUTRA ABA do mesmo processo
-    // gravou nesse meio-tempo e preserva a conversa dela (devolve
-    // `{conflito:true}`).
-    salvar(chave, patch, base) {
-      return rpc({ type: "casoSalvar", chave, patch, base });
+    // Mescla `patch` sobre o caso — metadados do PROCESSO (ficha, grid, qual
+    // conversa está aberta). O conteúdo de uma sessão de trabalho vai por
+    // `salvarConversa`. `{ok:false, cheio:true}` avisa que o disco encheu mesmo
+    // depois da poda de emergência: é o único erro que o chamador precisa
+    // distinguir, porque a resposta certa a ele é parar de tentar.
+    salvar(chave, patch) {
+      return rpc({ type: "casoSalvar", chave, patch });
+    },
+
+    // Uma conversa inteira, para quando o usuário troca de conversa na lista.
+    async lerConversa(chave, convId) {
+      const r = await rpc({ type: "convLer", chave, convId });
+      return (r && r.conversa) || null;
+    },
+
+    // Grava a conversa. `convId` nulo cria uma nova (o id nasce no worker).
+    // `base` detecta outra aba trabalhando na MESMA conversa: em vez de
+    // sobrescrever, o banco RAMIFICA e devolve `{ramificou:true, convId}` com o
+    // id do ramo — nenhum dos dois trabalhos se perde.
+    salvarConversa(chave, convId, patch, base) {
+      return rpc({ type: "convSalvar", chave, convId, patch, base });
+    },
+
+    apagarConversa(chave, convId) {
+      return rpc({ type: "convApagar", chave, convId });
     },
 
     // Lote de peças. Chamado com o que mudou desde a última gravação, nunca com

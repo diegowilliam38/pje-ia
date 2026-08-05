@@ -445,11 +445,14 @@
   function selecaoEfetiva() {
     return panel.selecaoParaMemoria ? panel.selecaoParaMemoria() : panel.getSelected();
   }
-  // Carimbo do retrato do caso que ESTA aba tem em mãos. Vai em toda gravação
-  // para o banco detectar que outra aba do mesmo processo escreveu no
-  // meio-tempo (ver CAMPOS_DE_SESSAO em casodb.js).
-  let casoVersao = 0;
+  // Conversa ABERTA nesta aba e o carimbo do retrato dela. O carimbo vai em
+  // toda gravação para o banco detectar que outra aba escreveu na mesma
+  // conversa no meio-tempo — e ramificar em vez de sobrescrever.
+  let convAtual = null;
+  let convVersao = 0;
   let avisouConflito = false;
+  // Resumos das conversas deste processo, para a lista do painel.
+  let conversasDoCaso = [];
 
   // Extrai de uma entrada do docsCache só o que vai ao disco. O `b64` fica de
   // fora POR CONSTRUÇÃO — são os autos inteiros, e o que evita o re-download é o
@@ -506,11 +509,19 @@
       grau: casoChave.split("|")[1] || null,
       idProcesso: PJE.getIdProcesso() || null,
       versaoExt: (chrome.runtime.getManifest && chrome.runtime.getManifest().version) || null,
+    };
+  }
+
+  // O que pertence a UMA conversa (e não ao processo). Separado do caso porque
+  // agora há várias por processo: o que muda a cada turno é isto, e reescrever
+  // o caso inteiro junto seria trabalho à toa.
+  function snapshotConversa() {
+    return {
       conversation,
       pecasNaConversa: [...pecasNaConversa],
       transcript: panel.lerTranscript ? panel.lerTranscript() : [],
-      // `selecaoParaMemoria` e não `getSelected`: inclui as peças restauradas
-      // que ainda esperam a timeline lazy do PJe carregar as rows delas.
+      // `selecaoEfetiva` e não `getSelected`: inclui as peças restauradas que
+      // ainda esperam a timeline lazy do PJe carregar as rows delas.
       selecao: selecaoEfetiva(),
       custoConversaUsd,
       conversaProvider,
@@ -545,30 +556,40 @@
           throw e;
         }
       }
-      const r = await CASO.salvar(casoChave, patch, casoVersao);
+      const r = await CASO.salvar(casoChave, patch);
       if (r && r.cheio) {
         memoriaMorta = true;
-        console.debug("[PJe IA] memória de caso desligada nesta sessão: disco cheio");
+        console.log("[PJe IA] memória: DESLIGADA nesta sessão (disco cheio)");
+        return;
       }
+      // A conversa só é gravada quando existe: uma sessão em que o usuário só
+      // marcou peças e não perguntou nada não cria conversa vazia na lista.
+      if (!conversation.length) return;
+      const c = await CASO.salvarConversa(
+        casoChave, convAtual, snapshotConversa(), convVersao
+      );
+      if (!c || !c.convId) return;
+      convAtual = c.convId;
       // O carimbo desta gravação vira a base da próxima: sem atualizá-lo, a
       // segunda gravação desta mesma aba pareceria vir de um retrato velho e
       // seria tratada como conflito consigo mesma.
-      if (r && r.atualizadoEm) casoVersao = r.atualizadoEm;
-      if (r && r.conflito) {
-        // Outra aba do mesmo processo gravou nesse meio-tempo. A conversa DELA
-        // foi preservada (as peças, que são aditivas, entraram assim mesmo) —
-        // ver CAMPOS_DE_SESSAO em casodb.js. Só se avisa uma vez: repetir a
-        // cada gravação viraria ruído no que já é um caso de borda.
-        if (!avisouConflito) {
-          avisouConflito = true;
-          panel.setStatus(
-            "Este processo está aberto em outra aba, e é a conversa de lá que está sendo " +
-              "guardada. Feche uma das abas para não perder o que fizer aqui."
-          );
-        }
+      convVersao = c.atualizadoEm || 0;
+      if (c.ramificou && !avisouConflito) {
+        // Outra aba estava na MESMA conversa e gravou antes. Em vez de perder
+        // um dos dois trabalhos, o banco criou um ramo — e este passa a ser o
+        // desta aba. Avisa UMA vez: repetir a cada gravação viraria ruído.
+        avisouConflito = true;
+        panel.setStatus(
+          "Este processo está aberto em outra aba. Para não perder nada, o que você " +
+            "fizer aqui virou uma conversa separada — ela aparece na lista de conversas."
+        );
+        atualizarListaConversas();
       }
     } catch (e) {
-      console.debug("[PJe IA] memória de caso não gravou:", e && e.message);
+      // `console.log`, e não `debug`: o nível Verbose do DevTools vem
+      // DESLIGADO por padrão, então um `debug` aqui é instrumentação que
+      // ninguém vê — inútil justamente quando é preciso diagnosticar.
+      console.log("[PJe IA] memória: FALHOU ao gravar —", e && e.message);
     }
   }
 
@@ -781,31 +802,28 @@
     }
   });
 
-  panel.onReset(() => {
+  panel.onReset(async () => {
     if (busy) return; // não zera no meio de uma resposta
-    conversation = [];
-    custoConversaUsd = 0;
-    panel.setCusto(null);
-    pecasNaConversa.clear();
-    panel.setPecasEnviadas([]);
-    ultimoTotalExato = 0; // sem histórico, não há medição exata a reaproveitar
-    buscaNaConversa = false;
-    conversaProvider = null; // conversa nova pode começar em qualquer provedor
-    alertaTrocaLigado = false;
+    // ARQUIVA a conversa atual antes de abrir a nova. Esta é a correção de uma
+    // decisão errada da rodada anterior: enquanto nada era persistido, "Nova
+    // conversa" só limpava a tela. Com memória, sobrescrever significaria
+    // DESTRUIR trabalho gravado — sem aviso e sem volta. Agora a anterior
+    // continua no disco e reaparece na lista de conversas.
+    await salvarCasoAgora();
     clearTimeout(estTimer);
     estSeq++; // descarta estimativas em voo
-    ultimaChaveEst = ""; // próxima seleção re-mede do zero
-    panel.setContexto(null);
-    panel.setAlerta(null);
+    zerarEstadoDaConversa();
+    // `null` faz a próxima gravação CRIAR uma conversa, em vez de escrever por
+    // cima da que acabou de ser arquivada.
+    convAtual = null;
+    convVersao = 0;
     panel.clearMessages();
     refreshKey(); // re-renderiza CTA de chave se necessário
-    // "Nova conversa" apaga a CONVERSA, nunca a memória das PEÇAS: o botão
-    // promete zerar o chat e o contexto, não esquecer o processo. Apagar as
-    // peças aqui faria o usuário pagar o download inteiro de novo por ter
-    // querido trocar de assunto — o oposto do que a memória existe para
-    // resolver. Para esquecer o processo há o botão próprio na faixa de
-    // retomada.
-    salvarCasoAgora();
+    // As PEÇAS não são tocadas: elas são do processo, custaram download e
+    // servem a todas as conversas dele. Para esquecer o processo inteiro há o
+    // botão próprio na faixa de retomada.
+    CASO.salvar(casoChave, { convAtual: null });
+    atualizarListaConversas();
   });
 
   // "Ver na timeline": rola a página do PJe até a peça com destaque temporário
@@ -3681,11 +3699,25 @@
       // O usuário desligou a memória nas opções. Não basta deixar de hidratar:
       // sem `memoriaMorta`, cada clique na lista custaria uma ida ao worker só
       // para ser recusada lá.
+      // Uma linha de estado SEMPRE, mesmo quando não há nada a retomar: é por
+      // ela que se descobre, sem adivinhação, se a memória está ligada, qual
+      // processo ela identificou e o que havia gravado. Sem isso o único
+      // sintoma de qualquer falha é "não mudou nada na tela".
+      console.log(
+        "[PJe IA] memória: " + casoChave +
+          (desligado
+            ? " — DESLIGADA nas opções"
+            : !caso
+              ? " — nada gravado ainda (esta é a 1ª sessão neste processo)"
+              : " — " + (caso.pecas || []).length + " peça(s), " +
+                (caso.conversas || []).length + " conversa(s) gravadas")
+      );
       if (desligado) memoriaMorta = true;
       else if (caso) {
-        casoVersao = caso.atualizadoEm || 0;
         hidratarPecas(caso.pecas);
         retomarConversa(caso);
+        conversasDoCaso = caso.conversas || [];
+        panel.setConversas(conversasDoCaso, convAtual);
       }
       // A trava só cai DEPOIS da leitura: até aqui, qualquer gravação
       // disparada pelo boot escreveria por cima da memória que ainda não foi
@@ -3694,7 +3726,7 @@
       casoCarregado = true;
       agendarSalvar();
     } catch (e) {
-      console.debug("[PJe IA] memória de caso indisponível:", e && e.message);
+      console.log("[PJe IA] memória: INDISPONÍVEL —", e && e.message);
       casoCarregado = true; // falha de leitura não impede a extensão de gravar
     }
   }
@@ -3707,11 +3739,94 @@
   // envio bloquearia de todo jeito, com um alerta que ele não pediu logo ao
   // abrir os autos. Melhor começar limpo: as PEÇAS (que já foram hidratadas e
   // são o caro) continuam valendo.
+  // Troca a conversa aberta. É o mesmo caminho da retomada do boot, e por isso
+  // reusa `aplicarConversa`: carregar da lista e carregar do disco no arranque
+  // são a mesma operação vista de dois lugares.
+  async function trocarConversa(convId) {
+    if (busy || !casoChave || convId === convAtual) return;
+    // O que está na tela precisa ir ao disco ANTES de sair de cena — trocar de
+    // conversa não pode custar o último turno da anterior.
+    await salvarCasoAgora();
+    const conv = await CASO.lerConversa(casoChave, convId);
+    if (!conv) {
+      panel.setStatus("Essa conversa não está mais guardada.");
+      return;
+    }
+    panel.clearMessages();
+    zerarEstadoDaConversa();
+    convAtual = convId;
+    convVersao = conv.atualizadoEm || 0;
+    aplicarConversa(conv);
+    // Grava o ponteiro: é esta conversa que a próxima sessão retoma.
+    CASO.salvar(casoChave, { convAtual: convId });
+    atualizarListaConversas();
+  }
+
+  // Zera só o que pertence a UMA conversa. As peças (`docsCache`) ficam — elas
+  // são do processo, custaram download e servem a todas as conversas dele.
+  function zerarEstadoDaConversa() {
+    conversation = [];
+    pecasNaConversa.clear();
+    custoConversaUsd = 0;
+    conversaProvider = null;
+    buscaNaConversa = false;
+    ultimoTotalExato = 0;
+    ultimaChaveEst = "";
+    alertaTrocaLigado = false;
+    panel.setCusto(null);
+    panel.setContexto(null);
+    panel.setAlerta(null);
+    panel.setPecasEnviadas([]);
+  }
+
+  panel.onTrocarConversa((convId) => {
+    trocarConversa(convId).catch((e) =>
+      panel.setStatus("Não foi possível abrir a conversa: " + (e && e.message))
+    );
+  });
+
+  panel.onApagarConversa(async (convId) => {
+    if (!casoChave) return;
+    try {
+      await CASO.apagarConversa(casoChave, convId);
+      // Apagou a que está na tela: o chat continua aberto (o usuário não pediu
+      // para perder o que está fazendo), mas deixa de ter registro no disco —
+      // a próxima gravação cria uma conversa nova.
+      if (convId === convAtual) {
+        convAtual = null;
+        convVersao = 0;
+      }
+      atualizarListaConversas();
+    } catch (e) {
+      panel.setStatus("Não foi possível excluir a conversa: " + (e && e.message));
+    }
+  });
+
+  // Repõe a lista de conversas no painel a partir do que está no banco.
+  async function atualizarListaConversas() {
+    if (!memoriaDisponivel || !casoChave || memoriaMorta) return;
+    try {
+      const { caso } = await CASO.ler(casoChave);
+      conversasDoCaso = (caso && caso.conversas) || [];
+      panel.setConversas(conversasDoCaso, convAtual);
+    } catch {
+      /* a lista é comodidade: falha nela não pode atrapalhar o trabalho */
+    }
+  }
+
   function retomarConversa(caso) {
-    if (!Array.isArray(caso.conversation) || !caso.conversation.length) return;
+    const conv = caso.conversa;
+    if (!conv || !Array.isArray(conv.conversation) || !conv.conversation.length) return;
+    convAtual = conv.convId;
+    convVersao = conv.atualizadoEm || 0;
+    aplicarConversa(conv);
+  }
+
+  // Põe uma conversa (do disco) no estado vivo e na tela.
+  function aplicarConversa(caso) {
     const provAtual = (modelCaps && modelCaps.provider) || "anthropic";
     if (caso.conversaProvider && caso.conversaProvider !== provAtual) {
-      console.debug(
+      console.log(
         "[PJe IA] memória de caso: conversa anterior era do provedor " +
           caso.conversaProvider + " e o atual é " + provAtual + " — só as peças foram retomadas"
       );
@@ -3817,8 +3932,8 @@
       else comFile++;
     }
     if (texto + comFile) {
-      console.debug(
-        "[PJe IA] memória de caso: " + (texto + comFile) + " peça(s) retomadas do disco (" +
+      console.log(
+        "[PJe IA] memória: " + (texto + comFile) + " peça(s) retomadas do disco (" +
           texto + " de texto, " + comFile + " por referência de upload) — sem novo download"
       );
     }
