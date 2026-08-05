@@ -8,6 +8,50 @@ const customEl = document.getElementById("customPrompt");
 // elemento exclusivo de uma das duas telas, é acessado sempre sob `if (el)` —
 // tocá-lo direto quebraria a outra página.
 const memoriaEl = document.getElementById("memoriaCaso");
+const limparMemBtn = document.getElementById("limparMemoria");
+const memStatus = document.getElementById("memStatus");
+
+// Apagar TODA a memória. Em dois cliques, como toda exclusão da extensão —
+// nunca `confirm()` nativo. Diz QUANTOS processos foram apagados: "pronto"
+// sozinho não distingue "apagou 12" de "não havia nada".
+if (limparMemBtn) {
+  let armado = false;
+  limparMemBtn.addEventListener("click", () => {
+    if (!armado) {
+      armado = true;
+      limparMemBtn.textContent = "Apagar tudo?";
+      limparMemBtn.classList.add("btn-erro");
+      if (memStatus) memStatus.textContent = "Isto não tem volta.";
+      setTimeout(() => {
+        if (!armado) return;
+        armado = false;
+        limparMemBtn.textContent = "Apagar a memória de todos os processos";
+        limparMemBtn.classList.remove("btn-erro");
+        if (memStatus) memStatus.textContent = "";
+      }, 5000);
+      return;
+    }
+    armado = false;
+    limparMemBtn.disabled = true;
+    limparMemBtn.textContent = "Apagando…";
+    limparMemBtn.classList.remove("btn-erro");
+    chrome.runtime.sendMessage({ type: "casoEsquecer", chave: null }, (r) => {
+      void chrome.runtime.lastError;
+      limparMemBtn.disabled = false;
+      limparMemBtn.textContent = "Apagar a memória de todos os processos";
+      if (!memStatus) return;
+      const n = (r && r.n) || 0;
+      memStatus.textContent = n
+        ? n + " processo(s) apagados deste computador."
+        : "Não havia nada guardado.";
+      memStatus.className = "mem-status ok";
+      setTimeout(() => {
+        memStatus.textContent = "";
+        memStatus.className = "mem-status";
+      }, 6000);
+    });
+  });
+}
 const saveBtn = document.getElementById("save");
 const saveStatus = document.getElementById("saveStatus");
 const chip = document.getElementById("chip");

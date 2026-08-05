@@ -534,9 +534,25 @@
   // momento mais valioso para persistir, e é também quando `busy` acabou de
   // cair. NUNCA rejeita: a memória de caso é comodidade, e um
   // `unhandledrejection` aqui derrubaria o turno que ela deveria proteger.
-  async function salvarCasoAgora() {
+  // Gravações são SERIALIZADAS numa fila. Sem isto, duas chamadas concorrentes
+  // (o `finally` de um turno e o debounce da seleção, por exemplo) leem
+  // `convAtual` ainda `null` — a primeira ainda não respondeu — e cada uma
+  // MANDA CRIAR uma conversa. O sintoma na tela é exatamente o relatado: uma
+  // pergunta vira duas conversas idênticas na lista.
+  let filaSalvar = Promise.resolve();
+  function salvarCasoAgora() {
     clearTimeout(salvarTimer);
     salvarDesde = 0;
+    if (!memoriaDisponivel || !casoChave || !casoCarregado || memoriaMorta) {
+      return Promise.resolve();
+    }
+    // `.catch` na CAUDA da fila, e não em volta: um erro numa gravação não pode
+    // envenenar a promessa que as próximas encadeiam.
+    filaSalvar = filaSalvar.then(gravarCasoEConversa, gravarCasoEConversa);
+    return filaSalvar;
+  }
+
+  async function gravarCasoEConversa() {
     if (!memoriaDisponivel || !casoChave || !casoCarregado || memoriaMorta) return;
     try {
       const patch = snapshotCaso();

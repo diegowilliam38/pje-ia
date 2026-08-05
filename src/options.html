@@ -178,12 +178,22 @@
             <input type="checkbox" id="memoriaCaso" checked>
             <b>Lembrar dos processos entre sessões</b>
           </span>
-          <i>Ao reabrir um processo já analisado, a conversa volta e as peças não
+          <i>Ao reabrir um processo já analisado, as conversas voltam e as peças não
           precisam ser baixadas de novo. Ficam guardados <b>neste computador</b> o
-          texto das peças, a lista do que foi selecionado e a conversa — <b>não</b> os
+          texto das peças, a lista do que foi selecionado e as conversas — <b>não</b> os
           PDFs. Tudo é apagado depois de 14 dias, e cada processo tem um botão
           “Esquecer” no próprio painel.</i>
         </label>
+        <!-- Apagar TUDO de uma vez. Existe por duas razões: é a saída para quem
+             quer começar do zero sem desligar o recurso, e é o que torna a
+             promessa de privacidade acionável num clique só — "some em 14 dias"
+             não serve para quem quer que suma agora. -->
+        <div class="mem-acts">
+          <button class="btn btn-sec" id="limparMemoria" type="button">
+            Apagar a memória de todos os processos
+          </button>
+          <span class="mem-status" id="memStatus"></span>
+        </div>
 
         <div class="save-row">
           <div class="save-acts">

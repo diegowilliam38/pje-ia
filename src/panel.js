@@ -4319,10 +4319,26 @@ var PjePanel = (function () {
       setConversas(lista, atualId) {
         convLista = Array.isArray(lista) ? lista : [];
         convAtualId = atualId || null;
-        const mostrar = convLista.length > 1;
+        // Visível a partir de UMA conversa guardada, não de duas.
+        //
+        // A regra anterior ("só com mais de uma") tinha lógica no papel e era
+        // péssima na prática: ao excluir uma de duas, o botão SUMIA junto — e o
+        // usuário, que acabara de apagar UMA, via o controle inteiro
+        // desaparecer. Indistinguível de ter perdido tudo. Um controle nunca
+        // pode sumir como efeito colateral da ação que o usuário acabou de
+        // fazer nele.
+        const mostrar = convLista.length > 0;
         convBtn.hidden = !mostrar;
         if (!mostrar) fecharConvMenu();
-        else convBtn.title = convLista.length + " conversas guardadas neste processo";
+        else {
+          convBtn.title =
+            convLista.length === 1
+              ? "1 conversa guardada neste processo"
+              : convLista.length + " conversas guardadas neste processo";
+        }
+        // Menu aberto: re-renderiza para refletir a exclusão sem fechar na cara
+        // do usuário.
+        if (convMenu) abrirConvMenu();
       },
       onTrocarConversa(cb) {
         trocarConvCb = cb;

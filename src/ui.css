@@ -203,6 +203,22 @@ label.field-check .chk {
   font-weight: 600; font-size: var(--fs-ui);
 }
 label.field-check .chk input { flex: none; width: 15px; height: 15px; accent-color: var(--pje); }
+.mem-acts {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 8px 0 0 23px;
+}
+/* O botão aqui não é a ação principal da tela (essa é "Salvar configuração"),
+   então nasce secundário e do tamanho do texto — o `.btn` puro ocuparia a
+   linha inteira e competiria com o Salvar. */
+.mem-acts .btn { width: auto; margin-top: 0; }
+/* Segundo clique: a exclusão fica ARMADA e se veste de destrutiva. */
+.btn-erro {
+  background: #fff; color: var(--erro); border-color: var(--erro);
+}
+.btn-erro:hover { background: #fff; border-color: var(--erro); color: var(--erro); }
+.mem-status { font-size: var(--fs-meta); color: var(--muted); }
+.mem-status.ok { color: var(--ok); font-weight: 600; }
+
 label.field-check i {
   display: block; margin: 3px 0 0 23px; font-style: normal;
   font-size: var(--fs-meta); color: var(--muted); line-height: 1.5;
