@@ -233,7 +233,7 @@ function getCfg() {
           apiKey: v.apiKey,
           geminiApiKey: v.geminiApiKey,
           openaiApiKey: v.openaiApiKey,
-          model: v.model || "claude-haiku-4-5",
+          model: v.model || "gemini-3.6-flash",
           effort: v.effort || "high",
         })
     )

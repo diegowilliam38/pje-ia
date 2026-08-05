@@ -1422,10 +1422,16 @@ expandido.
     só do provedor do modelo ativo; são os `.kstate` que dizem o estado das duas
     chaves de uma vez.
 - Modelos da API: manter os IDs do `popup.html`/`options.html` alinhados aos aliases
-  atuais da Anthropic (`claude-haiku-4-5` é o default em `background.js` — rápido e
-  barato; todas as features funcionam nele; a janela menor de 200 mil tokens/100 págs. é o custo
-  aceito, com o Sonnet 5 de 1M oferecido para autos volumosos) e do Google
-  (`gemini-3.6-flash`, `gemini-3.5-flash-lite` — GA na Interactions API), e a tabela
+  atuais da Anthropic (`claude-haiku-4-5` — rápido e barato, mas com janela de 200 mil
+  tokens/100 págs.; o Sonnet 5 de 1M é a opção para autos volumosos) e do Google
+  (**`gemini-3.6-flash` é o DEFAULT em `background.js`** — 1M de tokens e 1000 págs.
+  cobrem os autos inteiros sem a guarda de páginas estourar, que é o caso comum;
+  `gemini-3.5-flash-lite` — GA na Interactions API). **Consequência do default ser
+  Gemini, e ela é real**: `citacoesNativas:false`, então a experiência padrão usa
+  citação TEXTUAL (o `ⓘ` ao lado do selo do modelo) em vez das citações `[n]`
+  clicáveis por página; e a busca de jurisprudência roda sem `allowed_domains`
+  (garantia mole por prompt — ver "Prioridade das fontes na busca web"). Quem quiser
+  citação nativa por página troca para um modelo Anthropic. E a tabela
   `MODEL_CAPS` sincronizada com os docs (limites, versões de tools, thinking/effort).
 - Config no `chrome.storage.local`: `apiKey` (Anthropic), `geminiApiKey` (Google),
   `openaiApiKey` (OpenAI),
