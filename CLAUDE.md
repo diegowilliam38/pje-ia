@@ -1210,6 +1210,33 @@ irmão do `PLIB`, com diferenças de propósito:
   agrupamento de `MINUTA_ESPECIE`); o usuário pode trocar. Passa via `minutaCb(t, sel,
   modelos)` — a assinatura ganhou o 3º arg, e sem modelos o comportamento é byte a byte
   o de antes.
+- **A linha de modelos da `.minutabar` NUNCA some por biblioteca vazia**
+  (`atualizarSeletorMinuta`): sem nada cadastrado ela mostra "nenhuma peça-modelo
+  cadastrada" + o botão **Cadastrar modelo** (abre o `.mlib` já no formulário).
+  Esconder era o defeito relatado: quem nunca cadastrou ligava o modo minuta,
+  não via vestígio da feature e concluía — com razão — que ela não existia. É a
+  mesma regra da `.sel-nota` nos degraus de seleção: **conjunto vazio se
+  explica, não desaparece**. Só o gate de janela (< 1M) e a ausência do `MLIB`
+  escondem a linha inteira; ali o botão da barra de ferramentas, DESABILITADO
+  com tooltip, já é a explicação. `modelosMinutaSelecionados` ganhou a guarda
+  `minutaModeloSel.hidden` — com o wrap visível, "não há o que enviar" deixou de
+  depender de o `<select>` estar sem opções.
+- **O caminho do CHAT comum também precisa apontar para os modelos**
+  (`adicionarAcaoEditor`): pedir a peça no chat e clicar em "Abrir no editor" é
+  um turno de chat, que nunca passa pela `.minutabar` — a biblioteca ficava
+  invisível justamente para quem acabou de pedir uma peça redigida. Quando a
+  heurística `pareceMinuta` acende o destaque E há modelos cadastrados, entra ao
+  lado uma ação secundária "Refazer seguindo seus modelos", que só clica no
+  `.btn-minuta` (reusa validação de peças marcadas, instrução padrão e
+  exclusividade com o mapa). Ela precisa de CSS próprio porque
+  `.editor-act.destaque button` pinta TODO botão do bloco com o gradiente da
+  ação principal — dois destaques disputariam o mesmo clique.
+- **Testar a UI da biblioteca em jsdom exige `<script>` de verdade, nunca
+  `w.eval()`**: `modelos.js` e `prompts.js` declaram `const MLIB`/`const PLIB`
+  no topo, e uma declaração léxica dentro de um `eval` morre com ele — entre
+  scripts clássicos do mesmo realm ela é compartilhada, que é como o Chrome
+  executa content scripts. Com `eval`, `typeof MLIB` dá `"undefined"` dentro do
+  panel.js e a feature inteira some: um falso positivo de bug convincente.
 - **Moldura anti-contaminação** (`molduraModelos` em content.js): o(s) modelo(s) entram
   como **um bloco de texto** (nunca `document`/`file_id` — não é peça dos autos, não é
   citável) e é o **PRIMEIRO** do content da minuta (antes das peças, no prefixo

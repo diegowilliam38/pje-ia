@@ -90,7 +90,7 @@
     <div class="page">
       <h1 class="serif">O que mudou na extensão</h1>
       <p class="lead">
-        Da primeira versão (19 de julho de 2026) até hoje foram <strong>49 versões</strong>. Esta
+        Da primeira versão (19 de julho de 2026) até hoje foram <strong>50 versões</strong>. Esta
         página agrupa o que foi feito <strong>por recurso</strong> — é assim que se usa a
         extensão, não versão a versão. O
         <a class="link" href="#historico">histórico completo</a>, com data e uma linha por
@@ -99,7 +99,25 @@
 
       <div class="card destaque">
         <p class="eyebrow" style="color: rgba(255,255,255,0.7)">A novidade mais recente</p>
-        <h2><span class="v novo">v0.25.0</span> Novo modelo padrão e a busca que não travava mais a conversa</h2>
+        <h2><span class="v novo">v0.25.1</span> A escolha dos seus modelos de peça reaparece na minuta</h2>
+        <p>
+          Ao ligar o <strong>modo minuta</strong>, a faixa mostra agora a linha
+          <strong>"Seguir modelos"</strong> mesmo quando a sua biblioteca ainda está vazia —
+          com o botão <strong>Cadastrar modelo</strong> ao lado. Antes a linha simplesmente
+          não aparecia enquanto não houvesse nenhuma peça-modelo salva: quem nunca cadastrou
+          uma não via vestígio da funcionalidade e concluía, com razão, que ela não estava
+          lá. Com modelos cadastrados nada muda — a categoria continua vindo
+          pré-selecionada, com a contagem.
+        </p>
+        <p>
+          E quando você pede uma peça <strong>no chat comum</strong> ("faça uma sentença…"),
+          ao lado de <strong>Abrir no editor</strong> aparece <strong>Refazer seguindo seus
+          modelos</strong>, que liga o modo minuta. Aquele caminho nunca passava pela faixa
+          da minuta, então a biblioteca ficava invisível justamente para quem acabara de
+          pedir uma peça redigida.
+        </p>
+
+        <h2><span class="v">v0.25.0</span> Novo modelo padrão e a busca que não travava mais a conversa</h2>
         <p>
           Quem instala agora começa no <strong>Gemini 3.6 Flash</strong>, e não mais no Claude
           Haiku 4.5. O motivo é o tamanho dos autos: o Haiku aceita <strong>100 páginas</strong>
@@ -569,7 +587,7 @@
 
       <h1 class="serif" id="historico">Histórico completo</h1>
       <p class="lead">
-        As 49 versões, da mais recente à primeira. As marcadas com
+        As 50 versões, da mais recente à primeira. As marcadas com
         <span class="dot-marco"></span> mudaram o produto de forma visível.
       </p>
 
@@ -579,7 +597,8 @@
             <tr><th>Versão</th><th>Data</th><th>O que mudou</th></tr>
           </thead>
           <tbody>
-            <tr class="marco"><td><span class="v novo">0.25.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span><strong>Gemini 3.6 Flash</strong> passa a ser o modelo padrão (1.000 páginas por análise, contra 100 do anterior); com Jurisprudência ligada, a 2ª pergunta da conversa não falha mais; erros da API do Google explicam o motivo; lupa animada enquanto a busca acontece</td></tr>
+            <tr><td><span class="v novo">0.25.1</span></td><td>05/08/2026</td><td>A linha <strong>Seguir modelos</strong> do modo minuta aparece mesmo com a biblioteca vazia, com atalho para cadastrar; respostas de chat que parecem uma peça ganham o caminho <strong>Refazer seguindo seus modelos</strong></td></tr>
+            <tr class="marco"><td><span class="v">0.25.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span><strong>Gemini 3.6 Flash</strong> passa a ser o modelo padrão (1.000 páginas por análise, contra 100 do anterior); com Jurisprudência ligada, a 2ª pergunta da conversa não falha mais; erros da API do Google explicam o motivo; lupa animada enquanto a busca acontece</td></tr>
             <tr class="marco"><td><span class="v">0.24.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span>Peça dos autos e fonte da web separadas no rodapé da resposta, com o domínio de origem à vista; prioridade <strong>STF/STJ → tribunal do processo → demais</strong> na busca; tipografia própria embarcada; painel estreito e telas de apoio redesenhados; botão <strong>Testar chave</strong></td></tr>
             <tr class="marco"><td><span class="v">0.23.0</span></td><td>04/08/2026</td><td><span class="dot-marco"></span>Três degraus de seleção (<strong>chave · principais · todas</strong>) e <strong><svg class="ic-in" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4l1.8 4.2L18 10l-4.2 1.8L12 16l-1.8-4.2L6 10l4.2-1.8z"/><path d="M18 16l.9 2.1L21 19l-2.1.9L18 22l-.9-2.1L15 19l2.1-.9z"/></svg>Escolher com IA</strong>; upload em paralelo ao download; peças do editor do PJe deixam de falhar com "retornou vazia"; ficha do processo e lista das peças não marcadas vão ao assistente</td></tr>
             <tr class="marco"><td><span class="v">0.22.0</span></td><td>04/08/2026</td><td><span class="dot-marco"></span>Anexo em foto/print vai ao modelo como <strong>imagem</strong> (antes virava lixo binário); arquivo ilegível é recusado com o motivo; a extração de texto das peças foi removida</td></tr>
