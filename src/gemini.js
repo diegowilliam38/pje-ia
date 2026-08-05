@@ -221,6 +221,16 @@ export async function* streamGemini(req) {
     body: JSON.stringify(body),
   });
   if (!resp.ok) {
+    // O corpo EXATO que a API recusou. Seis hipóteses sobre a FORMA do request
+    // foram testadas contra a API real e todas voltaram 200 — reconstruir o
+    // request a partir do resumo não achou a causa. Com o objeto em mãos dá
+    // para reproduzir byte a byte e bisseccionar (remover uma parte por vez até
+    // o 400 virar 200), que é diagnóstico e não adivinhação.
+    //
+    // Ele contém trecho dos autos: fica SÓ no console do service worker, na
+    // máquina do usuário. Para extrair: botão direito no objeto → "Store object
+    // as global variable" → `copy(temp1)` → colar num arquivo .json local.
+    console.log("[PJe IA] corpo do request que a API recusou (salve com 'Store object as global variable'):", body);
     const err = new Error(await friendlyHttpErrorGemini(resp));
     err.status = resp.status;
     // transitórios: o chamador re-tenta o MESMO request com backoff
