@@ -90,7 +90,7 @@
     <div class="page">
       <h1 class="serif">O que mudou na extensão</h1>
       <p class="lead">
-        Da primeira versão (19 de julho de 2026) até hoje foram <strong>44 versões</strong>. Esta
+        Da primeira versão (19 de julho de 2026) até hoje foram <strong>49 versões</strong>. Esta
         página agrupa o que foi feito <strong>por recurso</strong> — é assim que se usa a
         extensão, não versão a versão. O
         <a class="link" href="#historico">histórico completo</a>, com data e uma linha por
@@ -99,7 +99,40 @@
 
       <div class="card destaque">
         <p class="eyebrow" style="color: rgba(255,255,255,0.7)">A novidade mais recente</p>
-        <h2><span class="v novo">v0.24.0</span> A resposta agora diz de onde veio</h2>
+        <h2><span class="v novo">v0.25.0</span> Novo modelo padrão e a busca que não travava mais a conversa</h2>
+        <p>
+          Quem instala agora começa no <strong>Gemini 3.6 Flash</strong>, e não mais no Claude
+          Haiku 4.5. O motivo é o tamanho dos autos: o Haiku aceita <strong>100 páginas</strong>
+          de PDF por análise, e um processo comum passa disso — o envio parava com um aviso de
+          limite justamente na hora de trabalhar. O Gemini aceita <strong>1.000 páginas</strong>
+          e um milhão de tokens, por um preço próximo. Você continua trocando de modelo quando
+          quiser, no popup ou nas configurações: quem prefere as <strong>citações [n]
+          clicáveis</strong>, que levam à página exata do PDF, escolhe um modelo Claude — nos
+          demais o assistente cita peça, id e folha no próprio texto.
+        </p>
+        <p>
+          A correção mais importante: com a <strong>Jurisprudência</strong> ligada no Gemini, a
+          <strong>segunda pergunta da conversa falhava</strong> com um erro sem explicação — e
+          desligar o botão depois não resolvia, porque a busca já estava gravada no histórico.
+          Só "Nova conversa" fazia o chat voltar a funcionar. Corrigido; e agora, quando a API
+          do Google recusa alguma coisa, a mensagem mostra <strong>o que ela disse</strong>, em
+          vez de um código de erro solitário.
+        </p>
+        <p>
+          Enquanto o assistente pesquisa, o aviso de "trabalhando" deixa de ser um círculo
+          girando e vira uma <strong>lupa que varre</strong> — o mesmo símbolo do botão
+          Jurisprudência, para ficar claro que a espera é a busca na web, não a leitura das
+          peças. Quem configurou o sistema para reduzir animações vê a lupa parada.
+        </p>
+        <p>
+          Três correções desta revisão: na <strong>primeira instalação</strong> a tela de
+          configuração mostrava um modelo (Claude) e pedia a chave dele, enquanto a extensão
+          usava outro (Gemini); o selo do rodapé mostrava <code>gpt-5.6-luna</code> em vez de
+          <strong>GPT-5.6 Luna</strong>; e um erro da API do Google servido em formato não
+          esperado chegava a você como uma mensagem vazia.
+        </p>
+
+        <h2><span class="v">v0.24.0</span> A resposta agora diz de onde veio</h2>
         <p>
           Com a <strong>Jurisprudência</strong> ligada, o rodapé da resposta separava mal duas
           coisas que não são a mesma: <strong>peça dos autos</strong> — que é prova no processo —
@@ -536,7 +569,7 @@
 
       <h1 class="serif" id="historico">Histórico completo</h1>
       <p class="lead">
-        As 42 versões, da mais recente à primeira. As marcadas com
+        As 49 versões, da mais recente à primeira. As marcadas com
         <span class="dot-marco"></span> mudaram o produto de forma visível.
       </p>
 
@@ -546,7 +579,9 @@
             <tr><th>Versão</th><th>Data</th><th>O que mudou</th></tr>
           </thead>
           <tbody>
-            <tr class="marco"><td><span class="v novo">0.23.0</span></td><td>04/08/2026</td><td><span class="dot-marco"></span>Três degraus de seleção (<strong>chave · principais · todas</strong>) e <strong><svg class="ic-in" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4l1.8 4.2L18 10l-4.2 1.8L12 16l-1.8-4.2L6 10l4.2-1.8z"/><path d="M18 16l.9 2.1L21 19l-2.1.9L18 22l-.9-2.1L15 19l2.1-.9z"/></svg>Escolher com IA</strong>; upload em paralelo ao download; peças do editor do PJe deixam de falhar com "retornou vazia"; ficha do processo e lista das peças não marcadas vão ao assistente</td></tr>
+            <tr class="marco"><td><span class="v novo">0.25.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span><strong>Gemini 3.6 Flash</strong> passa a ser o modelo padrão (1.000 páginas por análise, contra 100 do anterior); com Jurisprudência ligada, a 2ª pergunta da conversa não falha mais; erros da API do Google explicam o motivo; lupa animada enquanto a busca acontece</td></tr>
+            <tr class="marco"><td><span class="v">0.24.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span>Peça dos autos e fonte da web separadas no rodapé da resposta, com o domínio de origem à vista; prioridade <strong>STF/STJ → tribunal do processo → demais</strong> na busca; tipografia própria embarcada; painel estreito e telas de apoio redesenhados; botão <strong>Testar chave</strong></td></tr>
+            <tr class="marco"><td><span class="v">0.23.0</span></td><td>04/08/2026</td><td><span class="dot-marco"></span>Três degraus de seleção (<strong>chave · principais · todas</strong>) e <strong><svg class="ic-in" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4l1.8 4.2L18 10l-4.2 1.8L12 16l-1.8-4.2L6 10l4.2-1.8z"/><path d="M18 16l.9 2.1L21 19l-2.1.9L18 22l-.9-2.1L15 19l2.1-.9z"/></svg>Escolher com IA</strong>; upload em paralelo ao download; peças do editor do PJe deixam de falhar com "retornou vazia"; ficha do processo e lista das peças não marcadas vão ao assistente</td></tr>
             <tr class="marco"><td><span class="v">0.22.0</span></td><td>04/08/2026</td><td><span class="dot-marco"></span>Anexo em foto/print vai ao modelo como <strong>imagem</strong> (antes virava lixo binário); arquivo ilegível é recusado com o motivo; a extração de texto das peças foi removida</td></tr>
             <tr><td><span class="v">0.21.0</span></td><td>04/08/2026</td><td>Peça que falha ao baixar não derruba mais o envio, com relatório do que ficou de fora; seleção em faixa na lista (arrastar, Shift+clique, botão direito)</td></tr>
             <tr><td><span class="v">0.20.2</span></td><td>03/08/2026</td><td>Correções da exportação em <code>.zip</code>: colunas próprias do tribunal no índice, saltos na numeração explicados e disputa pela sessão do PJe</td></tr>

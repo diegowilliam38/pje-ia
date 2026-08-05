@@ -94,6 +94,38 @@ quebrar:
   e devolvido VERBATIM no reenvio — thought signatures precisam voltar byte a byte
   (regra análoga ao thinking assinado da Anthropic). `sanearCitacoes`/`prepararEnvio`
   não tocam nesses blocos por construção.
+- **Step de busca OCO nunca volta ao histórico, e os de busca são TUDO OU NADA**
+  (`ehStepDeBuscaOco`/`stepsParaBlocos`): quando o `interaction.completed` não traz
+  os steps, o fallback são os acumulados do `step.start`, que são ESQUELETOS
+  (`{id, signature:"", type}` — os deltas preenchem texto e a assinatura do
+  thought, nunca as `queries` nem os resultados). Reenviar essa casca é o que
+  fazia o 2º turno devolver **400 de corpo vazio**, e como os steps ficam no
+  histórico para sempre, desligar a Jurisprudência depois não adiantava — só
+  "Nova conversa". Duas armadilhas na guarda: (a) as queries da chamada vivem em
+  **`arguments.queries`** (é de lá que o `step.start` as lê para o status), então
+  olhar só `s.queries` marcava uma chamada COMPLETA como oca e a jogava fora;
+  (b) a decisão é por TURNO, não por step — um `google_search_result` sem o
+  `call` que o produziu é um par quebrado, isto é, request malformado do mesmo
+  jeito. Cobertos por teste com SSE simulado (fetch fake).
+- **`model_output` só é achatado em bloco `text` se for REALMENTE puro**: sem
+  `signature`, sem `thought_signature`, **sem `annotations`** (com
+  `google_search` é nelas que vêm as `url_citation` da bolha) e com
+  `content.length > 0` — `[].every()` é `true` por vacuidade, e um conteúdo
+  vazio passava por "texto puro" e sumia do histórico.
+- **NÃO logar o `body` do request no console** (gemini.js): durante o diagnóstico
+  do 400 ele foi despejado inteiro para ser reproduzido byte a byte — certo ali,
+  errado num pacote publicado (carrega trecho dos autos e o base64 das peças que
+  não subiram à Files API, e fica retido enquanto o DevTools estiver aberto). O
+  que ficou é a linha de FORMA (tipos dos itens + KB), e o corpo é serializado
+  UMA vez e reusado no `fetch` — `JSON.stringify` duplicado custa caro de verdade
+  no caminho de fallback base64.
+- **Erro HTTP: ler o corpo como TEXTO uma vez e só depois `JSON.parse`**
+  (`friendlyHttpErrorGemini`). O corpo de uma `Response` só pode ser consumido
+  UMA vez: `resp.json()` com `resp.text()` no catch lança "body stream already
+  read" e engole justamente o caso não-JSON que o fallback existia para cobrir.
+  O Google devolve o erro em DUAS formas — `{error:{message}}` e o ARRAY
+  `[{error:{message}}]`; sem tratar a segunda o usuário via só "Erro da API do
+  Google (400)".
 - **usage normalizado** para as 4 categorias da Anthropic em gemini.js
   (`input = total_input − total_cached`; `cache_read = total_cached`;
   `cache_creation = 0`; `output` inclui thoughts) — custo, tooltip e gauge funcionam
@@ -1433,6 +1465,26 @@ expandido.
   (garantia mole por prompt — ver "Prioridade das fontes na busca web"). Quem quiser
   citação nativa por página troca para um modelo Anthropic. E a tabela
   `MODEL_CAPS` sincronizada com os docs (limites, versões de tools, thinking/effort).
+- **O modelo padrão vive em DOIS lugares e eles precisam bater**: `getCfg` em
+  `background.js` (ES module do worker) e `MODELO_PADRAO` em `popup.js` (script
+  clássico, compartilhado por popup e options — não pode importar do worker).
+  Quando o default virou Gemini, só o worker mudou: sem `model` no storage o
+  `<select>` caía no PRIMEIRO `<option>` do HTML (o Haiku), então na **primeira
+  instalação** — o público que chega pela Store — o popup pedia a chave da
+  Anthropic para uma extensão que ia falar com o Google, e o selo do painel
+  contradizia a tela de configuração. `select.value` com um id fora da lista
+  (config de uma versão anterior) deixa o campo VAZIO: o popup cai no padrão em
+  vez de gravar modelo vazio. Coberto por teste em jsdom que lê o default do
+  próprio `background.js` — divergir de novo quebra o teste, não o usuário.
+- **`capsDe` tem fallback POR PROVEDOR** (`FALLBACK_POR_PROVEDOR`): id
+  desconhecido tem o provedor decidido por `providerDe` (prefixo, acerta
+  sempre), então cair sempre nas caps do Haiku dava um par incoerente — request
+  para o Google com janela de 200 mil tokens, guarda de 100 páginas e
+  `citacoesNativas` ligada (o system pediria citação por página a um modelo que
+  não as produz).
+- **O selo do modelo (`setModelo` em panel.js) tem tabela de NOMES própria** e
+  ela precisa acompanhar `MODEL_CAPS`: o fallback é o id cru, e um selo cujo
+  trabalho é dizer qual modelo respondeu não pode mostrar `gpt-5.6-luna`.
 - Config no `chrome.storage.local`: `apiKey` (Anthropic), `geminiApiKey` (Google),
   `openaiApiKey` (OpenAI),
   `model`, `effort` (baixo/médio/alto — `output_config.effort` na Anthropic, omitido
