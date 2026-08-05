@@ -330,8 +330,23 @@ e texto `--ink`, o inativo transparente com `--muted-2` e peso 500; moldura
 `--ff-mono`/`--fs-micro`/`--muted-3` — a contagem do que está selecionado é a
 resposta à pergunta que o degrau acabou de gerar, e ficava longe demais no rodapé.
 Legenda de categorias com dots de **6px**. Itens: checkbox 15px (`--r-xs`) + dot
-6px da categoria + nome (`--fs-ui`, peso 600 se destacado / 400 se não, truncado) +
+6px da categoria + nome (`--fs-ui`, peso 600 se destacado / 400 se não) +
 **id em `--ff-mono`**, `--fs-nano`, cor `--muted-3`. Rodapé `--surface-list-ft`.
+
+> **O nome da peça manda na largura da linha, e pode ocupar mais de uma.**
+> `-webkit-line-clamp` de **2 linhas**, **3** onde a lista é coluna (`.expanded`,
+> `.full`, `.livre-wide`) — mesma lógica dos rótulos `.op-l`/`.op-s`: na coluna de
+> 328px cabem ~24 caracteres por linha e o título médio do PJe passa dos 48 de duas
+> linhas; na faixa de 420px são ~40, e ali cada linha extra custa uma peça a menos
+> na gaveta. É teto, não altura fixa: "Sentença" continua em uma linha.
+> A row alinha por `flex-start` (checkbox, dot, id e `.d-ver` acompanham a
+> PRIMEIRA linha do nome, não o centro da row).
+>
+> **Nenhum outro campo divide a linha com o nome além do id.** Tipo oficial e data
+> de juntada vivem no `title` da row. A data já esteve na linha, em coluna própria,
+> e era o pior negócio da lista: ~60px dos 328px tirados do único campo por onde se
+> escolhe a peça, para responder o que a ordem cronológica da lista já responde.
+> Campo novo aqui entra no tooltip ou no preview — não na linha.
 
 > **O `<input type=checkbox>` de cada segmento fica fora da tela**
 > (`position:absolute; opacity:0`), nunca `display:none`: ele continua sendo a

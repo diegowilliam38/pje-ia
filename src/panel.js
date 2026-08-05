@@ -362,6 +362,14 @@ var PjePanel = (function () {
     const m = String(t).match(/^(\d{6,})\s*-\s*(.+)$/);
     return m ? { id: m[1], nome: m[2] } : { id: "", nome: String(t) };
   }
+  // Só a data de "15/09/20 12:31" (o que a grid do PJe entrega em `juntadoEm`,
+  // com hora e, em alguns tribunais, ano de dois dígitos). Regex sobre o que é
+  // DATA, nunca corte por posição: o `slice(0, 10)` que existia aqui devolvia
+  // "15/09/20 1" — a hora pela metade — sempre que o ano vinha abreviado.
+  function dataCurta(v) {
+    const m = String(v || "").match(/\d{1,2}\/\d{1,2}\/\d{2,4}/);
+    return m ? m[0] : "";
+  }
 
   // ---------------------------------------------------------------------------
   // Categorias de peças (regex sobre o título sem acentos) para destaque visual.

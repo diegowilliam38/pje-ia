@@ -577,7 +577,12 @@ button > svg { flex: none; }
 
 .doclist { overflow-y: auto; font-size: var(--fs-ui); }
 .docrow {
-  display: flex; gap: var(--sp-3); align-items: center;
+  /* Tudo ancorado na PRIMEIRA linha do nome, não no centro da row: com o nome
+     ocupando até três linhas, `center` deixava o checkbox e o dot boiando na
+     altura da segunda — longe da linha por onde o olho entra na peça. Em row de
+     uma linha só o resultado é idêntico ao de antes; os `margin-top` abaixo
+     centram cada controle na linha de texto (13px × 1.32 = 17px). */
+  display: flex; gap: var(--sp-3); align-items: flex-start;
   padding: var(--sp-2b); border-radius: var(--r-md); cursor: pointer;
   /* Arrastar sobre a lista MARCA PEÇAS — não seleciona texto. Sem isto o
      gesto natural de "passar o mouse marcando" pintava a lista inteira de azul
@@ -598,29 +603,58 @@ button > svg { flex: none; }
   user-select: none !important; -webkit-user-select: none !important;
 }
 .docrow:hover { background: var(--hover); }
-.docrow input { flex: none; accent-color: var(--pje); width: 13px; height: 13px; }
-.d-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--cat-outro); }
+.docrow input { flex: none; accent-color: var(--pje); width: 13px; height: 13px; margin-top: 2px; }
+.d-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--cat-outro);
+         margin-top: 6px; }
 .d-t {
   flex: 1; min-width: 0;
-  display: flex; align-items: baseline; gap: 7px;
+  /* Alinhamento pelo TOPO, não por baseline: o nome pode ocupar duas linhas e
+     `baseline` grudaria o id na ÚLTIMA delas — ele tem de acompanhar a
+     primeira, que é onde a peça se chama. */
+  display: flex; align-items: flex-start; gap: 7px;
   overflow: hidden;
 }
+/* O NOME é o campo por onde o usuário escolhe a peça, então é ele que manda na
+   largura da linha e pode ocupar DUAS. Antes era uma linha só com ellipsis
+   disputando os 328px da coluna com o id E a data de juntada, e o resultado era
+   "Contestaç…" em toda peça — pior ainda porque os títulos do PJe compartilham
+   prefixo ("Contestação…", "Documento de Comprovação…") e o que distingue uma
+   peça da outra vive no SUFIXO, exatamente onde o corte caía.
+   O limite de linhas é TETO, não altura fixa: título curto ("Sentença") segue em
+   uma linha e a densidade da lista quase não muda; sem o teto, um título de 140
+   caracteres empurraria as peças seguintes para fora da tela. O
+   `-webkit-line-clamp` põe as reticências sozinho (motor Blink — a extensão só
+   roda no Chrome).
+   `break-word` e não `anywhere`: os dois quebram a palavra que não cabe, mas
+   `anywhere` também deixa o flex item encolher até um caractere de largura, e
+   aqui é o nome que tem de ganhar a largura da linha, não cedê-la. */
 .d-nm {
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  flex: 1; min-width: 0;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  overflow: hidden; overflow-wrap: break-word;
+  line-height: 1.32;
   color: var(--text-2); font-size: var(--fs-ui); font-weight: 400;
 }
+/* Uma linha a mais onde a lista é COLUNA. Mesma lógica dos rótulos
+   `.op-l`/`.op-s` do segmented, e pelo mesmo motivo: nos modos largos a lista
+   deixa de ser faixa e vira coluna de 328/372px, onde cabem ~24 caracteres por
+   linha — duas linhas param em 48 e o título médio de peça do PJe ("Contestação
+   com preliminar de ilegitimidade passiva") passa disso, então o corte voltaria
+   justamente no modo em que o usuário abriu o painel para trabalhar. Na faixa
+   de 420px do flutuante/estreito são ~40 caracteres por linha: duas já rendem
+   mais texto do que três na coluna, e ali cada linha extra custa uma PEÇA a
+   menos na gaveta de `max-height: 46%`. */
+.wrap.expanded .d-nm,
+.wrap.full .d-nm,
+.wrap.livre-wide .d-nm { -webkit-line-clamp: 3; }
 /* id da peça em MONO: é numeral que o usuário compara e usa para reencontrar a
-   peça na timeline — tabular alinha na vertical e não se confunde com o nome. */
-.d-id { flex: none; font-family: var(--ff-mono); font-size: var(--fs-nano); color: var(--muted-3); }
-/* Data de juntada — o eixo cronológico, que antes só existia implícito na ordem
-   da lista. Mono pelo mesmo motivo do id (numeral que se compara na vertical) e
-   escondida por padrão: na faixa estreita ela roubaria o nome da peça, que é o
-   que se lê. Aparece só onde a lista é coluna e sobra largura. */
-.d-dt { display: none; flex: none; font-family: var(--ff-mono);
-        font-size: var(--fs-nano); color: var(--muted-3); }
-.wrap.expanded .d-dt,
-.wrap.full .d-dt,
-.wrap.livre-wide .d-dt { display: inline; }
+   peça na timeline — tabular alinha na vertical e não se confunde com o nome.
+   A `line-height` maior não é enfeite: com `align-items: flex-start` ela é o que
+   põe a baseline dos 10px do id na mesma altura da baseline dos 13px do nome. */
+.d-id {
+  flex: none; font-family: var(--ff-mono); font-size: var(--fs-nano);
+  color: var(--muted-3); line-height: 1.72;
+}
 /* Peça JÁ no contexto da conversa. É um estado do histórico, não uma categoria,
    então não ganha cor própria (o eixo de cor é a categoria — DESIGN.md §2): um
    traço discreto à esquerda basta para responder "isto eu já mandei?" numa
@@ -649,6 +683,7 @@ button > svg { flex: none; }
   flex: none; border: none; background: transparent; cursor: pointer;
   color: var(--muted-3); width: 20px; height: 20px; border-radius: var(--r-sm);
   display: flex; align-items: center; justify-content: center; padding: 0;
+  margin-top: -1px; /* centra os 20px do botão na linha de 17px do nome */
   opacity: 0; transition: opacity 0.12s, background 0.12s, color 0.12s;
 }
 .docrow:hover .d-ver, .d-ver:focus-visible { opacity: 1; }
