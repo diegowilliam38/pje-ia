@@ -190,47 +190,56 @@ export async function* streamGemini(req) {
     body.generation_config.thinking_level = req.thinkingLevel;
   }
 
-  // Radiografia do request no console do service worker. Um 400 de corpo vazio
-  // é rejeição na BORDA (request malformado), e a única forma de achar a causa
-  // é comparar a forma do turno que passa com a do que falha. Só tipos e
-  // tamanhos — nenhum conteúdo de peça é impresso.
+  // Serializa UMA vez: o mesmo texto vai no fetch e alimenta o tamanho no log.
+  // Fazer `JSON.stringify(body)` duas vezes por request custava caro de verdade
+  // no caminho de fallback base64 (uma peça inline pode ter dezenas de MB, e o
+  // service worker paga isso em memória e em latência antes do primeiro token).
+  let corpoJson;
   try {
-    const corpo = JSON.stringify(body);
+    corpoJson = JSON.stringify(body);
+  } catch (e) {
+    // Corpo não serializável: isso por si só explicaria um request malformado,
+    // e o fetch falharia adiante com um erro que não diz nada.
+    console.error("[PJe IA] Gemini: request não serializável:", e);
+    throw new Error("Falha ao montar o request para a API do Google.");
+  }
+
+  // Radiografia da FORMA do request no console do service worker (F12 em
+  // chrome://extensions → "service worker"). Um 400 de corpo vazio é rejeição
+  // na BORDA — request malformado —, e o que resolveu o último caso foi
+  // comparar a forma do turno que passa com a do que falha. Só tipos e
+  // tamanho: nenhum conteúdo de peça é impresso.
+  try {
     console.log(
       "[PJe IA] Gemini request: " +
-        (corpo.length / 1024).toFixed(0) + " KB | itens: " +
+        (corpoJson.length / 1024).toFixed(0) + " KB | itens: " +
         (body.input || [])
           .map((it) => {
             if (it.type === "user_input" || it.type === "model_output") {
               return it.type + "(" + (it.content || []).map((c) => c.type).join("+") + ")";
             }
-            // steps opacos: mostra tambem se carregam assinatura
+            // steps opacos: mostra também se carregam assinatura
             return it.type + (it.signature ? "[sig]" : "");
           })
           .join(" > ")
     );
-  } catch (e) {
-    // JSON.stringify falhou: o corpo tem algo não serializável, e ISSO por si
-    // só explicaria um request malformado.
-    console.error("[PJe IA] Gemini request NÃO serializável:", e);
+  } catch {
+    /* console indisponível */
   }
 
   const resp = await fetch(API + "/interactions", {
     method: "POST",
     headers: headersGemini(req.apiKey),
-    body: JSON.stringify(body),
+    body: corpoJson,
   });
   if (!resp.ok) {
-    // O corpo EXATO que a API recusou. Seis hipóteses sobre a FORMA do request
-    // foram testadas contra a API real e todas voltaram 200 — reconstruir o
-    // request a partir do resumo não achou a causa. Com o objeto em mãos dá
-    // para reproduzir byte a byte e bisseccionar (remover uma parte por vez até
-    // o 400 virar 200), que é diagnóstico e não adivinhação.
-    //
-    // Ele contém trecho dos autos: fica SÓ no console do service worker, na
-    // máquina do usuário. Para extrair: botão direito no objeto → "Store object
-    // as global variable" → `copy(temp1)` → colar num arquivo .json local.
-    console.log("[PJe IA] corpo do request que a API recusou (salve com 'Store object as global variable'):", body);
+    // NÃO logar o `body` aqui. Durante o diagnóstico do 400 do 2º turno ele foi
+    // despejado inteiro no console para poder ser reproduzido byte a byte — o
+    // que era certo naquele momento e é errado num pacote publicado: o objeto
+    // carrega trecho dos autos (e o base64 das peças que não subiram à Files
+    // API) e fica retido em memória enquanto o DevTools estiver aberto. A linha
+    // de forma acima já situa o request; se um caso novo exigir o corpo, este
+    // log volta temporariamente, em desenvolvimento.
     const err = new Error(await friendlyHttpErrorGemini(resp));
     err.status = resp.status;
     // transitórios: o chamador re-tenta o MESMO request com backoff
@@ -363,10 +372,20 @@ export async function* streamGemini(req) {
 // Um step de busca só tem valor no reenvio se carregar o que a API produziu:
 // as `queries` na chamada, o payload no resultado. Sem isso é casca do
 // `step.start` — não informa o modelo e faz a API recusar o request.
-function ehStepDeBuscaOco(s) {
+function ehStepDeBusca(s) {
   const t = s && s.type;
-  if (t !== "google_search_call" && t !== "google_search_result") return false;
+  return t === "google_search_call" || t === "google_search_result";
+}
+function ehStepDeBuscaOco(s) {
+  if (!ehStepDeBusca(s)) return false;
   const temAlgo =
+    // As queries da chamada aparecem em `arguments.queries` — é de lá que o
+    // `step.start` as lê para montar o status "Pesquisando jurisprudência: …".
+    // Olhar só a raiz (`s.queries`) dava um falso "oco" numa chamada COMPLETA e
+    // a jogava fora do histórico, que é o oposto do que esta guarda existe para
+    // fazer. As duas formas contam, porque o schema não é o mesmo nos steps do
+    // `interaction.completed` e nos acumulados dos deltas.
+    (s.arguments && Array.isArray(s.arguments.queries) && s.arguments.queries.length) ||
     (Array.isArray(s.queries) && s.queries.length) ||
     (Array.isArray(s.content) && s.content.length) ||
     (Array.isArray(s.results) && s.results.length) ||
@@ -376,6 +395,12 @@ function ehStepDeBuscaOco(s) {
 
 function stepsParaBlocos(oficiais) {
   const blocos = [];
+  // Steps de busca são TUDO OU NADA no turno. Um `google_search_result` sem a
+  // chamada que o produziu (ou o inverso) é um par quebrado no histórico — o
+  // mesmo tipo de request malformado que a guarda abaixo existe para evitar.
+  // No caso que originou o bug os dois vinham ocos juntos, mas basta a API
+  // preencher um e não o outro para a decisão peça a peça produzir o órfão.
+  const buscaIncompleta = oficiais.some(ehStepDeBuscaOco);
   for (const s of oficiais) {
     if (!s) continue;
     // Step de ferramenta OCO não volta ao histórico. Quando o
@@ -387,7 +412,7 @@ function stepsParaBlocos(oficiais) {
     // no histórico para sempre, desligar a Jurisprudência depois não adiantava.
     // Confirmado contra a API real: step de busca COMPLETO volta e dá 200; a
     // casca dá 400 — com ou sem a assinatura vazia.
-    if (ehStepDeBuscaOco(s)) continue;
+    if (buscaIncompleta && ehStepDeBusca(s)) continue;
     // Só achata para texto puro o que for REALMENTE puro. Tudo o mais volta
     // verbatim — foi assim que o reenvio funcionou em teste contra a API real.
     // Duas condições que faltavam e quebravam o 2º turno COM busca ligada:
@@ -619,8 +644,20 @@ function textoDeStep(s) {
 // Converte respostas de erro da API do Google em mensagens claras em português.
 export async function friendlyHttpErrorGemini(resp) {
   let apiMsg = "";
+  // O corpo é lido como TEXTO uma única vez e só depois interpretado. Ler com
+  // `resp.json()` e cair para `resp.text()` no catch não funciona: o corpo de
+  // uma Response só pode ser consumido UMA vez, então o `text()` do fallback
+  // lançaria "body stream already read" e o erro não-JSON (HTML de proxy, corpo
+  // vazio) — justamente o caso que o fallback existia para cobrir — chegaria ao
+  // usuário como "Erro da API do Google (400)", sem pista nenhuma.
+  let bruto = "";
   try {
-    const j = await resp.json();
+    bruto = await resp.text();
+  } catch {
+    /* corpo já consumido ou indisponível */
+  }
+  try {
+    const j = bruto ? JSON.parse(bruto) : null;
     // A API do Google devolve o erro em DUAS formas: o objeto {error:{message}}
     // e, em alguns endpoints, um ARRAY [{error:{message}}]. Sem tratar o array,
     // `apiMsg` ficava vazio e o usuário via só "Erro da API do Google (400)" —
@@ -632,11 +669,7 @@ export async function friendlyHttpErrorGemini(resp) {
     if (!apiMsg && j) apiMsg = JSON.stringify(j).slice(0, 240);
   } catch {
     // corpo não-JSON: ainda assim pode ter texto útil (HTML de proxy, etc.)
-    try {
-      apiMsg = (await resp.text()).slice(0, 240);
-    } catch {
-      /* corpo já consumido ou vazio */
-    }
+    apiMsg = bruto.slice(0, 240);
   }
   // O erro é CAPTURADO e vira texto para o usuário — sem este log ele nunca
   // aparece no console do service worker, e um 400 de corpo vazio (rejeição no
