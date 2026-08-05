@@ -44,6 +44,20 @@
   /* raios — mesma escala do painel (DESIGN.md §4) */
   --r-xs: 4px; --r-sm: 7px; --r-md: 8px; --r-lg: 11px; --r-xl: 12px;
   --r-2xl: 14px; --r-pill: 999px;
+  /* Escala tipográfica — sete degraus inteiros (DESIGN.md §3). Faltavam aqui:
+     o checklist do §7 exige que um token criado exista NOS DOIS arquivos de
+     variáveis, e sem eles as páginas de popup/opções/ajuda ficavam livres para
+     inventar tamanhos — que é justamente o que a escala existe para impedir. */
+  --fs-nano: 10px;   /* numerais e teclas */
+  --fs-micro: 11px;  /* rótulos, legendas, meta */
+  --fs-meta: 12px;   /* chips, dicas, controles secundários */
+  --fs-ui: 13px;     /* formulários, botões */
+  --fs-body: 14px;   /* texto corrido */
+  --fs-lg: 15px;     /* títulos de seção */
+  --fs-lead: 17px;   /* título de página */
+  --fs-hero: 26px;   /* título de destaque */
+  /* ritmo vertical (DESIGN.md §4) */
+  --sp-1: 4px; --sp-2: 6px; --sp-3: 10px; --sp-4: 14px; --sp-5: 20px; --sp-6: 28px;
 }
 
 * { box-sizing: border-box; }

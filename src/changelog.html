@@ -98,7 +98,52 @@
 
       <div class="card destaque">
         <p class="eyebrow" style="color: rgba(255,255,255,0.7)">A novidade mais recente</p>
-        <h2><span class="v novo">v0.22.0</span> Anexo em foto vai como imagem — e a extração de texto sai de cena</h2>
+        <h2><span class="v novo">v0.23.0</span> Escolher as peças certas ficou muito mais rápido</h2>
+        <p>
+          O atalho <strong>principais</strong> marcava tudo o que tinha cor na lista — e num
+          processo de 200 peças isso são cerca de 120, porque quase toda juntada das partes é
+          uma "petição". Agora são <strong>três degraus encaixados</strong>:
+          <strong>chave</strong> traz a espinha dorsal do processo — petição inicial,
+          contestação, réplica, saneador, laudo, ata de instrução, memoriais, sentença e
+          recursos, em geral <strong>uma dúzia de peças</strong> —, <strong>principais</strong>
+          acrescenta as demais peças de conteúdo sem o expediente (certidões de intimação,
+          avisos de recebimento, guias, procurações) e <strong>todas</strong> marca a lista
+          inteira. Os três <em>somam</em> à seleção: nunca desmarcam o que você escolheu à mão.
+        </p>
+        <p>
+          Quando o título não basta — sete peças chamadas só "Petição", um "Documento 3" —, o
+          novo botão <strong>✨ Escolher com IA</strong> resolve. Ele manda ao modelo apenas a
+          <strong>lista</strong> (id, título, tipo e data; <em>nenhum</em> conteúdo de peça) e
+          recebe de volta a escolha, com o motivo de cada uma ao passar o mouse. E se houver
+          uma pergunta escrita no campo, ele escolhe as peças para <strong>aquela</strong>
+          pergunta: "houve prescrição?" traz peças diferentes de "qual o valor da causa?".
+        </p>
+        <p>
+          A análise também ficou mais rápida: cada peça <strong>começa a subir assim que
+          termina de baixar</strong>, em vez de esperar a fila inteira, e o cartão de progresso
+          mostra as duas etapas — antes ele batia 100% e ficava parado enquanto o envio ainda
+          acontecia. Em seleções grandes, o download é <strong>adiantado enquanto você escreve
+          a pergunta</strong>, começando pelas peças mais importantes.
+        </p>
+        <p>
+          Três correções que passavam despercebidas: peças nascidas no editor do PJe
+          (decisões, despachos, petições) <strong>às vezes falhavam com "a peça retornou
+          vazia"</strong> — a extensão desistia de esperar cedo demais; a busca da lista agora
+          enxerga também o <strong>tipo oficial</strong> da peça (procurar "despacho" acha o
+          arquivo chamado "Documentos diversos"); e o atalho de seleção <strong>não se desmarca
+          mais sozinho</strong> quando há uma busca ativa.
+        </p>
+        <p>
+          Por fim, o assistente ficou mais bem informado: ele agora recebe a
+          <strong>ficha do processo</strong> (classe, assunto, órgão julgador e as partes de
+          cada polo) e a <strong>lista das peças que você não marcou</strong> — para poder
+          responder "isso não está nas peças marcadas, mas provavelmente está na peça 123456;
+          marque-a e pergunte de novo", em vez de um "não consta" seco.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2><span class="v">v0.22.0</span> Anexo em foto vai como imagem — e a extração de texto sai de cena</h2>
         <p>
           O PJe aceita anexo de qualquer tipo, e o mais comum depois do PDF é a
           <strong>foto</strong>: o boletim de ocorrência fotografado, o print da conversa, o
@@ -466,7 +511,8 @@
             <tr><th>Versão</th><th>Data</th><th>O que mudou</th></tr>
           </thead>
           <tbody>
-            <tr class="marco"><td><span class="v novo">0.22.0</span></td><td>04/08/2026</td><td><span class="dot-marco"></span>Anexo em foto/print vai ao modelo como <strong>imagem</strong> (antes virava lixo binário); arquivo ilegível é recusado com o motivo; a extração de texto das peças foi removida</td></tr>
+            <tr class="marco"><td><span class="v novo">0.23.0</span></td><td>04/08/2026</td><td><span class="dot-marco"></span>Três degraus de seleção (<strong>chave · principais · todas</strong>) e <strong>✨ Escolher com IA</strong>; upload em paralelo ao download; peças do editor do PJe deixam de falhar com "retornou vazia"; ficha do processo e lista das peças não marcadas vão ao assistente</td></tr>
+            <tr class="marco"><td><span class="v">0.22.0</span></td><td>04/08/2026</td><td><span class="dot-marco"></span>Anexo em foto/print vai ao modelo como <strong>imagem</strong> (antes virava lixo binário); arquivo ilegível é recusado com o motivo; a extração de texto das peças foi removida</td></tr>
             <tr><td><span class="v">0.21.0</span></td><td>04/08/2026</td><td>Peça que falha ao baixar não derruba mais o envio, com relatório do que ficou de fora; seleção em faixa na lista (arrastar, Shift+clique, botão direito)</td></tr>
             <tr><td><span class="v">0.20.2</span></td><td>03/08/2026</td><td>Correções da exportação em <code>.zip</code>: colunas próprias do tribunal no índice, saltos na numeração explicados e disputa pela sessão do PJe</td></tr>
             <tr><td><span class="v">0.20.1</span></td><td>02/08/2026</td><td>Esta página: novidades e histórico de versões, alcançável pelo popup, pelas opções e pela ajuda</td></tr>

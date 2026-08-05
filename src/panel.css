@@ -115,7 +115,9 @@
   cursor: pointer;
   box-shadow: 0 6px 20px rgba(5, 48, 68, 0.32);
 }
-.launcher .sc { font-size: 16px; }
+/* o emoji da balança; --fs-lg é o degrau da escala mais próximo do 16px que
+   estava aqui — literal fora da escala era a única violação restante */
+.launcher .sc { font-size: var(--fs-lg); }
 .launcher:hover { filter: brightness(1.08); }
 .wrap.pulse .launcher { animation: pulse 1.8s ease-out 3; }
 @keyframes pulse {
@@ -368,7 +370,7 @@
   font-size: var(--fs-ui); margin-bottom: var(--sp-2); color: var(--ink);
 }
 .dh-row { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
-.docs-hd strong { font-family: Georgia, serif; font-weight: 700; font-size: var(--fs-body); white-space: nowrap; }
+.docs-hd strong { font-family: var(--ff-serif); font-weight: 700; font-size: var(--fs-body); white-space: nowrap; }
 .docs-hd .docs-fold { margin-left: auto; }
 .sel-opts {
   display: flex; align-items: center; flex: none;
@@ -376,16 +378,51 @@
   background: #fff; overflow: hidden;
 }
 .docs-hd .all {
-  display: inline-flex; align-items: center; gap: 5px;
+  display: inline-flex; align-items: center;
   font-weight: 600; font-size: var(--fs-micro); color: var(--muted);
-  padding: 3px 10px 3px 8px; background: transparent;
+  padding: 3px 10px; background: transparent;
   cursor: pointer; white-space: nowrap;
   transition: color 0.12s, background 0.12s;
 }
 .docs-hd .all + .all { border-left: 1px solid var(--line); }
 .docs-hd .all:hover { color: var(--pje-2); background: #f2f8fb; }
 .docs-hd .all:has(input:checked) { color: var(--pje-2); background: #e9f4f9; }
-.docs-hd .all input { accent-color: var(--pje); margin: 0; }
+/* O checkbox sai da tela mas CONTINUA no DOM: ele é a fonte de verdade do
+   estado do atalho, e o par label+input mantém a acessibilidade nativa (foco
+   por teclado, espaço para alternar, leitor de tela). Escondê-lo devolve 18px
+   por opção — o que faz três segmentos caberem nos 292px da coluna do modo
+   expandido — e aproxima o controle do que o DESIGN.md §5 sempre descreveu:
+   botões de um segmented control, não caixas de marcar. */
+.docs-hd .all input {
+  position: absolute; opacity: 0; width: 0; height: 0; margin: 0;
+  pointer-events: none;
+}
+/* sem isto o anel de foco sumiria junto com o checkbox */
+.docs-hd .all:has(input:focus-visible) {
+  outline: 2px solid var(--pje); outline-offset: -2px; color: var(--pje-2);
+}
+/* Rótulo longo/curto — mesmo padrão do medidor (.g-full/.g-short). A lógica é
+   invertida em relação ao que se espera: a COLUNA do modo expandido (292px) é
+   mais estreita que a FAIXA do modo flutuante (432px), então é lá que o rótulo
+   encurta. */
+.docs-hd .all .op-s { display: none; }
+.wrap.expanded .docs-hd .all .op-l,
+.wrap.full .docs-hd .all .op-l,
+.wrap.livre-wide .docs-hd .all .op-l { display: none; }
+.wrap.expanded .docs-hd .all .op-s,
+.wrap.full .docs-hd .all .op-s,
+.wrap.livre-wide .docs-hd .all .op-s { display: inline; }
+/* Nota dos atalhos de seleção: diz o que o clique fez e por que pode ter feito
+   menos do que se esperava (lista sem o tipo oficial, nenhuma peça-chave
+   reconhecida). Usa o trio de aviso SUAVE — informa sem impedir de continuar —,
+   que o DESIGN.md §2 separa da .alertbar justamente para não banalizar o alerta. */
+.sel-nota {
+  flex: 1 0 100%;
+  font-size: var(--fs-micro); line-height: 1.45;
+  color: var(--warn-ink); background: var(--warn-bg);
+  border: 1px solid var(--warn-line); border-radius: var(--r-sm);
+  padding: 5px 8px;
+}
 .count {
   font-size: var(--fs-micro); font-weight: 600; color: var(--muted);
   background: #eef3f7; border-radius: 999px; padding: 2px 9px;
@@ -450,6 +487,21 @@
 /* id da peça em MONO: é numeral que o usuário compara e usa para reencontrar a
    peça na timeline — tabular alinha na vertical e não se confunde com o nome. */
 .d-id { flex: none; font-family: var(--ff-mono); font-size: var(--fs-nano); color: var(--muted-3); }
+/* Data de juntada — o eixo cronológico, que antes só existia implícito na ordem
+   da lista. Mono pelo mesmo motivo do id (numeral que se compara na vertical) e
+   escondida por padrão: na faixa estreita ela roubaria o nome da peça, que é o
+   que se lê. Aparece só onde a lista é coluna e sobra largura. */
+.d-dt { display: none; flex: none; font-family: var(--ff-mono);
+        font-size: var(--fs-nano); color: var(--muted-3); }
+.wrap.expanded .d-dt,
+.wrap.full .d-dt,
+.wrap.livre-wide .d-dt { display: inline; }
+/* Peça JÁ no contexto da conversa. É um estado do histórico, não uma categoria,
+   então não ganha cor própria (o eixo de cor é a categoria — DESIGN.md §2): um
+   traço discreto à esquerda basta para responder "isto eu já mandei?" numa
+   conversa longa, que é a dúvida real quando o anexo é incremental. */
+.docrow.enviada { box-shadow: inset 2px 0 0 var(--line-strong); }
+.docrow.enviada .d-nm { color: var(--text-3); }
 
 /* cores por categoria (dot da lista + legenda) */
 .docrow.cat-decisao .d-dot,   .l-dot.cat-decisao   { background: var(--cat-decisao); }
@@ -497,19 +549,19 @@
 .docs-tip.carregando .tip-txt,
 .docs-tip:has(.tip-i:hover) .tip-txt,
 .docs-tip:has(.tip-i:focus) .tip-txt { display: block; }
-/* "Carregar todas as peças" e "Baixar .zip" são ações IRMÃS sobre a lista
-   inteira — compartilham a regra de propósito, para não divergirem com o
+/* "Carregar tudo", "Escolher com IA" e "Baixar .zip" são ações IRMÃS sobre a
+   lista inteira — compartilham a regra de propósito, para não divergirem com o
    tempo. */
-.tip-load, .tip-zip {
+.tip-load, .tip-zip, .tip-ia {
   border: 1px solid #cfe0e9; background: #eef5f9; color: var(--pje-2);
   border-radius: var(--r-sm); padding: 3px 9px;
   font-size: var(--fs-micro); font-weight: 600;
   cursor: pointer; transition: background 0.12s; font-family: inherit;
 }
-.tip-load:hover, .tip-zip:hover {
+.tip-load:hover, .tip-zip:hover, .tip-ia:hover {
   background: var(--line-strong);
 }
-.tip-load:disabled, .tip-zip:disabled {
+.tip-load:disabled, .tip-zip:disabled, .tip-ia:disabled {
   opacity: 0.6; cursor: default;
 }
 
@@ -620,11 +672,11 @@
 .prep.fade { opacity: 0; transform: translateY(4px); }
 .prep-hd {
   display: flex; align-items: center; gap: 8px;
-  font-family: Georgia, serif; font-weight: 700; font-size: var(--fs-ui);
+  font-family: var(--ff-serif); font-weight: 700; font-size: var(--fs-ui);
   color: var(--ink); margin-bottom: 7px;
 }
 .prep-n {
-  margin-left: auto; font-family: Consolas, monospace;
+  margin-left: auto; font-family: var(--ff-mono);
   font-size: var(--fs-micro); font-weight: 600; color: var(--muted);
 }
 .prep-spin {
@@ -650,6 +702,13 @@
 .prep-ic.wait { border: 1.5px dashed #b9cbd6; }
 .prep-ic.loading {
   border: 2px solid #dfe9ef; border-top-color: var(--pje);
+  animation: spin 0.7s linear infinite;
+}
+/* Segunda fase da peça: baixada, subindo para a API. Mesmo anel giratório da
+   fase de download, em tom mais claro — é a MESMA peça avançando, não um
+   estado de outra natureza; uma cor nova aqui leria como alerta. */
+.prep-ic.upload {
+  border: 2px solid #eef4f8; border-top-color: var(--pje-soft);
   animation: spin 0.7s linear infinite;
 }
 .prep-ic.done { background: #2e7d4f; color: #fff; animation: pop 0.22s ease-out; }
@@ -692,7 +751,7 @@
 .msg.assistant p { margin: 0 0 8px; }
 .msg.assistant p:last-child { margin-bottom: 0; }
 .msg.assistant h3, .msg.assistant h4, .msg.assistant h5, .msg.assistant h6 {
-  font-family: Georgia, serif; color: var(--ink);
+  font-family: var(--ff-serif); color: var(--ink);
   margin: 12px 0 6px; line-height: 1.3;
 }
 .msg.assistant h3 { font-size: 1.12em; }
@@ -705,7 +764,7 @@
   border-left: 3px solid var(--pje); background: #eef6fa; color: #2b5568;
 }
 .msg.assistant hr { border: none; border-top: 1px solid var(--line); margin: 10px 0; }
-.msg.assistant code { background: #e9eff4; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; font-family: Consolas, monospace; }
+.msg.assistant code { background: #e9eff4; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; font-family: var(--ff-mono); }
 .msg.assistant pre {
   background: #0e3a52; color: #dfeaf1; border-radius: 8px;
   padding: 10px 12px; overflow-x: auto; margin: 8px 0; font-size: 0.88em;
@@ -731,8 +790,17 @@
   max-width: 560px; font-size: var(--fs-ui); line-height: 1.55;
 }
 .hint-empty .big {
-  font-family: Georgia, serif; font-size: var(--fs-lead); color: var(--ink);
+  font-family: var(--ff-serif); font-size: var(--fs-lead); color: var(--ink);
   display: block; margin-bottom: var(--sp-4);
+}
+/* O degrau `--fs-hero` existe na escala e no DESIGN.md §3 para exatamente este
+   título, mas a regra que o aplicava nunca foi escrita: nos modos largos o
+   "Como posso ajudar?" continuava em --fs-lead, do tamanho de uma linha de
+   formulário, no meio de uma área vazia de 900px. */
+.wrap.expanded .hint-empty .big,
+.wrap.full .hint-empty .big,
+.wrap.livre-wide .hint-empty .big {
+  font-size: var(--fs-hero); margin-bottom: var(--sp-5);
 }
 
 /* Os três passos: numeral em disco, verbo em destaque, detalhe em micro. Em
@@ -818,7 +886,7 @@
   margin: auto; text-align: center; padding: 24px;
   max-width: 340px;
 }
-.needkey .k { font-family: Georgia, serif; font-size: var(--fs-lead); color: var(--ink); margin-bottom: 8px; }
+.needkey .k { font-family: var(--ff-serif); font-size: var(--fs-lead); color: var(--ink); margin-bottom: 8px; }
 .needkey p { color: var(--muted); font-size: var(--fs-ui); margin: 0 0 16px; line-height: 1.55; }
 .needkey button {
   background: linear-gradient(180deg, var(--pje), var(--pje-2));

@@ -222,24 +222,130 @@ var PjePanel = (function () {
     // atas, audiências e atos orais ("ata notarial" é prova — regra de provas)
     { cls: "cat-audiencia", re: /\b(ata(?!\s+notarial)|audiencia|assentada|depoimento|interrogatorio|oitiva|degravacao)\b/ },
     // peças das partes e do Ministério Público
-    { cls: "cat-peticao", re: /\b(peticao|inicial|emenda|contestacao|reconvencao|replica|treplica|recurso|apelacao|embargos|agravo|impugnacao|excecao|alegacoes|manifestacao|defesa|denuncia|queixa|memoriais|razoes|contrarrazoes|cumprimento de sentenca|habeas|cota|promocao|quesitos|rol de testemunhas|acordo)\b/ },
+    // "resposta a acusacao" é a defesa escrita do processo penal (art. 396-A do
+    // CPP) e não casava nenhuma regra — ficava cinza como se fosse expediente.
+    { cls: "cat-peticao", re: /\b(peticao|inicial|emenda|contestacao|reconvencao|replica|treplica|recurso|apelacao|embargos|agravo|impugnacao|excecao|alegacoes|manifestacao|defesa|resposta a acusacao|denuncia|queixa|memoriais|razoes|contrarrazoes|cumprimento de sentenca|habeas|cota|promocao|quesitos|rol de testemunhas|acordo)\b/ },
     // provas técnicas e atos de investigação (criminal: IP, APF, exames…)
     { cls: "cat-prova", re: /\b(laudo|pericia|parecer|ata notarial|auto de|flagrante|inquerito|boletim de ocorrencia|exame|corpo de delito|midia|interceptacao|relatorio|estudo social|estudo psicossocial|antecedentes)\b/ },
   ];
-  // Classifica pelo texto. Quando a peça vem da tela "Documentos" do PJe ela
-  // traz o TIPO OFICIAL ("Despacho de Mero Expediente", "Certidão de
-  // Intimação"), que é muito melhor que o título para isto — o título costuma
-  // ser o nome do arquivo ("Despachos / 2"), enquanto o tipo é o vocabulário
-  // controlado do sistema. Aceita string (título) ou o objeto da peça.
-  function categoriaDe(docOuTitulo) {
+  // ---------------------------------------------------------------------------
+  // RELEVÂNCIA — segundo eixo, ortogonal à categoria.
+  //
+  // A categoria acima responde "que tipo de peça é esta?" e vira COR. Ela não
+  // serve para responder "quais peças eu mando para a IA?", que é outra
+  // pergunta: num processo de 200 peças, tudo que não é `cat-outro` são ~120,
+  // porque a regra de petição casa `peticao|manifestacao|cota|promocao` — ou
+  // seja, praticamente toda juntada das partes. "Principais" acabava
+  // significando "quase todas".
+  //
+  // Quatro níveis:
+  //   essencial — a espinha dorsal do processo: as ~10 peças que respondem a
+  //               maioria das perguntas (inicial, contestação, laudo, sentença…)
+  //   relevante — derivado: tem categoria destacada mas não é da espinha
+  //   neutro    — sem categoria e sem sinal de expediente
+  //   ruido     — expediente puro: certidão de intimação, AR, guia, procuração
+  //
+  // `relevante` e `neutro` NÃO têm tabela própria — saem da categoria que já
+  // existe. Só os dois extremos precisam de regra.
+  // ---------------------------------------------------------------------------
+
+  // A espinha dorsal, cível e criminal. Herda as armadilhas já anotadas nas
+  // CATEGORIAS: o lookbehind de "cumprimento de sentença" (que é fase das
+  // partes, não ato de mérito) e a separação entre `acordao` e `acordo` (o \b
+  // não existe entre "acordo" e o "a" seguinte).
+  //
+  // ARMADILHA PRÓPRIA desta construção: o grupo inteiro vai entre \b…\b, então
+  // toda alternativa precisa terminar em PALAVRA COMPLETA. Escrever "saneador"
+  // não pega "Decisão Saneadora" e "acordo homologad" não pega "homologado" —
+  // o \b final exige um limite e encontra uma letra. Por isso as flexões vão
+  // explícitas, em vez de \w* solto (que faria "inicial" casar "inicialmente").
+  const RE_CHAVE = new RegExp(
+    "\\b(" +
+      [
+        // inicial
+        "peticao inicial", "inicial", "denuncia", "queixa-crime",
+        "reclamacao trabalhista",
+        // resposta
+        "contestacao", "defesa (previa|preliminar|escrita)",
+        "resposta a acusacao", "reconvencao",
+        // réplica
+        "replica", "impugnacao a contestacao",
+        // saneamento
+        "saneador(a|es|as)?", "saneamento",
+        // prova técnica
+        "laudo(s)?", "pericia(s)?", "parecer tecnico",
+        // instrução
+        "ata(s)? de audiencia", "audiencia de instrucao", "termo de audiencia",
+        // razões finais
+        "alegacoes finais", "memoriais",
+        // mérito
+        "(?<!cumprimento de )sentenca", "acordao", "liminar(es)?",
+        "tutela (de urgencia|antecipada)", "acordo homologad(o|a)",
+        // recurso
+        "apelacao", "contrarrazoes",
+        "recurso (especial|extraordinario|ordinario)",
+      ].join("|") +
+      ")\\b"
+  );
+
+  // Expediente. CONSERVADORA de propósito e sempre ANCORADA — termo solto aqui
+  // custa caro, porque tira a peça de "principais" e ela some do recorte sem o
+  // usuário perceber. Nunca use: `certidao` sozinho (certidão de trânsito em
+  // julgado é ato relevante), `comprovante` sozinho (é prova em consumidor),
+  // `carta` sozinho (precatória não é ruído), `juntada de documentos` (é onde
+  // vive a prova), `mandado` (mandado de segurança).
+  const RE_RUIDO = new RegExp(
+    "\\b(" +
+      [
+        "certidao de (intimacao|publicacao|decurso|prazo|citacao)",
+        "termo de juntada", "ato ordinatorio", "aviso de recebimento",
+        "carta de (citacao|intimacao)", "guia de (recolhimento|custas)",
+        "procuracao", "substabelecimento", "comprovante de residencia",
+        "publicacao.*(dje|diario)",
+      ].join("|") +
+      ")\\b"
+  );
+
+  // Classifica nos DOIS eixos de uma vez. Aceita string (título) ou o objeto da
+  // peça, e devolve {cat, rel}.
+  //
+  // Quando a peça vem da tela "Documentos" do PJe ela traz o TIPO OFICIAL
+  // ("Despacho de Mero Expediente", "Certidão de Intimação"), que é muito
+  // melhor que o título para isto — o título costuma ser o nome do arquivo
+  // ("Despachos / 2"), enquanto o tipo é o vocabulário controlado do sistema.
+  // Por isso o laço EXTERNO é por alvo (tipo primeiro, título depois): um tipo
+  // oficial "Certidão de Intimação" precisa vencer um título que por acaso
+  // contenha "sentença", que é o falso positivo mais comum do título.
+  //
+  // Dentro de cada alvo a ordem é ruído → chave → categorias, e a normalização
+  // acontece UMA vez por alvo: o custo real aqui não são as regex, é o norm()
+  // (toLowerCase + NFD + replace), e `setDocs` re-renderiza a lista inteira a
+  // cada mutação da timeline do PJe.
+  function classificarPeca(docOuTitulo) {
     const d = docOuTitulo && typeof docOuTitulo === "object" ? docOuTitulo : null;
-    const alvos = d ? [d.tipo, d.titulo] : [docOuTitulo];
+    const alvos = (d ? [d.tipo, d.titulo] : [docOuTitulo]).filter(Boolean);
     for (const alvo of alvos) {
-      if (!alvo) continue;
       const t = norm(alvo);
-      for (const c of CATEGORIAS) if (c.re.test(t)) return c.cls;
+      // Expediente é sempre NEUTRO na cor, mesmo quando o título menciona a
+      // peça a que se refere: "Certidão de Intimação da Sentença" pintada de
+      // dourado atrai o olho exatamente para o que não importa, e é a mistura
+      // do expediente com as peças de conteúdo que faz a lista cansar.
+      if (RE_RUIDO.test(t)) return { cat: "cat-outro", rel: "ruido" };
+      if (RE_CHAVE.test(t)) return { cat: catPorTexto(t), rel: "essencial" };
+      const cat = catPorTexto(t);
+      // sem sinal de nível NESTE alvo: se ele já dá categoria, o nível é
+      // derivado dela; senão, tenta o próximo alvo (título, depois de tipo)
+      if (cat !== "cat-outro") return { cat, rel: "relevante" };
     }
+    return { cat: "cat-outro", rel: "neutro" };
+  }
+  function catPorTexto(t) {
+    for (const c of CATEGORIAS) if (c.re.test(t)) return c.cls;
     return "cat-outro";
+  }
+  // Só a categoria — o que chips, preview e popup @ consomem.
+  function categoriaDe(docOuTitulo) {
+    return classificarPeca(docOuTitulo).cat;
   }
   // Normaliza para busca sem acentos/caixa (ex.: "peticao" acha "Petição").
   function norm(s) {
@@ -247,6 +353,17 @@ var PjePanel = (function () {
       .toLowerCase()
       .normalize("NFD")
       .replace(/[̀-ͯ]/g, "");
+  }
+
+  // Índice de busca de uma peça: título MAIS o tipo oficial, quando a tela
+  // "Documentos" do PJe já foi lida. O tipo é o vocabulário controlado do
+  // sistema ("Despacho de Mero Expediente") e costuma descrever a peça melhor
+  // que o título, que é o nome do arquivo ("Documentos diversos") — enquanto
+  // só o título era indexado, buscar "despacho" não achava a peça certa,
+  // embora ela já aparecesse com a cor de decisão na lista.
+  // Usado pela busca da lista E pelo popup @, para os dois nunca divergirem.
+  function textoBusca(d) {
+    return norm(d.titulo + " " + (d.tipo || ""));
   }
 
   // Aviso da lista possivelmente incompleta. Fora do painel ele é UM ÍCONE ⚠️
@@ -360,9 +477,11 @@ var PjePanel = (function () {
                 <input type="search" class="doc-q" placeholder="Buscar peça… (ex.: contestação)" aria-label="Buscar peça pelo nome">
                 <span class="doc-q-n" hidden></span>
                 <span class="sel-opts">
-                  <label class="all" title="Marca só as peças destacadas por categoria — decisões, audiências, petições e provas (as coloridas na lista): normalmente as mais relevantes para a análise do processo."><input type="checkbox" class="chk-main"> principais</label>
-                  <label class="all" title="Marca todas as peças da lista (respeita a busca ativa)"><input type="checkbox" class="chk-all"> todas</label>
+                  <label class="all" title="Marca a espinha dorsal do processo: petição inicial, contestação, réplica, saneador, laudo, ata de instrução, memoriais, sentença, acórdão e recursos. Costumam ser cerca de uma dúzia de peças e respondem a maioria das perguntas."><input type="checkbox" class="chk-ess"><span class="op-l">chave</span><span class="op-s">chave</span></label>
+                  <label class="all" title="Marca as peças de conteúdo — decisões, audiências, petições e provas —, deixando de fora o expediente (certidões de intimação, avisos de recebimento, guias, procurações). Respeita a busca ativa."><input type="checkbox" class="chk-main"><span class="op-l">principais</span><span class="op-s">princ.</span></label>
+                  <label class="all" title="Marca todas as peças da lista (respeita a busca ativa)"><input type="checkbox" class="chk-all"><span class="op-l">todas</span><span class="op-s">todas</span></label>
                 </span>
+                <span class="sel-nota" hidden></span>
               </div>
             </div>
             <div class="legend" aria-hidden="true">
@@ -376,6 +495,7 @@ var PjePanel = (function () {
               <span class="tip-i" role="note" tabindex="0" title="${TIP_PADRAO_ATTR}" aria-label="${TIP_PADRAO_ATTR}">⚠️</span>
               <span class="tip-txt"></span>
               <button type="button" class="tip-load" title="Rola a linha do tempo do processo automaticamente até o fim para carregar TODAS as peças do processo na lista">⟳ Carregar tudo</button>
+              <button type="button" class="tip-ia" title="Envia à IA só a LISTA de peças (id, título, tipo e data — nenhum conteúdo) e pede que ela escolha as relevantes. Se houver texto no campo de pergunta, escolhe para AQUELA pergunta; vazio, escolhe as peças que descrevem o processo. Custa alguns centavos e leva poucos segundos.">✨ Escolher com IA</button>
               <button type="button" class="tip-zip" title="Baixa os arquivos ORIGINAIS das peças (PDF, HTML) num único .zip, numerados na ordem do processo e com um índice de tipo, data e autor da juntada. Exporta as peças MARCADAS; sem nenhuma marcada, exporta todas as da lista.">⬇ Baixar .zip</button>
             </div>
           </div>
@@ -499,8 +619,11 @@ var PjePanel = (function () {
     const closeBtn = $(".close");
     const docsBox = $(".docs");
     const doclist = $(".doclist");
+    // Os três degraus de seleção, do mais enxuto ao mais amplo
+    const chkEss = $(".chk-ess");
     const chkAll = $(".chk-all");
     const chkMain = $(".chk-main");
+    const selNota = $(".sel-nota");
     const countEl = $(".count");
     const railNEl = $(".rail-n"); // badge da aba vertical (lista recolhida)
     const docQ = $(".doc-q");
@@ -509,6 +632,7 @@ var PjePanel = (function () {
     const tipTxt = $(".tip-txt");
     const tipLoad = $(".tip-load");
     const tipZip = $(".tip-zip");
+    const tipIa = $(".tip-ia");
     const msgs = $(".msgs");
     const ft = $(".ft");
     const statusEl = $(".status");
@@ -535,6 +659,19 @@ var PjePanel = (function () {
     const sendBtn = $(".send");
 
     let allDocs = []; // [{id, titulo}] espelho da lista lateral
+    // A lista já tem o TIPO oficial (tela "Documentos" do PJe)? Sem ele a
+    // classificação sai só do título — que costuma ser o nome do arquivo — e o
+    // degrau "chave" seleciona de menos. Não desabilitamos a opção por isso (o
+    // título ainda acerta "Sentença", "Petição Inicial", "Contestação",
+    // "Laudo"), mas o clique passa a dizer que dá para melhorar.
+    let temTipoOficial = false;
+    // Peças que JÁ foram enviadas nesta conversa. O anexo é incremental (cada
+    // peça entra no histórico uma única vez), então numa conversa longa o
+    // usuário perde a conta do que já mandou — e desmarcar/remarcar uma peça
+    // que já está no contexto não custa nada, enquanto marcar uma nova custa
+    // download, upload e tokens. O dado vive no content script; o painel só o
+    // reflete, via setPecasEnviadas.
+    let pecasEnviadas = new Set();
 
     // -------------------------------------------------------------------------
     // Estado vazio em camadas (progressive disclosure): três passos + exemplos
@@ -553,7 +690,8 @@ var PjePanel = (function () {
         '<span class="big">Como posso ajudar?</span>' +
         '<div class="passos">' +
         '<div class="passo"><span class="pn">1</span><b>Marque as peças</b>' +
-        "<span>na lista ao lado — busca, atalho <b>principais</b> ou <b>@</b> no campo</span></div>" +
+        "<span>na lista ao lado — <b>chave</b> traz a espinha dorsal do processo; " +
+        "há também a busca e o <b>@</b> no campo</span></div>" +
         '<div class="passo"><span class="pn">2</span><b>Peça o que precisa</b>' +
         "<span>resumo, linha do tempo, minuta — só o que foi marcado é lido</span></div>" +
         '<div class="passo"><span class="pn">3</span><b>Confira a origem</b>' +
@@ -669,6 +807,22 @@ var PjePanel = (function () {
       if (wrap.classList.contains("lateral")) return "lateral";
       return "flutuante";
     }
+    // Nos modos largos a lista de peças é uma COLUNA estreita (320px), não a
+    // faixa de 460px do flutuante — e ali o exemplo do placeholder não cabe:
+    // o campo fica com ~137px e o texto sai cortado no meio da palavra, que
+    // lê como defeito. O exemplo é uma dica de descoberta e vale nos modos em
+    // que há espaço para ele. Chamado por aplicarModo, o ponto único de
+    // transição de layout.
+    const PH_BUSCA_LONGO = "Buscar peça… (ex.: contestação)";
+    const PH_BUSCA_CURTO = "Buscar peça…";
+    function ajustarPlaceholderBusca() {
+      const estreito =
+        wrap.classList.contains("expanded") ||
+        wrap.classList.contains("full") ||
+        wrap.classList.contains("livre-wide");
+      docQ.placeholder = estreito ? PH_BUSCA_CURTO : PH_BUSCA_LONGO;
+    }
+
     function aplicarModo(modo) {
       hidePreview(); // a posição do popover fica inválida ao trocar o layout
       const eraLivre = wrap.classList.contains("livre");
@@ -690,6 +844,7 @@ var PjePanel = (function () {
       // (left/top/width/height), e inline vence classe — sem esta limpeza os
       // valores vazariam e deformariam o expandido/lateral/flutuante.
       if (eraLivre && modo !== "livre") limparGeoLivre();
+      ajustarPlaceholderBusca();
       try {
         chrome.storage.local.set({ layoutModo: modo === "cheia" ? "expandido" : modo });
       } catch {
@@ -724,6 +879,10 @@ var PjePanel = (function () {
         wrap.classList.contains("livre") && panelEl.offsetWidth >= LIVRE_LARGO_PX;
       if (on !== wrap.classList.contains("livre-wide")) hidePreview(); // âncora muda de lugar
       wrap.classList.toggle("livre-wide", on);
+      // `livre-wide` é alternado AQUI, não em aplicarModo (media query mede a
+      // viewport e erraria no modo livre) — então o placeholder da busca, que
+      // depende da largura da COLUNA de peças, também precisa ser reavaliado.
+      ajustarPlaceholderBusca();
     }
     function aplicarGeoLivre() {
       const vw = window.innerWidth,
@@ -1095,17 +1254,54 @@ var PjePanel = (function () {
 
     let prevChipIds = new Set(); // anima só chips recém-adicionados
     let selChangeCb = null; // content script re-estima o contexto ao mudar a seleção
+
+    // Os TRÊS degraus de seleção, do mais enxuto ao mais amplo. Os conjuntos são
+    // ENCAIXADOS (chave ⊂ principais ⊂ todas), que é o que faz os segmentos
+    // acenderem em faixa e lerem como um termômetro de abrangência.
+    //
+    // O eixo aqui é `data-rel` (ver classificarPeca), não a classe de categoria:
+    // categoria é cor, relevância é recorte. Enquanto "principais" significava
+    // "tudo que não é cat-outro", ele marcava ~120 de 200 peças num processo
+    // real — a regra de petição casa quase toda juntada das partes.
+    const DEGRAUS = {
+      ess: (r) => r.dataset.rel === "essencial",
+      main: (r) => r.dataset.rel !== "neutro" && r.dataset.rel !== "ruido",
+      all: () => true,
+    };
+
+    // Estado dos atalhos de seleção.
+    //
+    // Eles agem SÓ nas rows visíveis (respeitam a busca ativa), então o estado
+    // deles também é relativo ao filtro atual. Enquanto o recálculo varria a
+    // lista inteira, o checkbox se desmarcava sozinho no instante seguinte ao
+    // clique sempre que havia filtro: as peças escondidas não estavam marcadas
+    // e derrubavam o `every`.
+    //
+    // Separado de `syncSelection` porque `filtrarDocs` precisa recalculá-los
+    // SEM disparar `selChangeCb`: digitar na busca não muda a seleção, e
+    // avisar o content script a cada tecla o faria re-estimar o contexto à toa.
+    function syncAtalhos() {
+      const visiveis = rowsVisiveis();
+      const todasMarcadas = (filtro) => {
+        const rows = visiveis.filter(filtro);
+        return (
+          rows.length > 0 &&
+          rows.every((r) => {
+            const c = r.querySelector('input[type="checkbox"]');
+            return c && c.checked;
+          })
+        );
+      };
+      chkEss.checked = todasMarcadas(DEGRAUS.ess);
+      chkMain.checked = todasMarcadas(DEGRAUS.main);
+      chkAll.checked = todasMarcadas(DEGRAUS.all);
+    }
+
     function syncSelection() {
       const sel = getSelectedDocs();
       const total = allDocs.length;
 
-      chkAll.checked = total > 0 && sel.length === total;
-      // "principais": peças com categoria destacada (≠ cat-outro) — o estado
-      // do checkbox reflete se TODAS elas estão marcadas
-      const mainChks = [
-        ...doclist.querySelectorAll('.docrow:not(.cat-outro) input[type="checkbox"]'),
-      ];
-      chkMain.checked = mainChks.length > 0 && mainChks.every((c) => c.checked);
+      syncAtalhos();
       countEl.textContent = total
         ? sel.length
           ? `${sel.length}/${total} no contexto`
@@ -1151,30 +1347,65 @@ var PjePanel = (function () {
       prevChipIds = new Set(sel.map((d) => d.id));
     }
 
-    // "todas" respeita a busca: com filtro ativo, marca/desmarca só as peças
-    // visíveis (ex.: buscar "contestação" + todas = marca as contestações).
-    chkAll.addEventListener("change", () => {
-      const filtrando = !!norm(docQ.value.trim());
-      doclist.querySelectorAll('input[type="checkbox"]').forEach((c) => {
-        const row = c.closest(".docrow");
-        if (!filtrando || (row && !row.hidden)) c.checked = chkAll.checked;
-      });
+    // Nota dos atalhos: some sozinha no próximo gesto de seleção. Não usa o
+    // `.status` (disputado — a estimativa de contexto escreve nele ~900 ms
+    // depois e apaga a mensagem) nem a `.docs-tip` (que tem dono, com
+    // auto-reset de 12 s).
+    function setSelNota(txt) {
+      selNota.textContent = txt || "";
+      selNota.hidden = !txt;
+    }
+
+    // Aplica um degrau de seleção. Os três compartilham o mesmo contrato:
+    // agem só nas rows VISÍVEIS (a busca ativa é respeitada) e são ADITIVOS —
+    // marcar nunca desmarca o que o usuário escolheu à mão.
+    function aplicarDegrau(chk, filtro, nome) {
+      const alvo = rowsVisiveis().filter(filtro);
+      // Modo de falha silencioso: numa lista sem nenhuma peça do degrau (comum
+      // em "chave" antes de a grid ser lida), o clique não faria absolutamente
+      // nada e o checkbox voltaria sozinho — indistinguível de um botão
+      // quebrado. Dizer o motivo é o mínimo.
+      if (!alvo.length) {
+        chk.checked = false;
+        setSelNota(
+          temTipoOficial
+            ? "Nenhuma peça desta lista foi reconhecida como “" + nome + "”."
+            : "Nenhuma peça reconhecida como “" + nome + "” — a lista ainda não " +
+              "tem o tipo oficial de cada peça. Clique em ⟳ Carregar tudo para " +
+              "melhorar a classificação."
+        );
+        return;
+      }
+      for (const r of alvo) {
+        const c = r.querySelector('input[type="checkbox"]');
+        if (c) c.checked = chk.checked;
+      }
+      // Sem o tipo oficial a classificação sai só do título (que costuma ser o
+      // nome do arquivo), então "chave" seleciona de menos — em silêncio, que é
+      // o pior jeito: o usuário pede o essencial, recebe 3 de 12 e a análise
+      // sai sobre autos incompletos sem ninguém perceber.
+      setSelNota(
+        chk.checked && !temTipoOficial && nome === "chave"
+          ? alvo.length + " marcadas só pelo título — ⟳ Carregar tudo melhora a escolha."
+          : ""
+      );
       syncSelection();
-    });
-    // "principais": só as peças com categoria destacada (decisões, audiências,
-    // petições, provas — as coloridas). Mesmo comportamento do "todas": os
-    // checkboxes seguem sendo a fonte de verdade e o filtro ativo é respeitado.
-    chkMain.addEventListener("change", () => {
-      const filtrando = !!norm(docQ.value.trim());
-      doclist.querySelectorAll('input[type="checkbox"]').forEach((c) => {
-        const row = c.closest(".docrow");
-        if (!row || row.classList.contains("cat-outro")) return;
-        if (!filtrando || !row.hidden) c.checked = chkMain.checked;
-      });
-      syncSelection();
-    });
+    }
+
+    chkEss.addEventListener("change", () =>
+      aplicarDegrau(chkEss, DEGRAUS.ess, "chave")
+    );
+    chkMain.addEventListener("change", () =>
+      aplicarDegrau(chkMain, DEGRAUS.main, "principais")
+    );
+    chkAll.addEventListener("change", () =>
+      aplicarDegrau(chkAll, DEGRAUS.all, "todas")
+    );
     // eventos change dos checkboxes individuais borbulham até a lista
-    doclist.addEventListener("change", syncSelection);
+    doclist.addEventListener("change", () => {
+      setSelNota(""); // a nota fala do último clique em atalho; este é outro gesto
+      syncSelection();
+    });
 
     // -------------------------------------------------------------------------
     // SELEÇÃO EM FAIXA — marcar 40 petições em sequência não pode custar 40
@@ -1372,6 +1603,60 @@ var PjePanel = (function () {
     function setZipOcupado(on) {
       tipZip.disabled = !!on;
       tipZip.textContent = on ? "Baixando…" : "⬇ Documentos";
+    }
+
+    // -------------------------------------------------------------------------
+    // ESCOLHER COM IA — camada 2 da seleção.
+    //
+    // A camada 1 (classificarPeca, por regex) responde em 0 ms, sem chave e sem
+    // custo, e é o padrão. O que ela não tem é CONTEXTO: num processo com sete
+    // peças chamadas só "Petição", ela não sabe qual é a inicial; um título
+    // "Documento 3" não classifica nada.
+    //
+    // Aqui a lista inteira — id, título, tipo e data, NENHUM conteúdo de peça —
+    // vai à IA, que devolve os ids relevantes. É sob demanda de propósito: nada
+    // acontece sem o usuário pedir, então não há custo surpresa nem espera não
+    // solicitada, e o resultado é sempre atribuível a uma ação dele.
+    //
+    // A pergunta que estiver no campo vira o OBJETIVO da escolha ("houve
+    // prescrição?" traz peças diferentes de "qual o valor da causa?"). Vazio, o
+    // objetivo é entender o processo. O texto não é consumido — continua no
+    // campo para o usuário enviar em seguida, agora com as peças certas.
+    // -------------------------------------------------------------------------
+    let iaCb = null;
+    tipIa.addEventListener("click", () => {
+      if (!iaCb || tipIa.disabled) return;
+      if (!allDocs.length) {
+        statusEl.textContent = "A lista de peças está vazia.";
+        return;
+      }
+      setSelNota("");
+      iaCb(allDocs, inEl.value.trim());
+    });
+    function setIaOcupado(on) {
+      tipIa.disabled = !!on;
+      tipIa.textContent = on ? "Escolhendo…" : "✨ Escolher com IA";
+    }
+    // Aplica a escolha da IA: marca os ids, DESMARCANDO o resto — aqui a
+    // substituição é o contrato certo (ao contrário dos degraus, que somam):
+    // o usuário pediu uma escolha, e uma escolha que só acrescenta ao que já
+    // estava marcado não é uma escolha. `motivos` alimenta o title de cada row,
+    // para o critério ficar auditável peça a peça.
+    function aplicarEscolhaIA(ids, motivos) {
+      const set = new Set(ids || []);
+      for (const r of doclist.querySelectorAll(".docrow")) {
+        const c = r.querySelector('input[type="checkbox"]');
+        if (!c) continue;
+        c.checked = set.has(c.value);
+        const m = motivos && motivos[c.value];
+        const t = r.querySelector(".d-t");
+        if (t) {
+          const base = t.dataset.tituloOriginal || t.getAttribute("title") || "";
+          if (!t.dataset.tituloOriginal) t.dataset.tituloOriginal = base;
+          t.setAttribute("title", m ? base + "\n\n✨ " + m : base);
+        }
+      }
+      syncSelection();
     }
     // Em repouso o aviso é só o ícone ⚠️ (o texto vive no title dele) — ocupava
     // duas linhas fixas da coluna. Com PROGRESSO ou carregando, o texto volta a
@@ -1767,6 +2052,9 @@ var PjePanel = (function () {
       }
       docQN.hidden = !q;
       docQN.textContent = q ? visiveis + "/" + allDocs.length : "";
+      // O conjunto visível mudou, e é sobre ele que os atalhos agem: sem isto
+      // "principais"/"todas" ficavam com o estado da lista anterior ao filtro.
+      syncAtalhos();
     }
     docQ.addEventListener("input", filtrarDocs);
     docQ.addEventListener("keydown", (e) => {
@@ -1802,7 +2090,7 @@ var PjePanel = (function () {
       const tok = findMentionToken();
       if (!tok || !allDocs.length) return closeMention();
       const q = norm(tok.query.trim());
-      const all = allDocs.filter((d) => !q || norm(d.titulo).includes(q));
+      const all = allDocs.filter((d) => !q || textoBusca(d).includes(q));
       // Busca sem resultado NÃO fecha o popup na hora (o campo de busca
       // sumir no meio da digitação parecia travamento) — mostra o estado
       // vazio. MAS: se a query sem resultado passa de 20 chars, o usuário
@@ -2862,17 +3150,24 @@ var PjePanel = (function () {
       msgs.scrollTop = msgs.scrollHeight;
     }
 
+    // Estados de uma peça no card: wait → loading (baixando) → upload (subindo
+    // para a API, só nos PDFs) → done. Ou → erro, quando o download falha.
     function setPrepState(id, state) {
       if (!prepEl) return;
       const row = prepEl.querySelector('.prep-row[data-id="' + CSS.escape(id) + '"]');
       if (!row) return;
       const ic = row.querySelector(".prep-ic");
+      // O contador conta PEÇAS PRONTAS, não transições de estado. Sem esta
+      // guarda, um "done" repetido — fácil de acontecer agora que a peça passa
+      // por mais de uma fase — levaria o contador além de N/N e a barra além
+      // de 100%. Vale também para a exportação, que usa os mesmos estados.
+      const jaTerminou = /(^|\s)(done|erro)(\s|$)/.test(ic.className);
       ic.className = "prep-ic " + state;
       ic.innerHTML = state === "done" ? SVG.check : "";
       // "erro" também ADIANTA o contador: a peça terminou de ser tentada. Sem
       // isso a barra de uma exportação com falhas nunca chegaria ao fim, e o
       // usuário ficaria olhando um progresso travado sem saber que acabou.
-      if (state === "done" || state === "erro") {
+      if ((state === "done" || state === "erro") && !jaTerminou) {
         prepDone++;
         prepEl.querySelector(".prep-n").textContent = prepDone + "/" + prepTotal;
         prepEl.querySelector(".prep-bar i").style.width =
@@ -2965,6 +3260,25 @@ var PjePanel = (function () {
       },
       // Trava/destrava o botão durante a exportação.
       setZipOcupado,
+      // Peças que já estão no contexto da conversa. Chamado ao fim de cada
+      // turno e em "Nova conversa" (com lista vazia).
+      setPecasEnviadas(ids) {
+        pecasEnviadas = new Set(ids || []);
+        for (const r of doclist.querySelectorAll(".docrow")) {
+          r.classList.toggle("enviada", pecasEnviadas.has(r.dataset.id));
+        }
+      },
+      // Escolha assistida por IA (camada 2 da seleção — a camada 1, por regex,
+      // segue sendo o padrão instantâneo)
+      onEscolherIA(cb) {
+        iaCb = cb;
+      },
+      setIaOcupado,
+      aplicarEscolhaIA,
+      setSelNota,
+      // usada pelo content script para o teto do inventário de peças não
+      // anexadas: o critério de corte é o mesmo da lista
+      classificarPeca,
       // Estado da dica: {texto, carregando}. Sem argumento volta ao padrão.
       setTimelineTip,
       // Preview no hover: cb SÍNCRONO que devolve o conteúdo em cache ou null
@@ -2998,20 +3312,43 @@ var PjePanel = (function () {
         if (!previewDlPendente) hidePreview();
         const cur = new Set(getSelected());
         allDocs = docs.slice();
+        // Reclassificação quando a grid chega é de graça: setDocs recria todas
+        // as rows e a seleção sobrevive pelo snapshot acima. Note o efeito
+        // correto mas surpreendente — a seleção anterior NÃO é re-aplicada, e o
+        // segmento "chave" passa a aparecer apagado porque o conjunto de peças
+        // essenciais mudou. Isso é o sinal certo (a seleção é estado do
+        // usuário); não "conserte" re-aplicando o degrau aqui.
+        temTipoOficial = docs.some((d) => d.tipo);
         doclist.innerHTML = "";
         for (const d of docs) {
           const p = partesTitulo(d.titulo);
+          const cls = classificarPeca(d);
           const row = document.createElement("label");
-          row.className = "docrow " + categoriaDe(d);
-          row.dataset.busca = norm(d.titulo); // índice da busca (sem acentos)
+          row.className = "docrow " + cls.cat;
+          // Relevância vai em DATASET, não em classe: as classes cat-* são
+          // semânticas (DESIGN.md §2) e uma classe .rel-* convidaria a pendurar
+          // cor nela — o eixo de cor já é a categoria. Aqui o dado serve aos
+          // seletores dos atalhos de seleção, não à aparência.
+          row.dataset.rel = cls.rel;
+          row.dataset.busca = textoBusca(d); // título + tipo, sem acentos
           row.dataset.id = d.id; // usado pelo preview e pelo "ver na timeline"
+          if (pecasEnviadas.has(d.id)) row.classList.add("enviada");
+          // O TIPO oficial da grid descreve a peça melhor que o título (que é o
+          // nome do arquivo) — vai no tooltip, sem custar um pixel na linha.
+          const dica = d.tipo && d.tipo !== p.nome ? d.titulo + " — " + d.tipo : d.titulo;
           row.innerHTML =
             `<input type="checkbox" value="${escapeHtml(d.id)}">` +
             '<span class="d-dot" aria-hidden="true"></span>' +
-            `<span class="d-t" title="${escapeHtml(d.titulo)}">` +
+            `<span class="d-t" title="${escapeHtml(dica)}">` +
             `<span class="d-nm">${escapeHtml(p.nome)}</span>` +
             (p.id ? `<span class="d-id">${p.id}</span>` : "") +
             "</span>" +
+            // Data de juntada: o eixo CRONOLÓGICO que hoje só existe implícito
+            // na ordem da lista. Vem da grid, então nem sempre existe. O CSS a
+            // esconde nos modos estreitos, onde não há espaço para ela.
+            (d.juntadoEm
+              ? `<span class="d-dt">${escapeHtml(String(d.juntadoEm).slice(0, 10))}</span>`
+              : "") +
             '<button type="button" class="d-ver" title="Ver esta peça na linha do tempo do processo" aria-label="Localizar esta peça na linha do tempo">' +
             SVG.ver + "</button>";
           if (cur.has(d.id)) row.querySelector("input").checked = true;
@@ -3278,16 +3615,23 @@ var PjePanel = (function () {
       //
       // Fica FECHADO por padrão — é informação de diagnóstico, não deve competir
       // com a resposta.
-      mostrarFalhasPecas(falhas) {
+      // `opts` ({titulo, dica}) existe porque a mesma estrutura — lista de
+      // peças + motivo + o que fazer a respeito — serve para mais de um tipo
+      // de perda parcial. Hoje: peça que não baixou (padrão) e peça de texto
+      // longa demais, que entrou cortada. Sem os opts, o texto é byte a byte o
+      // de antes.
+      mostrarFalhasPecas(falhas, opts) {
         if (!falhas || !falhas.length) return null;
+        const o = opts || {};
         const el = document.createElement("details");
         el.className = "falhas";
         const n = falhas.length;
         const sum = document.createElement("summary");
         sum.textContent =
-          n === 1
+          o.titulo ||
+          (n === 1
             ? "1 peça não pôde ser baixada e ficou de fora desta análise"
-            : n + " peças não puderam ser baixadas e ficaram de fora desta análise";
+            : n + " peças não puderam ser baixadas e ficaram de fora desta análise");
         el.appendChild(sum);
         const ul = document.createElement("ul");
         for (const f of falhas) {
@@ -3305,6 +3649,7 @@ var PjePanel = (function () {
         const p = document.createElement("p");
         p.className = "falhas-dica";
         p.textContent =
+          o.dica ||
           "Elas continuam marcadas: no próximo envio a extensão tenta de novo. Se persistir, abra a peça na linha do tempo do PJe uma vez e envie outra vez.";
         el.appendChild(p);
         msgs.appendChild(el);
@@ -3438,5 +3783,6 @@ var PjePanel = (function () {
     _renderMd: renderMd,
     _findSlashToken: findSlashToken,
     _montarTextoEnvio: montarTextoEnvio,
+    _classificarPeca: classificarPeca,
   };
 })();

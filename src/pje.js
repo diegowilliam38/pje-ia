@@ -186,9 +186,18 @@ var PJE = (function () {
       const link = acharLink(id);
       if (!link) throw new Error("peça " + id + " não está visível na linha do tempo");
       link.click();
-      // aguarda o servidor registrar a peça na sessão (poll no próprio download)
-      const url =
-        "/" + getBase() + "/seam/resource/rest/pje-legacy/documento/download/" + id;
+      // Aguarda o servidor registrar a peça na sessão, sondando a MESMA rota que
+      // o download vai usar — a PRIMEIRA de `urlsDownload` (a completa, quando o
+      // host tem sigla e há idProcesso).
+      //
+      // Sondar a rota CURTA aqui era um defeito silencioso e caro: ela responde
+      // 200 com uma casca vazia para toda peça HTML (decisões, despachos,
+      // petições do editor), então `probe.ok` ficava verdadeiro no primeiro poll
+      // e a ativação DESISTIA em 700 ms, em vez de esperar os ~5,6 s. Em
+      // seguida `tentarRotas` rodava de novo, a peça ainda não estava liberada e
+      // o erro final era "a peça N retornou vazia" — exatamente a falha que esta
+      // função existe para resolver, e justamente nas peças que mais importam.
+      const url = urlsDownload(id)[0];
       for (let i = 0; i < 8; i++) {
         await sleep(700);
         const probe = await fetch(url, { method: "HEAD", credentials: "include" });

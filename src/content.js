@@ -36,12 +36,31 @@
     "Cada peça anexada tem um id — o número que abre o seu título (em",
     "'123456 - Contestação', o id é 123456) — e é por ele que o usuário reencontra",
     "a peça na linha do tempo do processo. NUNCA invente id, folha, data ou valor.",
+    // Divergência entre peças é o DADO da análise processual, não ruído a ser
+    // resolvido: o autor e o réu narram o mesmo fato de formas diferentes, e
+    // escolher uma versão em silêncio esconde justamente o que está em disputa.
+    "Quando duas peças divergirem sobre o mesmo fato, valor ou data, APONTE a",
+    "divergência e dê a origem das duas versões — não escolha uma nem faça média.",
+    // Sem isto o modelo narra na ordem em que leu as peças (que é a ordem da
+    // seleção), e não na ordem em que os atos aconteceram.
+    "Ao narrar fatos ou atos processuais, siga a ordem CRONOLÓGICA e informe a",
+    "data de cada um quando ela constar da peça.",
   ];
   const PROMPT_FIM = [
     "Seja objetivo e técnico. Comece pela resposta: nada de preâmbulo do tipo 'Vou",
     "analisar as peças' ou 'Com base nos documentos fornecidos'.",
     "Se a informação não estiver nos documentos selecionados,",
     "diga explicitamente que não consta nas peças fornecidas — não invente.",
+    // O inventário das peças NÃO marcadas viaja no texto do turno (ver
+    // inventarioNaoMarcadas). Sem esta regra o modelo trataria a lista como
+    // conteúdo disponível e passaria a afirmar coisas sobre peças que não leu.
+    "Você pode receber, ao fim da mensagem, a lista das peças do processo que NÃO",
+    "foram anexadas — apenas id e título. NUNCA afirme nada sobre o conteúdo",
+    "delas: você não as leu. Use-a só para uma coisa — quando a resposta não",
+    "estiver nas peças anexadas e o título de uma não anexada indicar que ela",
+    "provavelmente a contém, diga isso e informe o id para o usuário marcá-la e",
+    "perguntar de novo. Distinga sempre 'não consta das peças anexadas' de 'não",
+    "existe no processo'.",
     "Atenção a peças de mero encaminhamento: no PJe é comum a petição conter apenas",
     "uma remissão como 'Em anexo' ou 'Segue anexo', com o conteúdo real nos documentos",
     "anexos protocolados junto dela. Nesse caso, diga claramente que a peça é só um",
@@ -92,6 +111,61 @@
   // de hoje (prazos, prescrição e "situação atual" sairiam calculados contra o
   // conhecimento congelado do modelo). Custo de cache desprezível: o cache é
   // ephemeral de 5 min, então a virada diária nunca cai dentro de uma janela viva.
+  //
+  // Além do CNJ, vai a FICHA do processo: classe, assunto, órgão julgador e as
+  // partes de cada polo. São ~80 tokens que o modelo não consegue deduzir com
+  // segurança dos PDFs — nem sempre a peça marcada é a inicial —, e sem eles
+  // ele confunde os polos (chama o réu de autor), erra o rito e não sabe a
+  // competência. `PJE.lerCabecalhoProcesso` já existia; até agora só a
+  // exportação em .zip a usava.
+  //
+  // Lida UMA vez por sessão: a ficha não muda enquanto a página está aberta, e
+  // `systemPromptAtual()` é chamado duas vezes por turno (count_tokens + envio).
+  const CAMPOS_FICHA = [
+    "classe judicial", "classe", "assunto", "orgao julgador", "órgão julgador",
+    "jurisdicao", "jurisdição", "competencia", "competência",
+  ];
+  let fichaCache; // undefined = ainda não lida; null = não há ficha nesta página
+  function resumoFicha() {
+    if (fichaCache === undefined) {
+      try {
+        fichaCache = PJE.lerCabecalhoProcesso();
+      } catch {
+        fichaCache = null; // best-effort: sem ficha, o system segue como antes
+      }
+    }
+    if (!fichaCache) return "";
+    const partes = [];
+    const campos = fichaCache.campos || {};
+    // casa sem depender do acento/caixa exatos do rótulo, que varia por tribunal
+    for (const [rotulo, valor] of Object.entries(campos)) {
+      const r = rotulo.toLowerCase().trim();
+      if (CAMPOS_FICHA.some((c) => r === c || r.startsWith(c))) {
+        partes.push(rotulo + ": " + valor);
+      }
+    }
+    const polo = (lista, nome) => {
+      if (!lista || !lista.length) return null;
+      // só os titulares, sem os representantes: a lista de advogados dobraria o
+      // tamanho da ficha sem ajudar a entender o caso
+      const nomes = lista.slice(0, 6).map((p) => p.nome).filter(Boolean);
+      if (!nomes.length) return null;
+      return (
+        nome + ": " + nomes.join("; ") +
+        (lista.length > nomes.length ? " e mais " + (lista.length - nomes.length) : "")
+      );
+    };
+    const a = polo(fichaCache.poloAtivo, "Polo ativo");
+    const p = polo(fichaCache.poloPassivo, "Polo passivo");
+    if (a) partes.push(a);
+    if (p) partes.push(p);
+    if (!partes.length) return "";
+    return (
+      " Ficha do processo, lida da tela do PJe (use para situar o caso; o teor" +
+      " vem SEMPRE das peças anexadas): " + partes.join(". ") + "."
+    );
+  }
+
   function contextoDoProcesso() {
     let s = "";
     try {
@@ -100,7 +174,7 @@
     } catch {
       /* página sem número identificável — segue sem ele */
     }
-    return s + " Hoje é " + new Date().toLocaleDateString("pt-BR") + ".";
+    return s + resumoFicha() + " Hoje é " + new Date().toLocaleDateString("pt-BR") + ".";
   }
 
   function systemPromptAtual() {
@@ -126,6 +200,22 @@
   // OpenAI aceita 50 MB (arquivo e somados por request); 40 MB de base64 (~30 MB
   // decodificados) fica com folga confortável sob o limite.
   const MAX_TOTAL_B64_CHARS_OPENAI = 40 * 1024 * 1024;
+
+  // Teto do bloco de TEXTO de uma peça (HTML do editor, RTF de processo
+  // migrado) — cerca de 30 páginas. Sentença com transcrição de depoimentos e
+  // relatório longo passam disso.
+  //
+  // O corte em si é aceitável; cortar EM SILÊNCIO não é. O modelo veria metade
+  // da peça e responderia "não consta" sobre o que estava na outra metade — e
+  // essa resposta é indistinguível de uma correta. Por isso o texto cortado
+  // leva um aviso explícito para o modelo (MARCA_TRUNCADO) e a peça é listada
+  // para o usuário no fim do turno.
+  const MAX_CHARS_TEXTO = 60000;
+  const MARCA_TRUNCADO =
+    "\n\n[ATENÇÃO: esta peça é longa e foi cortada aqui, no limite de " +
+    "60.000 caracteres. O restante do conteúdo dela NÃO está nesta análise — " +
+    "não conclua que algo 'não consta' desta peça; diga que ela entrou " +
+    "parcialmente e indique até onde você conseguiu ler.]";
 
   // Betas enviadas em todos os requests de chat (documentos por file_id).
   const BETAS_CHAT = ["files-api-2025-04-14"];
@@ -230,6 +320,10 @@
   let estTimer = null;
   let estSeq = 0;
   let ultimaChaveEst = "";
+  // Total de tokens do último request FÍSICO, medido pelo usage da API (exato e
+  // de graça). Base para dispensar o count_tokens do turno seguinte quando a
+  // folga sobre a janela é larga — ver podePularPreVoo.
+  let ultimoTotalExato = 0;
 
   // Texto do alerta persistente de contexto cheio (barra vermelha no rodapé).
   const ALERTA_CTX_CHEIO =
@@ -444,6 +538,8 @@
     custoConversaUsd = 0;
     panel.setCusto(null);
     pecasNaConversa.clear();
+    panel.setPecasEnviadas([]);
+    ultimoTotalExato = 0; // sem histórico, não há medição exata a reaproveitar
     buscaNaConversa = false;
     conversaProvider = null; // conversa nova pode começar em qualquer provedor
     alertaTrocaLigado = false;
@@ -778,6 +874,63 @@
     panel.startPrep(ids.map(metaDe));
     const queue = ids.slice();
     const falhas = [];
+
+    // BOMBA DE UPLOAD — o upload de cada peça começa assim que ELA baixa, em
+    // vez de esperar a fila inteira. Antes o turno custava Σdownload + Σupload;
+    // agora custa Σdownload + o upload da última peça, porque os demais já
+    // aconteceram debaixo do download das seguintes.
+    //
+    // Ela mora AQUI, e não no handler de envio, porque há três pares
+    // baixar→subir idênticos (chat, minuta e mapa): assim os três ganham o
+    // pipeline sem mudar uma linha nos call sites.
+    //
+    // Os `await subirPecas(...)` que vêm logo depois nos call sites passam a ser
+    // no-ops para as peças que subiram (o filtro `precisaUpload` descarta quem
+    // já tem fileId do provedor atual) e uma SEGUNDA TENTATIVA para as que
+    // falharam. Isso é intencional: a falha típica de upload é 429 por rate
+    // limit depois de muitos arquivos, e alguns segundos depois ela costuma
+    // passar. O custo aparece só quando a falha é permanente (arquivo grande
+    // demais), e aí o fallback base64 assume de qualquer forma. São no máximo
+    // duas tentativas por peça e por turno.
+    //
+    // Três invariantes que não podem cair:
+    //  · UM LOTE POR VEZ (`bombeando`). O cache de upload do worker é
+    //    read-then-write: duas chamadas simultâneas com a mesma cacheKey erram
+    //    o cache as duas e sobem o arquivo duas vezes.
+    //  · try/catch em volta de CADA lote. Uma rejeição não tratada se
+    //    propagaria pelo `await cadeiaUpload` lá embaixo e derrubaria o turno
+    //    inteiro por causa de um upload — o oposto exato do design atual, em
+    //    que falha de upload apenas devolve a peça ao fallback base64.
+    //  · `await cadeiaUpload` ANTES de devolver. Sem isso o chamador seguiria
+    //    para o seu próprio `subirPecas` com uploads ainda em voo, e voltaria a
+    //    corrida do primeiro item.
+    const filaUpload = [];
+    let bombeando = false;
+    let cadeiaUpload = Promise.resolve();
+    function bombear() {
+      if (bombeando) return;
+      bombeando = true;
+      cadeiaUpload = (async () => {
+        while (filaUpload.length) {
+          const lote = filaUpload.splice(0);
+          try {
+            // silencioso: quem fala durante esta fase é o card de preparo; um
+            // status "Enviando peças…" competindo com "Preparando peças 3/12"
+            // descreveria duas coisas ao mesmo tempo.
+            await subirPecas(lote, { silencioso: true });
+          } catch (e) {
+            console.debug("[PJe IA] lote de upload falhou:", e && e.message);
+          }
+          // Pronta — inclusive a que falhou no upload: ela entra no request
+          // pelo fallback base64, então marcá-la como erro diria ao usuário
+          // que a peça ficou de fora, o que é falso. A única lista de peças
+          // ausentes continua sendo `falhas` (download).
+          for (const id of lote) panel.setPrepState(id, "done");
+        }
+        bombeando = false;
+      })();
+    }
+
     // Ritmo do download. O gargalo real da extensão é este: o PJe serializa a
     // entrega das peças, então a banda do usuário domina o tempo total. Quando
     // fica ruim, a extensão PARECE travada — e o usuário não tem como saber que
@@ -819,30 +972,56 @@
             continue;
           }
         }
-        panel.setPrepState(id, "done");
+        // A peça está em cache. Se ainda falta subir à Files API, ela tem uma
+        // SEGUNDA fase pela frente e o card precisa dizer isso: enquanto o
+        // contador batia N/N no fim do download, o card ficava congelado em
+        // 100% durante todo o upload, parecendo travado. Este ponto cobre
+        // também a peça que JÁ estava em cache (o `if` acima foi pulado) —
+        // desejável, porque ela pode não ter fileId, ou tê-lo de outro provedor.
+        if (precisaUpload(id)) {
+          panel.setPrepState(id, "upload");
+          filaUpload.push(id);
+          bombear();
+        } else {
+          panel.setPrepState(id, "done");
+        }
       }
     }
     await Promise.all([worker(), worker(), worker()]);
+    bombear(); // a última peça pode ter entrado na fila com a bomba parada
+    await cadeiaUpload;
     const perdidas = new Set(falhas.map((f) => f.id));
     const ok = ids.filter((id) => !perdidas.has(id));
     return { ok, falhas };
   }
 
+  // Precisa de upload à Files API? Só PDF, e só quando ainda não há fileId do
+  // provedor ATUAL (um file_id da Anthropic não serve num request Gemini).
+  // Extraída para ser a fonte ÚNICA da regra: `subirPecas` a usa para montar a
+  // fila e o card de progresso a usa para saber se aquela peça ainda tem uma
+  // fase pela frente. Duplicar isso garantiria divergência — `fileProvider` já
+  // é sutil o bastante.
+  function precisaUpload(id) {
+    const d = docsCache.get(id);
+    if (!d || d.kind !== "pdf") return false;
+    const provAtual = (modelCaps && modelCaps.provider) || "anthropic";
+    return !d.fileId || (d.fileProvider || "anthropic") !== provAtual;
+  }
+
   // Sobe as peças PDF ainda sem file_id para a Files API (2 por vez). Falha de
   // upload não interrompe: a peça cai no fallback base64 (teto de 24 MB).
-  async function subirPecas(ids) {
+  //
+  // `opts.silencioso` existe para a bomba de upload de `baixarSelecionadas`:
+  // quando o upload corre POR BAIXO do download, quem narra a fase é o card de
+  // preparo, e um `.status` competindo com ele descreveria duas coisas ao mesmo
+  // tempo. Chamada sem opts, o comportamento é o de sempre.
+  async function subirPecas(ids, opts) {
     const idProc = PJE.getIdProcesso() || "proc";
     // um fileId da Anthropic não serve num request Gemini (e vice-versa):
     // peça com upload de OUTRO provedor re-sobe para o provedor atual
-    const provAtual = (modelCaps && modelCaps.provider) || "anthropic";
-    const pend = ids.filter((id) => {
-      const d = docsCache.get(id);
-      return (
-        d && d.kind === "pdf" && (!d.fileId || (d.fileProvider || "anthropic") !== provAtual)
-      );
-    });
+    const pend = ids.filter(precisaUpload);
     if (!pend.length) return;
-    panel.setStatus("Enviando peças para análise…", true);
+    if (!opts || !opts.silencioso) panel.setStatus("Enviando peças para análise…", true);
     const queue = pend.slice();
     async function w() {
       while (queue.length) {
@@ -979,6 +1158,108 @@
     }
   }
 
+  // Peças de texto que serão cortadas por MAX_CHARS_TEXTO — a MESMA constante
+  // que `montarBlocos` usa para cortar, para as duas leituras nunca divergirem.
+  // O formato do retorno é o de `mostrarFalhasPecas` ({id, titulo, erro}).
+  function pecasTruncadas(ids) {
+    const out = [];
+    for (const id of ids) {
+      const d = docsCache.get(id);
+      if (d && d.kind === "text" && d.text && d.text.length > MAX_CHARS_TEXTO) {
+        out.push({
+          id,
+          titulo: metaDe(id).titulo,
+          erro:
+            "peça longa (~" +
+            Math.round(d.text.length / 1000) +
+            " mil caracteres): entrou só até os primeiros 60 mil",
+        });
+      }
+    }
+    return out;
+  }
+  // Rótulos do relatório de peças cortadas. Não pode reusar o texto padrão do
+  // relatório de download: lá as peças ficaram DE FORA, aqui elas entraram —
+  // pela metade, que é uma perda de outra natureza e com outra saída.
+  function avisoTrunc(n) {
+    return {
+      titulo:
+        n === 1
+          ? "1 peça é longa demais e entrou cortada nesta análise"
+          : n + " peças são longas demais e entraram cortadas nesta análise",
+      dica:
+        "Elas entraram, mas só até o corte — o que vem depois não foi lido, e o " +
+        "modelo foi avisado para não afirmar que algo 'não consta' delas. Para " +
+        "alcançar o restante, pergunte especificamente sobre a parte final da " +
+        "peça ou use ⬇ Baixar .zip e trabalhe o documento inteiro fora da " +
+        "extensão.",
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // INVENTÁRIO das peças que estão na lista mas NÃO foram anexadas.
+  //
+  // Fecha o ciclo entre a IA e a seleção: sem ele, a resposta a "qual foi o
+  // valor da perícia?" com o laudo desmarcado é um "não consta" seco, e o
+  // usuário não tem como saber que a peça existe e está a um clique. Com ele, o
+  // modelo devolve o id da peça para marcar.
+  //
+  // Vai no TEXTO DO TURNO, e não no system: a lista muda a cada refresh da
+  // timeline do PJe (MutationObserver com debounce de 400 ms) e no system
+  // invalidaria o cache de prefixo o tempo todo.
+  //
+  // E é anexado só na CÓPIA que vai à API (`prepararEnvio` já devolve uma), never
+  // em `conversation`: no histórico ele se acumularia turno a turno — dez turnos
+  // de uma conversa com 200 peças seriam ~20 mil tokens de listas repetidas e
+  // desatualizadas, competindo com o conteúdo real.
+  const INVENTARIO_MAX = 80; // acima disto, só as peças de maior relevância
+  function inventarioNaoMarcadas(idsAnexados) {
+    const dentro = new Set(idsAnexados);
+    // Map preserva a ordem de inserção, que aqui é a da timeline do PJe — ou
+    // seja, a ordem em que o usuário vê as peças na tela.
+    let fora = [...docsIndex.values()].filter((d) => !dentro.has(d.id));
+    if (!fora.length) return "";
+    const total = fora.length;
+    let cortou = false;
+    if (fora.length > INVENTARIO_MAX) {
+      // O critério de corte é o mesmo do atalho "principais": expediente
+      // (certidão de intimação, AR, guia, procuração) não ajuda a decidir o que
+      // marcar, e é justamente o que enche a lista nos processos grandes.
+      const relevantes = fora.filter((d) => {
+        const rel = classificarDoc(d);
+        return rel !== "neutro" && rel !== "ruido";
+      });
+      if (relevantes.length && relevantes.length < fora.length) {
+        fora = relevantes;
+        cortou = true;
+      }
+      if (fora.length > INVENTARIO_MAX) {
+        fora = fora.slice(0, INVENTARIO_MAX);
+        cortou = true;
+      }
+    }
+    return (
+      "\n\n[Peças deste processo que NÃO estão anexadas — apenas id e título, " +
+      "você não leu o conteúdo delas: " +
+      fora.map((d) => d.titulo).join("; ") +
+      "." +
+      (cortou
+        ? " (Listadas " + fora.length + " de " + total + "; as demais são de expediente.)"
+        : "") +
+      "]"
+    );
+  }
+  // Relevância de uma peça, pela MESMA regra que classifica a lista no painel —
+  // duplicar a tabela aqui garantiria que as duas divergissem com o tempo.
+  // Degrada para "relevante" (nunca corta nada) se o painel não expuser a API.
+  function classificarDoc(d) {
+    try {
+      return panel.classificarPeca(d).rel;
+    } catch {
+      return "relevante";
+    }
+  }
+
   // Monta os blocos das peças; marca o último com cache_control para que os
   // turnos seguintes reaproveitem o prefixo (economia de ~90% nos tokens).
   // O "title" nos blocos document permite ao modelo citar a peça pelo nome.
@@ -1044,10 +1325,18 @@
           __pecaId: id,
         });
       } else {
-        // peças HTML viram documento de texto puro — também citáveis
+        // peças HTML/RTF viram documento de texto puro — também citáveis.
+        // O corte em MAX_CHARS_TEXTO leva o aviso junto: sem ele o modelo lê
+        // uma peça pela metade sem saber disso e responde "não consta" sobre o
+        // que ficou de fora — erro que a UI não tem como distinguir de acerto.
+        const cortado = d.text.length > MAX_CHARS_TEXTO;
         blocks.push({
           type: "document",
-          source: { type: "text", media_type: "text/plain", data: d.text.slice(0, 60000) },
+          source: {
+            type: "text",
+            media_type: "text/plain",
+            data: cortado ? d.text.slice(0, MAX_CHARS_TEXTO) + MARCA_TRUNCADO : d.text,
+          },
           title: metaDe(id).titulo,
           citations: { enabled: true },
           __pecaId: id,
@@ -1102,6 +1391,37 @@
       }
       return { role: t.role, content };
     });
+  }
+
+  // Acrescenta o inventário de peças não anexadas ao ÚLTIMO bloco de texto do
+  // último turno do usuário. Opera sobre a saída de `prepararEnvio`, que já é
+  // uma cópia — por isso `conversation` nunca vê o inventário e ele não se
+  // acumula no histórico.
+  function comInventario(msgs, idsAnexados) {
+    const txt = inventarioNaoMarcadas(idsAnexados);
+    if (!txt || !msgs.length) return msgs;
+    const i = msgs.length - 1;
+    const ultima = msgs[i];
+    if (ultima.role !== "user") return msgs;
+    if (typeof ultima.content === "string") {
+      return msgs
+        .slice(0, i)
+        .concat([{ role: "user", content: ultima.content + txt }]);
+    }
+    if (!Array.isArray(ultima.content)) return msgs;
+    // o último bloco de texto é o da pergunta; os anteriores são as peças
+    let alvo = -1;
+    for (let k = ultima.content.length - 1; k >= 0; k--) {
+      if (ultima.content[k] && ultima.content[k].type === "text") {
+        alvo = k;
+        break;
+      }
+    }
+    if (alvo < 0) return msgs;
+    const content = ultima.content.map((b, k) =>
+      k === alvo ? Object.assign({}, b, { text: b.text + txt }) : b
+    );
+    return msgs.slice(0, i).concat([{ role: "user", content }]);
   }
 
   // Abre um canal com o worker e resolve quando o turno termina.
@@ -1371,7 +1691,7 @@
         t +=
           d.kind === "pdf"
             ? (d.pages || 1) * tokensPagina
-            : Math.ceil(Math.min(d.text.length, 60000) / CHARS_POR_TOKEN);
+            : Math.ceil(Math.min(d.text.length, MAX_CHARS_TEXTO) / CHARS_POR_TOKEN);
       }
     }
     for (const turn of conversation) {
@@ -1402,6 +1722,9 @@
       (u.cache_read_input_tokens || 0) +
       (u.output_tokens || 0);
     if (!tokens) return;
+    // Medição EXATA e de graça deste estado. Além do medidor, é o que permite
+    // dispensar o count_tokens do próximo turno quando a folga é larga.
+    ultimoTotalExato = tokens;
     panel.setContexto({
       tokens,
       ctxTokens: modelCaps.contextTokens,
@@ -1411,6 +1734,25 @@
     });
     // medição real deste estado: refreshs da timeline não precisam re-medir
     ultimaChaveEst = ids.slice().sort().join(",") + "|" + conversation.length;
+  }
+
+  // Fração da janela abaixo da qual o pré-voo não tem o que decidir. 60% deixa
+  // 40% de margem para a estimativa local errar — ela erra para MAIS nos PDFs
+  // (2000 tokens/página é o teto da ordem de grandeza), que é o lado seguro.
+  const LIMIAR_PULAR_PREVOO = 0.6;
+
+  function podePularPreVoo(ids) {
+    if (!modelCaps || !modelCaps.contextTokens) return false;
+    // sem uma medição EXATA anterior não há base de comparação
+    if (!ultimoTotalExato) return false;
+    // Peça selecionada sem conteúdo em cache não entra na estimativa local
+    // (estimativaLocalTokens a pula de propósito, para não fingir precisão) —
+    // e o que não é medido não pode ser dispensado da medição.
+    if (ids.some((id) => !docsCache.has(id))) return false;
+    // o maior entre o que o request anterior custou de fato e o que este deve
+    // custar: a estimativa local sozinha subestimaria thinking e ferramentas
+    const base = Math.max(ultimoTotalExato, estimativaLocalTokens(ids));
+    return base < modelCaps.contextTokens * LIMIAR_PULAR_PREVOO;
   }
 
   function mostrarEstimativaLocal(ids) {
@@ -1448,6 +1790,50 @@
   });
 
   // Camada 2 da medição, disparada pela mudança de seleção (com debounce,
+  // Prefetch de seleções grandes, em lotes e cancelável.
+  //
+  // Ordem: peças de maior relevância primeiro. Se o usuário interromper (ou o
+  // envio começar), o que já baixou é justamente o que mais importa — e é o que
+  // o envio vai precisar primeiro de qualquer forma.
+  const LOTE_PREFETCH = 4;
+  async function prefetchProgressivo(ids, faltam, seq) {
+    const peso = { essencial: 0, relevante: 1, neutro: 2, ruido: 3 };
+    const fila = faltam
+      .map((id) => ({ id, p: peso[classificarDoc(metaDe(id))] ?? 1 }))
+      .sort((a, b) => a.p - b.p)
+      .map((x) => x.id);
+
+    let feitas = 0;
+    const total = fila.length;
+    while (fila.length) {
+      // Cede ANTES de cada lote: `busy` cobre o envio (que passa a ser dono do
+      // download) e `estSeq` cobre uma nova seleção. Sem esta guarda o
+      // prefetch competiria com o turno pela sessão JSF, que é serializada.
+      if (seq !== estSeq || busy || exportando) {
+        panel.setStatus("");
+        return;
+      }
+      const lote = fila.splice(0, LOTE_PREFETCH);
+      await baixarQuieto(lote);
+      feitas += lote.length;
+      if (seq !== estSeq || busy || exportando) {
+        panel.setStatus("");
+        return;
+      }
+      mostrarEstimativaLocal(ids);
+      panel.setStatus(
+        fila.length
+          ? "Adiantando o download das peças (" + feitas + "/" + total + ") — pode " +
+            "escrever a pergunta normalmente."
+          : "",
+        !!fila.length
+      );
+    }
+    // Baixou tudo: agora a medição exata cabe, e ela é barata (as peças já
+    // estão em cache e serão referenciadas por file_id).
+    if (seq === estSeq && !busy && !exportando) refinarContexto(ids);
+  }
+
   // acima).
   async function refinarContexto(ids) {
     // `exportando` entra aqui, e não na guarda de cima: a estimativa LOCAL
@@ -1464,13 +1850,20 @@
       await garantirCaps();
       const faltam = ids.filter((id) => !docsCache.has(id));
       if (faltam.length > LIMIAR_PREFETCH) {
-        // seleção grande (ex.: "todas" marcadas): não dispara a tempestade
-        // de downloads — estimativa parcial honesta, medição exata no envio
+        // SELEÇÃO GRANDE (ex.: "principais" com 40 peças, ou "todas").
+        //
+        // Medir tudo aqui levaria minutos — o PJe serializa a entrega. Mas
+        // parar por completo desperdiçava o tempo mais valioso do fluxo: o
+        // usuário leva de meio a um minuto escrevendo a pergunta, e nesse
+        // intervalo nada era baixado; o envio pagava a fila inteira do zero.
+        //
+        // Então baixamos um LOTE por vez, em ordem de relevância, cedendo a
+        // qualquer sinal de que o usuário agiu (nova seleção, envio,
+        // exportação). O que baixar entra no cache e o envio reaproveita; o
+        // que não baixar, o envio busca com o card de progresso visível — o
+        // comportamento de antes, nunca pior.
         mostrarEstimativaLocal(ids);
-        panel.setStatus(
-          "Estimativa parcial: " + faltam.length +
-            " peça(s) ainda não baixadas — a medição completa acontece no envio."
-        );
+        await prefetchProgressivo(ids, faltam, seq);
         return;
       }
       // baixa o que falta; a barrinha sobe a cada peça que chega
@@ -1618,19 +2011,47 @@
       // O request de fato: histórico + turno novo, SEM os blocos das peças
       // desmarcadas (prepararEnvio filtra por __pecaId) e sem campos internos.
       const ativos = new Set(selectedIds);
-      const msgsEnvio = prepararEnvio(
-        [...conversation, { role: "user", content: userContent }],
-        ativos
+      // O inventário entra AQUI, na cópia que vai à API — antes do count_tokens,
+      // para o pré-voo medir exatamente o request que será enviado.
+      const msgsEnvio = comInventario(
+        prepararEnvio(
+          [...conversation, { role: "user", content: userContent }],
+          ativos
+        ),
+        selectedIds
       );
 
-      panel.setStatus("Estimando o tamanho do contexto…", true);
-      const est = await estimarContexto(msgsEnvio, opts);
+      // PRÉ-VOO CONDICIONAL. O count_tokens custa uma ida e volta à API e, num
+      // turno sem peça nova (a pergunta de acompanhamento), é o ÚNICO bloqueio
+      // antes do stream — ou seja, 100% do tempo que o usuário percebe entre o
+      // Enter e o primeiro token.
+      //
+      // Ele existe para uma coisa: barrar o envio acima de 90% da janela. Quando
+      // o turno anterior deixou uma medição EXATA (o usage do último request
+      // físico, que já vem de graça) e a estimativa local do que foi acrescido
+      // desde então mantém tudo muito abaixo do limite, não há o que barrar — a
+      // guarda de 90% e o tratamento de model_context_window_exceeded seguem
+      // como rede se a conta estiver errada.
+      let est = null;
+      const pulouPreVoo = podePularPreVoo(selectedIds);
+      if (pulouPreVoo) {
+        console.debug("[PJe IA] pré-voo pulado: folga larga sobre a medição exata anterior");
+      } else {
+        panel.setStatus("Estimando o tamanho do contexto…", true);
+        est = await estimarContexto(msgsEnvio, opts);
+      }
       if (attach) panel.endPrep(); // confirma "peças anexadas" após validar limites
       // Relatório do que ficou de fora. Fica NO CHAT (não no .status, que é
       // transitório): o usuário precisa poder ler com calma, ver o motivo de
       // cada peça e tentar de novo depois — sem que a análise que ele pediu
       // tenha sido perdida no caminho.
       if (falhasDownload.length) panel.mostrarFalhasPecas(falhasDownload);
+      // Peças que entraram CORTADAS. Só as deste turno: as dos turnos
+      // anteriores já foram reportadas quando entraram.
+      const cortadas = pecasTruncadas(anexadas);
+      if (cortadas.length) {
+        panel.mostrarFalhasPecas(cortadas, avisoTrunc(cortadas.length));
+      }
       let infoCtx = "";
       if (est) {
         infoCtx = " (~" + Math.round(est.tokens / 1000) + " mil tokens, " + est.pct + "% do contexto)";
@@ -1643,11 +2064,16 @@
           pecas: selectedIds.length,
         });
       } else {
-        // count_tokens falhou (ex.: 429 após muitos uploads): re-pinta com a
-        // estimativa local — o cache agora tem todas as peças baixadas, então
-        // o número é decente. Sem isto o medidor ficaria CONGELADO no retrato
-        // de quando a seleção foi feita ("N peça(s) sem medir", 0%).
+        // Dois caminhos chegam aqui: o pré-voo foi PULADO (folga larga) ou ele
+        // FALHOU (ex.: 429 após muitos uploads). Nos dois, re-pinta com a
+        // estimativa local — o cache agora tem todas as peças baixadas, então o
+        // número é decente. Sem isto o medidor ficaria CONGELADO no retrato de
+        // quando a seleção foi feita ("N peça(s) sem medir", 0%).
         mostrarEstimativaLocal(selectedIds);
+        // Pular só acontece com folga larga sobre a janela — o que significa
+        // que qualquer alerta de contexto cheio anterior está resolvido. Falha
+        // do count_tokens não diz nada sobre isso, então ali o alerta fica.
+        if (pulouPreVoo) panel.setAlerta(null);
       }
 
       conversation.push({ role: "user", content: userContent });
@@ -1851,6 +2277,144 @@
     } finally {
       busy = false;
       panel.lockInput(false);
+      // Um ponto só para os QUATRO caminhos que mexem em `pecasNaConversa`
+      // (turno bem-sucedido, resposta vazia, erro e turno desfeito): o finally
+      // roda em todos, e espalhar a chamada garantiria esquecer um deles.
+      panel.setPecasEnviadas([...pecasNaConversa]);
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // ESCOLHER COM IA — a camada 2 da seleção de peças.
+  //
+  // Manda à IA SÓ A LISTA (id, título, tipo e data de juntada) — nenhum byte de
+  // conteúdo de peça — e recebe de volta os ids relevantes. É o que a regex da
+  // camada 1 não consegue fazer: distinguir, entre sete peças chamadas
+  // "Petição", qual é a inicial; entender que a "Manifestação" logo após o
+  // laudo é a manifestação sobre o laudo; ler um "Documento 3".
+  //
+  // É um chat comum e ISOLADO, como a minuta e o mapa: sem tools, sem peças
+  // anexadas, sem entrar em `conversation` nem em `pecasNaConversa` — logo,
+  // funciona nos três provedores e não altera a conversa em andamento.
+  //
+  // Barato: ~30 tokens por peça (300 peças ≈ 9 mil tokens de entrada, alguns
+  // centavos no pior caso) contra as centenas de milhares que a análise em si
+  // consome. Mas o custo aparece no rodapé como qualquer outro turno.
+  // ---------------------------------------------------------------------------
+  const MAX_LINHAS_IA = 400; // teto de sanidade; acima disso o pedido já não cabe bem
+  const SUFIXO_ESCOLHA = [
+    " Responda APENAS com um objeto JSON válido, sem preâmbulo, sem comentário e sem",
+    "blocos de código (sem cercas ```). Formato exato:",
+    '{"ids":["123456","123457"],"motivos":{"123456":"petição inicial"},"resumo":"frase curta"}.',
+    "Em `ids`, os ids das peças escolhidas, na ordem em que aparecem na lista, usando",
+    "EXATAMENTE os ids informados — nunca invente um id nem devolva um que não esteja",
+    "na lista. Em `motivos`, no máximo 6 palavras por peça dizendo por que ela entrou.",
+    "Em `resumo`, uma frase dizendo o critério que você usou.",
+    "Escolha o MENOR conjunto que responda bem ao objetivo: peças demais encarecem e",
+    "diluem a análise, peças de menos a inviabilizam. Prefira as peças de conteúdo",
+    "(petições, decisões, laudos, atas) e deixe de fora o expediente (certidões de",
+    "intimação, avisos de recebimento, guias, procurações, termos de juntada), a menos",
+    "que o objetivo peça justamente esses. Quando várias peças tiverem o mesmo título,",
+    "use a DATA e a posição na lista para deduzir qual é qual (a primeira 'Petição' de",
+    "um processo costuma ser a inicial).",
+  ].join(" ");
+
+  function linhasDaLista(docs) {
+    return docs.slice(0, MAX_LINHAS_IA).map((d) => {
+      const p = [d.titulo];
+      if (d.tipo) p.push("tipo: " + d.tipo);
+      if (d.juntadoEm) p.push("juntada: " + d.juntadoEm);
+      return "- " + p.join(" | ");
+    });
+  }
+
+  // O modelo pode devolver o JSON cercado por ``` ou com um preâmbulo, apesar da
+  // instrução. Extrai o primeiro objeto plausível em vez de falhar.
+  function lerJsonEscolha(texto) {
+    const s = String(texto || "");
+    const bruto = s.slice(s.indexOf("{"), s.lastIndexOf("}") + 1);
+    if (!bruto) return null;
+    try {
+      return JSON.parse(bruto);
+    } catch {
+      return null;
+    }
+  }
+
+  panel.onEscolherIA(async (docs, objetivo) => {
+    if (busy || bloqueadoPelaExportacao()) return;
+    if (!docs || !docs.length) return;
+    busy = true;
+    panel.setIaOcupado(true);
+    panel.setStatus("Lendo a lista de peças e escolhendo as relevantes…", true);
+    try {
+      await garantirCaps();
+      const alvo = objetivo
+        ? 'responder a esta pergunta do usuário: "' + objetivo.slice(0, 500) + '"'
+        : "entender o processo: quem são as partes, o que se pede, o que a outra " +
+          "parte responde, que provas há e como o feito está hoje";
+      const texto =
+        "Abaixo está a lista COMPLETA de peças de um processo judicial do PJe — " +
+        "apenas id, título, tipo e data de juntada; você NÃO tem o conteúdo delas. " +
+        "Escolha as peças que precisam ser lidas para " + alvo + "." +
+        SUFIXO_ESCOLHA +
+        "\n\nLISTA DE PEÇAS:\n" +
+        linhasDaLista(docs).join("\n") +
+        (docs.length > MAX_LINHAS_IA
+          ? "\n(lista truncada em " + MAX_LINHAS_IA + " de " + docs.length + " peças)"
+          : "");
+
+      let acc = "";
+      const fim = await stream(
+        prepararEnvio([{ role: "user", content: [{ type: "text", text: texto }] }], null),
+        {
+          onDelta(d) {
+            acc += d;
+          },
+          onThinking() {},
+          onTool() {},
+          onTrunc() {},
+          onRetry() {
+            acc = "";
+            panel.setStatus("Instabilidade momentânea na API — tentando de novo…", true);
+          },
+          onReinicio() {
+            acc = "";
+            panel.setStatus("O serviço da extensão reiniciou — tentando de novo…", true);
+          },
+        }
+      );
+      registrarCusto(fim);
+
+      const r = lerJsonEscolha(acc);
+      // Só ids que EXISTEM na lista: um id inventado marcaria nada e faria a
+      // contagem mentir. Também dedup, porque o modelo às vezes repete.
+      const validos = new Set(docs.map((d) => d.id));
+      const ids = [...new Set((r && Array.isArray(r.ids) ? r.ids : []).map(String))].filter(
+        (id) => validos.has(id)
+      );
+      if (!ids.length) {
+        panel.setStatus(
+          "A IA não conseguiu escolher peças desta lista. Use os atalhos chave/principais."
+        );
+        return;
+      }
+      panel.aplicarEscolhaIA(ids, (r && r.motivos) || null);
+      panel.setStatus("");
+      // O resultado precisa ser AUDITÁVEL: o usuário tem de poder discordar. O
+      // critério vai na nota e o motivo de cada peça no title da linha dela.
+      panel.setSelNota(
+        "✨ A IA marcou " + ids.length + " de " + docs.length + " peças" +
+          (r && r.resumo ? " — " + String(r.resumo).slice(0, 160) : "") +
+          ". Passe o mouse numa peça para ver o motivo; ajuste à vontade."
+      );
+    } catch (e) {
+      const msg = (e && e.message) || String(e);
+      panel.setStatus("Não foi possível escolher com IA: " + msg);
+      if (e && e.ctxCheio) panel.setAlerta(ALERTA_CTX_CHEIO);
+    } finally {
+      busy = false;
+      panel.setIaOcupado(false);
     }
   });
 
@@ -1977,6 +2541,10 @@
       const blocos = montarBlocos(dl.ok);
       panel.endPrep();
       if (dl.falhas.length) panel.mostrarFalhasPecas(dl.falhas);
+      const cortadasMinuta = pecasTruncadas(dl.ok);
+      if (cortadasMinuta.length) {
+        panel.mostrarFalhasPecas(cortadasMinuta, avisoTrunc(cortadasMinuta.length));
+      }
 
       panel.setStatus("Redigindo a minuta a partir das peças marcadas…", true);
       assistantEl = panel.addMessage("assistant", "");
@@ -2004,12 +2572,19 @@
                 // cada bloco document) porque o id é OBRIGATÓRIO na origem de
                 // cada afirmação: é por ele que se reencontra a peça na
                 // timeline do PJe.
+                //
+                // A lista sai de `dl.ok`, NUNCA de `selectedIds`: peça que
+                // falhou no download não tem bloco no request, e anunciá-la
+                // como anexada convida o modelo a citar um id que ele não viu
+                // — o pior erro possível aqui, porque a citação sai com a
+                // mesma cara de uma legítima e só se descobre conferindo os
+                // autos.
                 text:
                   instrucao +
                   SUFIXO_MINUTA +
                   reforcoModelo +
                   " Peças anexadas, use exatamente estes ids: " +
-                  selectedIds.map((id) => metaDe(id).titulo).join("; ") +
+                  dl.ok.map((id) => metaDe(id).titulo).join("; ") +
                   ".",
               },
             ],
@@ -2235,6 +2810,10 @@
       const blocos = montarBlocos(dl.ok);
       panel.endPrep();
       if (dl.falhas.length) panel.mostrarFalhasPecas(dl.falhas);
+      const cortadasMapa = pecasTruncadas(dl.ok);
+      if (cortadasMapa.length) {
+        panel.mostrarFalhasPecas(cortadasMapa, avisoTrunc(cortadasMapa.length));
+      }
 
       panel.setStatus("Montando o mapa mental a partir das peças marcadas…", true);
       assistantEl = panel.addMessage("assistant", "");
@@ -2254,11 +2833,15 @@
                 // cada bloco document) porque o id é OBRIGATÓRIO na origem de
                 // cada tópico: é por ele que o usuário reencontra a peça na
                 // timeline do PJe.
+                //
+                // Sai de `dl.ok`, NUNCA de `selectedIds` — ver a nota igual no
+                // caminho da minuta: anunciar uma peça que não baixou faz o
+                // modelo citar um id que ele nunca viu.
                 text:
                   instrucao +
                   SUFIXO_MAPA +
                   " Peças anexadas, use exatamente estes ids: " +
-                  selectedIds.map((id) => metaDe(id).titulo).join("; ") +
+                  dl.ok.map((id) => metaDe(id).titulo).join("; ") +
                   ".",
               },
             ],

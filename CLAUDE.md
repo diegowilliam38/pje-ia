@@ -243,6 +243,38 @@ Regras que NÃO podem quebrar:
   `chrome.storage.session` (chave `idProcesso:idPeca:tamanho`); beta
   `files-api-2025-04-14` em todos os requests de chat. Base64 inline é só fallback de
   upload (aí vale o teto `MAX_TOTAL_B64_CHARS` de 24 MB).
+- **O upload é PIPELINADO ao download** (bomba dentro de `baixarSelecionadas`): cada
+  peça começa a subir assim que ELA baixa, em vez de esperar a fila inteira — o turno
+  passa de `Σdownload + Σupload` para `Σdownload + o upload da última`. A bomba mora
+  ali, e não no handler de envio, porque existem TRÊS pares baixar→subir idênticos
+  (chat, minuta e mapa): assim os três ganham o pipeline sem mudar os call sites.
+  Invariantes que não podem cair:
+  - **UM LOTE POR VEZ** (flag `bombeando`). O cache de upload do worker é
+    read-then-write: duas chamadas simultâneas com a mesma `cacheKey` erram o cache
+    as duas e sobem o arquivo duas vezes.
+  - **`try/catch` em volta de cada lote.** Uma rejeição não tratada se propagaria
+    pelo `await cadeiaUpload` e derrubaria o turno inteiro por causa de um upload — o
+    oposto do design, em que falha de upload só devolve a peça ao fallback base64.
+  - **`await cadeiaUpload` antes de devolver** `{ok, falhas}`. Sem isso o chamador
+    seguiria para o seu próprio `subirPecas` com uploads em voo, e voltaria a corrida.
+  - Os `await subirPecas(...)` que ficaram nos call sites viram no-ops para quem
+    subiu e uma SEGUNDA tentativa para quem falhou — intencional (429 por rate limit
+    costuma passar em segundos); no máximo duas tentativas por peça e por turno.
+  - `guardaPaginas` passa a rodar DEPOIS dos uploads. Aceito: os `fileId` ficam em
+    `chrome.storage.session` e viram prefetch, `refinarContexto` já subia sem guarda
+    de páginas, e `paginasDe` depende do `d.pages` que só existe após o download.
+  - `baixarQuieto` (medição de fundo) fica FORA do pipeline: é cancelável por
+    `estSeq`/`busy` entre awaits, e uploads em voo depois do cancelamento
+    reintroduziriam a corrida sem ninguém para aguardá-los.
+- **Pré-voo (`count_tokens`) CONDICIONAL** (`podePularPreVoo`): num turno sem peça
+  nova ele é o ÚNICO bloqueio antes do stream, isto é, 100% do tempo percebido entre
+  o Enter e o primeiro token. Ele existe para barrar acima de 90% da janela — quando
+  o turno anterior deixou uma medição EXATA (`ultimoTotalExato`, o usage do último
+  request físico, que vem de graça) e o maior entre ela e a estimativa local fica
+  abaixo de `LIMIAR_PULAR_PREVOO` (60% da janela), não há o que barrar. Guardas: sem
+  medição exata anterior (1º turno) mede; peça selecionada FORA do cache mede (o que
+  não é medido não pode ser dispensado da medição). A guarda de 90% e o tratamento de
+  `model_context_window_exceeded` seguem como rede.
 - **Guardas de processo grande**: contagem de páginas por heurística no binário do PDF
   (`pje.js`) bloqueia acima de `MODEL_CAPS.maxPages` ANTES do envio; `count_tokens`
   (gratuito) estima o contexto e bloqueia acima de 90% da janela — e recebe as
@@ -269,7 +301,7 @@ Regras que NÃO podem quebrar:
 - **Fonte de verdade da seleção de peças**: os checkboxes de `.doclist` em `panel.js`.
   Chips da barra de contexto, contador `x/y no contexto` (pill no cabeçalho da lista,
   em duas linhas: título+pill+«, depois a busca + o segmented control
-  `principais|todas`), popup `@` e mensagens são
+  `chave|principais|todas`), popup `@` e mensagens são
   *projeções* desse estado — nunca guarde seleção em outro lugar.
 - **DUAS rotas de download, nesta ordem** (`urlsDownload` em pje.js):
   1. **COMPLETA** — `.../download/{TRIBUNAL}/{grau}/{idProcesso}/{idDocumento}`, com a
@@ -287,7 +319,15 @@ Regras que NÃO podem quebrar:
   JSF. Quando nenhuma rota devolve corpo útil, `pje.js` simula o clique na timeline (A4J)
   e faz poll com HEAD até liberar, e tenta as rotas de novo. As ativações são
   **serializadas** (`activationChain`) — o JSF não tolera dois submits simultâneos na
-  mesma view. A ativação depende de a peça estar NA TIMELINE, o que pode não valer para
+  mesma view.
+  **O poll sonda a MESMA rota que o download vai usar** — `urlsDownload(id)[0]`, a
+  completa. Sondar a curta era um defeito silencioso e caro: ela responde 200 com
+  casca vazia em toda peça HTML (decisões, despachos, petições do editor), então
+  `probe.ok` ficava verdadeiro no primeiro poll e a ativação DESISTIA em 700 ms em vez
+  de esperar os ~5,6 s — e o erro final era "a peça retornou vazia", exatamente a
+  falha que a ativação existe para resolver, justamente nas peças que mais importam.
+  Com `HEAD` não dá para distinguir casca de conteúdo (não há corpo), então a
+  correção é a ROTA, não o critério. A ativação depende de a peça estar NA TIMELINE, o que pode não valer para
   peças que só a grid conhece; a falha dela não interrompe o fluxo. Cada download loga
   `[PJe IA] peça …` no console da página (F12) para diagnóstico.
 - **TRÊS formatos de peça** (`lerCorpo`): **PDF** (digitalizados e anexos), **HTML**
@@ -387,9 +427,19 @@ Regras que NÃO podem quebrar:
   (upload à Files API já na medição: count_tokens referencia por file_id, payload
   mínimo, e o envio reaproveia — prefetch completo) → count_tokens corrige o número.
   GUARDA de escala: acima de `LIMIAR_PREFETCH` (12) peças sem cache (ex.: "todas"
-  marcadas), o refinamento NÃO dispara downloads — a ativação JSF do PJe é
-  serializada e levaria minutos; fica a estimativa parcial e a medição completa
-  acontece no envio. `estSeq` descarta respostas atrasadas e `ultimaChaveEst`
+  marcadas), a medição completa não roda — a ativação JSF do PJe é serializada e
+  levaria minutos. Em vez de parar por completo, entra o **prefetch progressivo**
+  (`prefetchProgressivo`): baixa em lotes de `LOTE_PREFETCH` (4), **em ordem de
+  relevância** (essencial → relevante → neutro → ruído), cedendo a `busy`, `estSeq` e
+  `exportando` ANTES de cada lote. Motivo: o usuário leva de meio a um minuto
+  escrevendo a pergunta, e esse tempo era desperdiçado — o envio pagava a fila inteira
+  do zero. Ordenar por relevância importa porque, se ele interromper, o que já baixou
+  é justamente o que o envio vai pedir primeiro. Ceder é obrigatório: o prefetch
+  competiria com o turno pela sessão JSF, que é serializada. Ao terminar, chama
+  `refinarContexto` de volta — sem laço, porque ali `faltam` já está vazio e o
+  caminho normal assume. Nunca deixa o estado pior que o de antes: o que não baixar,
+  o envio busca com o card de progresso visível.
+  `estSeq` descarta respostas atrasadas e `ultimaChaveEst`
   (ids ordenados + tamanho da conversa) evita re-medir nos refreshs da timeline —
   a chave é limpa sempre que o alerta liga, para a próxima mudança re-medir.
   Durante um turno (`busy`) o handler de seleção retorna cedo: refreshs da
@@ -437,7 +487,19 @@ Regras que NÃO podem quebrar:
   blocos.
 - **Turnos desfeitos em erro**: em falha ou resposta vazia, `content.js` faz `pop()` do
   turno do usuário e remove as peças do turno de `pecasNaConversa`, para permitir nova
-  tentativa limpa.
+  tentativa limpa. `panel.setPecasEnviadas([...pecasNaConversa])` é chamado no
+  **`finally`** do turno: são QUATRO caminhos que mexem em `pecasNaConversa` (sucesso,
+  resposta vazia, erro e turno desfeito) e espalhar a chamada garantiria esquecer um.
+- **Peça de texto (HTML/RTF) é cortada em `MAX_CHARS_TEXTO` (60.000), e o corte NÃO
+  pode ser silencioso**: são ~30 páginas, e sentença com transcrição de depoimentos ou
+  RTF de processo migrado passam disso. O texto cortado leva `MARCA_TRUNCADO` — um
+  aviso explícito para o modelo não concluir que algo "não consta" do que ele não
+  leu — e a peça entra em `pecasTruncadas`, reportada ao usuário pelo canal do
+  `mostrarFalhasPecas` com rótulos próprios (`avisoTrunc`): ali as peças ENTRARAM,
+  pela metade, que é uma perda de outra natureza que a do download. `mostrarFalhasPecas`
+  ganhou `opts {titulo, dica}` para isso; sem opts o texto é byte a byte o de antes.
+  A mesma constante alimenta `estimativaLocalTokens`, para as duas leituras nunca
+  divergirem.
 - **Keepalive do service worker (MV3)**: o Chrome mata o worker após ~30 s sem eventos
   de extensão — fatal em turnos longos que ficam muito tempo sem emitir SSE (raciocínio
   extenso, busca na web) com
@@ -459,12 +521,40 @@ Regras que NÃO podem quebrar:
   `SYSTEM_PROMPT_CIT_TEXTUAL`, o `SUFIXO_MINUTA` e o `SUFIXO_MAPA` usam o mesmo
   formato literal `(Peça, id 123456, fl. 7)`. Ao editar um deles, editar os quatro.
 - **Contexto do caso no system** (`contextoDoProcesso` em content.js): número CNJ
-  (`PJE.getNumeroProcesso`) e data de hoje. Sem o CNJ o mapa mental titulava com
-  número inventado; sem a data, prazos e "situação atual" saíam calculados contra o
-  conhecimento congelado do modelo. Ambos entram por `systemPromptAtual()` — o mesmo
-  ponto único do `customPrompt` —, então alcançam chat, minuta, mapa e count_tokens
-  nos dois provedores de uma vez. A data muda o system uma vez por dia, o que é
-  inofensivo: o cache é ephemeral de 5 min e a virada nunca cai numa janela viva.
+  (`PJE.getNumeroProcesso`), **ficha do processo** e data de hoje. Sem o CNJ o mapa
+  mental titulava com número inventado; sem a data, prazos e "situação atual" saíam
+  calculados contra o conhecimento congelado do modelo. Todos entram por
+  `systemPromptAtual()` — o mesmo ponto único do `customPrompt` —, então alcançam
+  chat, minuta, mapa e count_tokens nos três provedores de uma vez. A data muda o
+  system uma vez por dia, o que é inofensivo: o cache é ephemeral de 5 min e a virada
+  nunca cai numa janela viva.
+  A **ficha** (`resumoFicha`) sai de `PJE.lerCabecalhoProcesso()`, que já existia e
+  até então só a exportação `.zip` usava: classe, assunto, órgão julgador e os
+  titulares de cada polo (representantes NÃO entram — dobrariam o tamanho sem ajudar
+  a entender o caso). São ~80 tokens que o modelo não deduz com segurança dos PDFs
+  (nem sempre a peça marcada é a inicial), e sem eles ele troca os polos e erra o
+  rito. Lida UMA vez por sessão (`fichaCache`): `systemPromptAtual()` roda duas vezes
+  por turno e raspar o DOM de novo seria desperdício. Best-effort: ficha nula ⇒ o
+  system fica byte a byte o de antes.
+- **Inventário das peças NÃO anexadas** (`inventarioNaoMarcadas` + `comInventario`):
+  ao fim do turno do usuário vai a lista de `id - título` das peças que estão na
+  timeline mas ficaram de fora. É o que fecha o ciclo entre a IA e a seleção — sem
+  ele, perguntar "qual foi o valor da perícia?" com o laudo desmarcado devolve um
+  "não consta" seco, e o usuário não descobre que a peça está a um clique.
+  - Vai no **texto do turno**, nunca no system: a lista muda a cada refresh da
+    timeline (MutationObserver, debounce de 400 ms) e no system invalidaria o cache
+    de prefixo o tempo todo.
+  - E é anexado só na **cópia** que vai à API (`prepararEnvio` já devolve uma), nunca
+    em `conversation`: no histórico ele se acumularia turno a turno — dez turnos com
+    200 peças seriam ~20 mil tokens de listas repetidas e desatualizadas. Teste
+    cobre: no 2º turno tem de haver exatamente UM inventário.
+  - Entra ANTES do `estimarContexto`, para o pré-voo medir o request que vai de fato.
+  - Teto `INVENTARIO_MAX` (80): acima disso, só as peças de relevância
+    `essencial`/`relevante` (mesmo critério do "principais"), e o corte vai DITO no
+    texto — sem cap silencioso.
+  - `PROMPT_FIM` traz a regra correspondente: **nunca afirmar conteúdo de peça não
+    anexada**, e distinguir "não consta das peças anexadas" de "não existe no
+    processo". Sem ela o modelo trataria a lista como conteúdo disponível.
 
 ## Busca de peças e orientações (panel.js)
 
@@ -505,15 +595,64 @@ Regras que NÃO podem quebrar:
   load escuta. Feedback pela própria dica (`panel.setTimelineTip({texto,
   carregando})`); reentrada bloqueada em content.js (`carregandoTimeline`).
   A mensagem de falha do "ver na timeline" aponta para este botão.
-- **Busca na lista de peças** (`.docsearch`/`filtrarDocs`): filtra por título sem
-  acentos (`row.dataset.busca = norm(titulo)`), só esconde/mostra linhas (`row.hidden`
-  — depende da regra global `[hidden]{display:none !important}` do panel.css); os
-  checkboxes seguem sendo a fonte de verdade (peça marcada e filtrada continua
-  marcada). "todas" respeita o filtro ativo (marca/desmarca só as visíveis). O
-  checkbox "principais" (`.chk-main`) marca/desmarca só as peças com categoria
-  destacada (`.docrow:not(.cat-outro)`) — mesmo contrato do "todas": respeita o
-  filtro e o estado dele é recalculado em `syncSelection`. Esc
-  limpa; `setDocs` re-aplica o filtro após re-renderizar a lista.
+- **Busca na lista de peças** (`.docsearch`/`filtrarDocs`): filtra por título **e pelo
+  tipo oficial** sem acentos (`row.dataset.busca = textoBusca(d)`), só esconde/mostra
+  linhas (`row.hidden` — depende da regra global `[hidden]{display:none !important}` do
+  panel.css); os checkboxes seguem sendo a fonte de verdade (peça marcada e filtrada
+  continua marcada). Indexar o `tipo` importa porque o título costuma ser o nome do
+  arquivo ("Documentos diversos") e o tipo é o vocabulário controlado do PJe
+  ("Despacho de Mero Expediente"): sem ele, buscar "despacho" não achava a peça que
+  já aparecia dourada na lista. `textoBusca` é usada pela lista **e** pelo popup `@`,
+  para os dois nunca divergirem. Esc limpa; `setDocs` re-aplica o filtro após
+  re-renderizar a lista.
+- **TRÊS degraus de seleção — `chave | principais | todas`** (`DEGRAUS` +
+  `aplicarDegrau` em panel.js), sobre o eixo `data-rel` da row (ver "Relevância"
+  abaixo), **nunca** sobre a classe de categoria:
+  - `chave` (`[data-rel="essencial"]`) — a espinha dorsal: ~12 peças num processo de
+    200. É o degrau que resolve o problema real; "principais" marcava ~78 de 200
+    porque a regra de `cat-peticao` casa quase toda juntada das partes.
+  - `principais` (`:not([data-rel="neutro"]):not([data-rel="ruido"])`) — as peças de
+    conteúdo, sem o expediente.
+  - `todas` — a lista inteira.
+
+  Contrato dos três: **ADITIVO** (marcar nunca desmarca o que o usuário escolheu à
+  mão — os conjuntos são encaixados, então os segmentos acendem em faixa) e
+  **respeitam o filtro ativo** (agem só nas rows visíveis). O recálculo em
+  `syncAtalhos` usa o MESMO conjunto (`rowsVisiveis()`) — quando ele varria a lista
+  inteira, o checkbox se desmarcava sozinho logo após o clique sempre que havia busca.
+  `syncAtalhos` é separado de `syncSelection` porque `filtrarDocs` precisa recalcular
+  **sem** disparar `selChangeCb` (digitar na busca não muda a seleção, e avisar o
+  content script a cada tecla o faria re-estimar o contexto à toa).
+
+  **Modo de falha a não reintroduzir**: degrau com conjunto VAZIO (comum em `chave`
+  antes de a grid ser lida) fazia o clique não fazer nada, em silêncio. A `.sel-nota`
+  diz o motivo — tokens de aviso SUAVE (`--warn-*`), nunca a `.alertbar`. Sem o tipo
+  oficial a classificação sai só do título e `chave` seleciona de menos: a nota
+  aponta o `⟳ Carregar tudo`, que é o botão que resolve.
+- **Relevância — segundo eixo, ortogonal à categoria** (`classificarPeca` em
+  panel.js, logo depois de `CATEGORIAS`): a categoria responde "que tipo de peça é
+  esta?" e vira COR; a relevância responde "esta peça vai para a IA?" e vira
+  `row.dataset.rel` (dataset, **não** classe — as classes `cat-*` são semânticas pelo
+  DESIGN.md §2 e uma `.rel-*` convidaria a pendurar cor nela). Quatro níveis:
+  `essencial` (`RE_CHAVE`), `relevante` (derivado: tem categoria destacada),
+  `neutro`, `ruido` (`RE_RUIDO`). Só os dois extremos têm tabela.
+  - `classificarPeca` normaliza **uma vez por alvo** e devolve `{cat, rel}`;
+    `categoriaDe` virou um wrapper (`.cat`). O custo real nunca foram as regex, é o
+    `norm()` — e `setDocs` re-renderiza a lista a cada mutação da timeline.
+  - Laço EXTERNO por alvo (`d.tipo` antes de `d.titulo`), interno na ordem
+    ruído → chave → categorias: um tipo oficial "Certidão de Intimação" precisa
+    vencer um título que contenha "sentença".
+  - **Ruído força `cat-outro`**: "Certidão de Intimação da Sentença" pintada de
+    dourado atrai o olho para o que não importa.
+  - `RE_RUIDO` é CONSERVADORA e sempre ANCORADA. Nunca usar `certidao` sozinho
+    (trânsito em julgado é ato relevante), `comprovante` sozinho (é prova em
+    consumidor), `carta` sozinho (precatória não é ruído), `juntada de documentos`
+    (é onde vive a prova) nem `mandado` (mandado de segurança).
+  - **Armadilha da construção**: o grupo inteiro vai entre `\b…\b`, então toda
+    alternativa precisa terminar em palavra COMPLETA — `saneador` não pega "Decisão
+    Saneadora" e `acordo homologad` não pega "homologado". Flexões explícitas, nunca
+    `\w*` solto (faria "inicial" casar "inicialmente"). Valem também o lookbehind de
+    `(?<!cumprimento de )sentenca` e a separação `acordao` ≠ `acordo`.
 - **Orientações no estado vazio** (`showEmptyHint`) — **progressive disclosure em
   quatro camadas**, nesta ordem: (1) três passos (`.passos`: marcar → pedir →
   conferir a origem), em coluna única e em 3 colunas SÓ no `.expanded` (na janela
@@ -716,9 +855,53 @@ Code, num script, num arquivo de caso. Regras que não podem quebrar:
   `setPrepState`, o estado **`erro` também adianta o contador** — sem isso a barra
   de uma exportação com falhas nunca chegaria ao fim. Sem `opts`, o card é byte a
   byte o do preparo de envio.
+
+  **Estados de uma peça no card**: `wait` → `loading` (baixando) → `upload` (subindo
+  à Files API, só nos PDFs) → `done`; ou → `erro`, quando o **download** falha. Três
+  regras que não podem cair:
+  - **`prepDone` é IDEMPOTENTE**: conta peças PRONTAS, não transições. Com mais de
+    uma fase, um `done` repetido levaria o contador além de N/N e a barra além de
+    100%. Protege também a exportação, que usa os mesmos estados.
+  - **Nem toda peça sobe** (`precisaUpload`, extraída para ser a fonte ÚNICA da
+    regra e usada pelos dois lados): HTML, RTF e imagem vão inline e ficariam presas
+    em `upload` para sempre.
+  - **Falha de UPLOAD não é `erro`**: a peça cai no fallback base64 e ENTRA no
+    request; marcar erro sugeriria que ela ficou de fora. Falha de upload → `done`;
+    `falhas` (download) continua sendo a única lista de peças ausentes.
+
+  Antes disso o contador batia N/N no fim do download e o card ficava congelado em
+  100% durante todo o upload, parecendo travado. `endPrep` continua onde está — é
+  invariante: só depois de `montarBlocos`, que é onde o teto de base64 pode estourar.
 - **Teto de 600 MB** (`TETO_BYTES`): o conteúdo vive em `docsCache` como base64
   (~1,33× os bytes) e é materializado em Uint8Array ao zipar. Estourar mata a aba
   sem dizer por quê; a mensagem manda exportar em levas marcando parte das peças.
+
+## Seleção assistida por IA (`✨ Escolher com IA`)
+
+Camada 2 da seleção; a camada 1 (`classificarPeca`, por regex) continua sendo o
+padrão instantâneo e é a única que funciona sem chave, offline e em 0 ms. O botão
+vive na `.docs-tip` (escopo "lista toda", regra do DESIGN.md §5), ao lado de
+`⟳ Carregar tudo` e `⬇ Baixar .zip`.
+
+- **Só a LISTA sai no request** — `id | título | tipo | data de juntada`, nenhum byte
+  de conteúdo de peça. É um chat comum e ISOLADO (sem tools, sem blocos `document`,
+  fora de `conversation`/`pecasNaConversa`), como a minuta e o mapa: por isso funciona
+  nos três provedores.
+- **Sob demanda, nunca automático**: nada acontece sem o usuário pedir — zero custo
+  surpresa, zero latência não solicitada, e o resultado é sempre atribuível a uma ação
+  dele (coerente com o guia do painel afirmar que a extensão não é agente autônomo).
+- **O texto do campo vira o OBJETIVO** e NÃO é consumido: "houve prescrição?" traz
+  peças diferentes de "qual o valor da causa?"; vazio, o objetivo é descrever o
+  processo. A pergunta continua no campo, pronta para enviar com as peças certas.
+- **A escolha SUBSTITUI a seleção** — contrato oposto ao dos três degraus, que somam.
+  Uma escolha que só acrescenta não é uma escolha: se a IA concluiu que a peça é
+  irrelevante e ela segue marcada, o pedido não foi atendido.
+- **O parser assume que o modelo vai desobedecer** (`lerJsonEscolha`): corta do
+  primeiro `{` ao último `}` (sobrevive a cerca ```` ``` ```` e preâmbulo), descarta id
+  que não está na lista, deduplica repetidos e, se nada sobrar, **não desmarca nada**
+  e diz o que fazer. Cada uma dessas defesas tem teste.
+- **Auditável**: o motivo de cada peça vai no `title` da row e o critério na
+  `.sel-nota` — o usuário precisa poder discordar.
 
 ## Tolerância a falha de download (invariante do envio)
 

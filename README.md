@@ -73,9 +73,10 @@ investigação aberta, um agente com MCP é o caminho — o próprio painel suge
 ### Seleção de peças
 
 - **Checkboxes por documento** — só o que você marcar é enviado; chips acima do campo mostram as peças no contexto (com `×` para remover) e o contador indica `x/y`.
-- **Atalho "principais"** — marca com um clique só as peças destacadas por categoria (decisões, audiências, petições e provas): o essencial da análise processual. "todas" marca a lista inteira; os dois respeitam a busca ativa.
-- **Peças categorizadas por cor** — decisões (dourado), audiências (verde), petições (azul) e provas (violeta) ganham destaque automático, com vocabulário criminal (inquérito, flagrante, interrogatório, pronúncia…) e cível (reconvenção, acordo, quesitos…).
-- **Busca na lista** — filtro instantâneo por título, ignorando acentos.
+- **Três degraus de seleção — `chave | principais | todas`** — degraus encaixados, do mais enxuto ao mais amplo. **chave** traz a espinha dorsal do processo (petição inicial, contestação, réplica, saneador, laudo, ata de instrução, memoriais, sentença, acórdão e recursos): num processo de 200 peças costumam ser cerca de uma dúzia, e são elas que respondem a maioria das perguntas. **principais** acrescenta as demais peças de conteúdo — decisões, audiências, petições e provas —, deixando de fora o expediente (certidões de intimação, avisos de recebimento, guias, procurações). **todas** marca a lista inteira. Os três somam à seleção, nunca desmarcam o que você escolheu à mão, e respeitam a busca ativa.
+- **✨ Escolher com IA** — quando o título das peças não basta (sete "Petição" seguidas, um "Documento 3"), envia à IA só a **lista** — id, título, tipo e data, nenhum conteúdo — e deixa que ela escolha. Se houver uma pergunta escrita no campo, a escolha é feita para **aquela** pergunta; vazio, ela escolhe as peças que descrevem o processo. Custa alguns centavos, leva poucos segundos, e o motivo de cada peça aparece ao passar o mouse.
+- **Peças categorizadas por cor** — decisões (dourado), audiências (verde), petições (roxo) e provas (magenta) ganham destaque automático, com vocabulário criminal (inquérito, flagrante, interrogatório, pronúncia…) e cível (reconvenção, acordo, quesitos…).
+- **Busca na lista** — filtro instantâneo por título **e pelo tipo oficial da peça**, ignorando acentos (buscar "despacho" acha a peça cujo arquivo se chama "Documentos diversos").
 - **Menção com `@`** — digite `@` no campo de pergunta para buscar e marcar peças sem sair do teclado (`↑↓` navega, `Enter` marca, `Esc` fecha).
 - **⟳ Carregar todas as peças** — o PJe só carrega os documentos conforme a linha do tempo é rolada; o botão rola tudo automaticamente para a lista ficar completa.
 - **Preview no hover** — nos modos largos, passar o mouse numa peça abre a pré-visualização do PDF/texto; "Abrir documento" busca peças ainda não carregadas.
@@ -141,7 +142,7 @@ investigação aberta, um agente com MCP é o caminho — o próprio painel suge
 1. Faça login no PJe e abra os **autos de um processo** (tela da linha do tempo de documentos).
 2. Clique no botão **⚖️ Analisar com IA** no canto inferior direito da página.
 3. Clique em **⟳ Carregar todas as peças** (abaixo da lista) — o PJe só carrega os documentos conforme a linha do tempo é rolada; sem esse passo a lista pode estar incompleta.
-4. Marque as peças da análise — o atalho **principais** seleciona as destacadas por categoria de uma vez; a busca e o **`@`** no campo acham peças pelo nome (ex.: `@contestação`).
+4. Marque as peças da análise — **chave** traz a espinha dorsal do processo de uma vez, **principais** acrescenta as demais peças de conteúdo e **todas** marca tudo; **✨ Escolher com IA** decide por você quando os títulos não bastam. A busca e o **`@`** no campo acham peças pelo nome ou pelo tipo (ex.: `@contestação`).
 5. Pergunte — por exemplo:
    - *"Resuma o pedido da inicial e os argumentos da contestação"*
    - *"Monte uma tabela com a linha do tempo dos atos"*

@@ -207,12 +207,32 @@ de 1px antes do ✕, cujo hover é `--erro-hd`.
 
 ### Lista de peças
 Cabeçalho com título serifado + badge de contagem (pill `--accent-bg`) + botão
-recolher «. Busca com glifo ⌕ à esquerda. **Segmented control** `principais |
-todas`: dois botões de largura igual, o ativo com `background: var(--pje)` e
-texto branco, o inativo branco com borda `--line-input`. Legenda de categorias
-com dots de 7px. Itens: checkbox 15px (raio `--r-xs`) + dot 7px da categoria +
-nome (`--fs-meta`, peso 500, truncado) + **id em `--ff-mono`**, `--fs-nano`, cor
-`--muted-3`. Rodapé com "Mostrando N de M" e o botão ↻ Carregar todas.
+recolher «. Busca com glifo ⌕ à esquerda. **Segmented control** `chave |
+principais | todas`: três botões, o ativo com fundo `--accent-bg` e texto
+`--pje-2`, o inativo transparente; separador de 1px entre eles, moldura em pill.
+Legenda de categorias com dots de 7px. Itens: checkbox 15px (raio `--r-xs`) +
+dot 7px da categoria + nome (`--fs-meta`, peso 500, truncado) + **id em
+`--ff-mono`**, `--fs-nano`, cor `--muted-3`. Rodapé com "Mostrando N de M" e o
+botão ↻ Carregar todas.
+
+> **O `<input type=checkbox>` de cada segmento fica fora da tela**
+> (`position:absolute; opacity:0`), nunca `display:none`: ele continua sendo a
+> fonte de verdade do estado e o par `label`+`input` mantém a acessibilidade
+> nativa (foco por teclado, espaço para alternar, leitor de tela). Isso exige
+> `:has(input:focus-visible)` no `.all`, senão o anel de foco desaparece junto.
+> Esconder o checkbox devolve ~18px por segmento — é o que faz os três caberem
+> nos **292px** da coluna do modo expandido, que é o pior caso de largura, mais
+> estreito que os 432px do modo flutuante.
+>
+> Os rótulos têm versão longa e curta (`.op-l`/`.op-s`), mesmo padrão do medidor
+> (`.g-full`/`.g-short`), com a lógica invertida: encurtam nos modos LARGOS,
+> porque lá a lista é uma coluna estreita, e não uma faixa larga.
+>
+> **`.sel-nota`** (linha própria abaixo do controle, ocupando 100% da largura):
+> diz o que o clique fez e por que pode ter feito menos do que se esperava —
+> nenhuma peça reconhecida no degrau, ou lista ainda sem o tipo oficial da grid.
+> Usa o trio de aviso **suave** (`--warn-bg`/`--warn-line`/`--warn-ink`), nunca a
+> `.alertbar`: informa sem impedir de continuar. Some no gesto seguinte.
 
 A faixa abaixo da lista (`.docs-tip`) hospeda as ações que valem para a **lista
 inteira** — hoje `⟳ Carregar todas as peças` e `⬇ Baixar .zip`. Elas compartilham
