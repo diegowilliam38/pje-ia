@@ -1,6 +1,6 @@
 # Política de Privacidade — TecJustiça PJe (Análise de Processos)
 
-**Última atualização: 4 de agosto de 2026**
+**Última atualização: 5 de agosto de 2026**
 
 A extensão **TecJustiça PJe — Análise de Processos** ("a extensão") adiciona um painel de chat
 com IA à tela de autos digitais do PJe (Processo Judicial Eletrônico). Esta política
@@ -23,6 +23,7 @@ são enviados diretamente do seu navegador à API do provedor de IA que você es
 | **Rascunhos de minuta** (o texto que o modelo gera ao usar “Minutar” ou “Abrir no editor”, com o que você editar) | Permitir reabrir e continuar a minuta depois, inclusive noutro dia | `chrome.storage.local` — **ficam gravados neste computador**, não sincronizam e não saem dele. São apagados automaticamente após 7 dias (mantidos no máximo os 10 mais recentes); o botão **Descartar**, no editor, remove um rascunho na hora. |
 | **Modelos de peças** (as peças-modelo que você cadastra na biblioteca “Modelos”: título, categoria, descrição e texto) | Servir de referência de **forma** ao gerar minutas — o assistente segue a estrutura e o estilo dos seus modelos | `chrome.storage.local` — **ficam gravados neste computador**, não sincronizam e não saem dele. Se você colar uma peça real, ela pode conter dados de **outro** processo; use o botão **excluir** da biblioteca para removê-la a qualquer momento. Ao gerar uma minuta com uma categoria escolhida, os textos das peças-modelo daquela categoria (até um teto) vão ao provedor de IA junto do pedido, com a instrução expressa de aproveitar apenas a forma e a linguagem, nunca os fatos. |
 | **Arquivos `.docx` que você importa** para a biblioteca de modelos | Cadastrar peças-modelo sem copiar e colar uma a uma | O arquivo é aberto e lido **dentro do seu próprio navegador** (a extensão descompacta o `.docx` e extrai o texto localmente): ele **não é enviado a nenhum servidor**, nem ao desenvolvedor, nem ao provedor de IA. Só o texto extraído é gravado, e apenas nas fichas que você confirmar — o que ficar de fora da conferência é descartado ao fechar a tela. A partir daí vale exatamente a regra da linha acima. |
+| **Memória de processos** (o texto das peças que você marcou, os dados de cada peça — id, título, nº de páginas, tamanho —, a lista do que estava selecionado e a conversa daquele processo) | Retomar a análise ao reabrir um processo já trabalhado, sem baixar tudo do tribunal de novo | Um banco local (IndexedDB) **da própria extensão**, neste computador. Não sincroniza, não sai daqui e **não guarda os PDFs nem as imagens** das peças — só o texto e as referências. Apagada sozinha após **14 dias** (no máximo 20 processos); o botão **Esquecer este processo**, na faixa do topo da conversa, remove na hora, e desligar “Lembrar dos processos entre sessões” nas opções apaga tudo imediatamente. Junto vai um **resumo irreversível da sua chave de API** (8 dígitos de um hash SHA-256), usado só para detectar que você trocou de chave e invalidar os arquivos enviados na conta anterior — a chave em si nunca é gravada. |
 | **Sessão do PJe** (cookies do tribunal) | Baixar as peças que você marcar, pelo mesmo mecanismo que o próprio PJe usa | Os cookies são gerenciados pelo navegador e **nunca são lidos, armazenados ou exportados pela extensão** — as requisições ao tribunal usam a sessão já aberta por você, e o conteúdo baixado fica em cache temporário na memória da aba. |
 
 Nenhum dado além dos listados acima é tratado. A coleta limita-se ao estritamente
@@ -100,6 +101,18 @@ de ajuda.
   provedor de IA numa moldura `<modelos_de_referencia>` com a instrução expressa de que
   servem **apenas de forma e linguagem** — nenhum fato dos modelos pode entrar na minuta, que
   se baseia só nas peças do processo em tela.
+- **Memória de processos** é a terceira funcionalidade que grava **trecho dos autos** no
+  disco, e a única que faz isso **por conta própria** (as duas anteriores gravam o que você
+  mandou salvar). Ela vive num **IndexedDB da extensão** — não no banco do site do tribunal
+  —, o que significa que só a extensão o enxerga e que limpar os dados do site do PJe não o
+  afeta. O que fica gravado: o **texto** das peças de editor (HTML/RTF), os dados de cada
+  peça (id, título, páginas, tamanho), a referência do arquivo já enviado ao provedor, a
+  conversa daquele processo e a lista do que estava marcado. O que **não** fica: os
+  **PDFs** e as **imagens** — eles são o volume dos autos e são rebaixados do tribunal
+  quando necessário. Três formas de apagar: o botão **Esquecer este processo** na faixa do
+  topo da conversa; desligar **“Lembrar dos processos entre sessões”** nas opções (apaga
+  tudo na hora); ou não fazer nada — nada sobrevive a **14 dias**, e só os **20** processos
+  mais recentes são mantidos.
 - **Exportação em `.zip`** (“⬇ Baixar .zip”, abaixo da lista de peças): monta o arquivo
   **dentro do seu navegador** e o entrega pelo download comum — nada trafega para o
   desenvolvedor nem para nenhum provedor de IA nesta operação; o único servidor

@@ -165,6 +165,26 @@
           <button type="button" class="persona" data-txt="Sou magistrado(a). Resuma controvérsia, provas produzidas e teses de cada parte, indicando o que ainda precisa ser decidido.">Magistrado(a)</button>
         </div>
 
+        <!-- Memória de processos. O interruptor existe porque este é o único
+             recurso que guarda TRECHO DOS AUTOS no disco por conta própria (as
+             minutas e os modelos são coisas que o usuário mandou salvar). Ligado
+             por padrão: o ganho é grande e concreto, e a alternativa — pedir
+             permissão numa caixa antes de qualquer uso — seria fricção para
+             quase todo mundo. O que torna isso defensável é o resto: a faixa de
+             retomada anuncia a memória na tela, o botão de apagar fica junto
+             dela, e nada sobrevive a 14 dias. -->
+        <label class="field field-check">
+          <span class="chk">
+            <input type="checkbox" id="memoriaCaso" checked>
+            <b>Lembrar dos processos entre sessões</b>
+          </span>
+          <i>Ao reabrir um processo já analisado, a conversa volta e as peças não
+          precisam ser baixadas de novo. Ficam guardados <b>neste computador</b> o
+          texto das peças, a lista do que foi selecionado e a conversa — <b>não</b> os
+          PDFs. Tudo é apagado depois de 14 dias, e cada processo tem um botão
+          “Esquecer” no próprio painel.</i>
+        </label>
+
         <div class="save-row">
           <div class="save-acts">
             <button class="btn btn-sec" id="testKey" type="button">Testar chave</button>

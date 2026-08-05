@@ -423,6 +423,31 @@ botão de texto puro, `Guia completo →` à direita) separadas do resto por bor
 superior. No estreito os três passos empilham e os chips viram botões de largura
 total alinhados à esquerda.
 
+### Faixa de retomada (`.retomada`)
+
+Primeira linha da área de mensagens quando a conversa foi restaurada da memória
+de caso: `Conversa retomada de 3 de agosto · 6 mensagens` + a nota de onde os
+dados estão, e o botão de texto **Esquecer este processo** à direita.
+
+Usa o trio de **confirmação suave** (`--ok-bg` / `--ok-line` / `--ok-ink`), não o
+de aviso: nada deu errado — o trabalho anterior voltou, que é uma boa notícia. O
+`--warn-*` aqui leria como problema e o vermelho da `.alertbar` está reservado
+para o que **bloqueia** o envio.
+
+Duas regras de conteúdo, e as duas são de privacidade, não de estética:
+
+- A faixa **diz onde os dados estão** ("o texto das peças deste processo está
+  guardado neste computador"). Memória silenciosa que ninguém pediu é o tipo de
+  coisa que se descobre pelo caminho errado; ela se anuncia no lugar onde o
+  efeito aparece.
+- O botão de apagar mora **aqui**, junto da frase que explica o que existe, e não
+  no cabeçalho — ali já vivem `.dl` e `.reset`, e um terceiro ícone destrutivo
+  entre eles seria acidente esperando. A exclusão é em **dois cliques**
+  (`Esquecer` → `Esquecer?` em `--erro`), nunca `confirm()` nativo, que congela a
+  página do tribunal.
+
+Sem memória não há faixa: quando não há o que esquecer, não há o que dizer.
+
 ### Rodapé de citações da bolha (`.cites`)
 
 Duas naturezas diferentes convivem ali: **peça dos autos** (prova no processo,

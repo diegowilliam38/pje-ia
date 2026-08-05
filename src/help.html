@@ -229,15 +229,48 @@
           <li><strong>Conexão por cabo</strong> em vez de Wi-Fi — é de longe o que mais muda.</li>
           <li><strong>Marque só as peças que interessam.</strong> "Todas" num processo grande é
           a receita da espera longa; use a busca da lista e o Shift+clique para pegar faixas.</li>
-          <li><strong>Mantenha a aba do processo aberta.</strong> A peça já baixada fica em
-          cache enquanto a aba viver: a segunda pergunta sobre as mesmas peças é imediata, e
-          recarregar a página joga esse cache fora.</li>
+          <li><strong>Volte ao mesmo processo.</strong> A extensão lembra dos processos que
+          você já analisou: ao reabrir um deles, a conversa volta e as peças não são baixadas
+          de novo — a espera fica para a primeira vez. Veja
+          <a href="#memoria">o que fica guardado</a>.</li>
           <li>Evite VPN do tribunal quando não for necessária — ela costuma acrescentar uma
           volta a mais em cada requisição.</li>
         </ul>
         <p>
           Se o download estiver fora do normal, a própria extensão avisa no card de progresso,
           com o tempo médio por peça que ela está medindo.
+        </p>
+      </div>
+
+      <h1 class="serif" id="memoria">O assistente lembra dos seus processos</h1>
+      <div class="card">
+        <p>
+          Ao reabrir um processo que você já analisou, a conversa anterior volta à tela e as
+          peças <strong>não precisam ser baixadas outra vez</strong> — uma faixa no topo do
+          chat avisa que houve retomada e de quando ela é. Como o download é a parte lenta
+          (cerca de 5 s por peça, uma de cada vez), é a diferença entre esperar minutos e
+          continuar de onde parou.
+        </p>
+        <p><strong>O que fica guardado neste computador:</strong> o texto das peças de
+        editor (despachos, decisões, petições), os dados de cada peça (id, título, número de
+        páginas), a referência dos arquivos já enviados ao provedor, a conversa daquele
+        processo e quais peças estavam marcadas.</p>
+        <p><strong>O que não fica:</strong> os <strong>PDFs</strong> e as
+        <strong>imagens</strong> — eles são o volume dos autos. Quando forem necessários de
+        novo, a extensão os busca no tribunal. Por isso a pré-visualização de um PDF numa
+        conversa retomada pede “Abrir documento” antes de mostrar o conteúdo.</p>
+        <p><strong>Como apagar</strong>, de três formas: o botão <strong>Esquecer este
+        processo</strong>, na faixa do topo da conversa; desligar <strong>“Lembrar dos
+        processos entre sessões”</strong> na configuração completa (apaga tudo na hora); ou
+        simplesmente esperar — nada sobrevive a <strong>14 dias</strong>, e só os 20
+        processos mais recentes são mantidos.</p>
+        <p class="nota">
+          Duas coisas que a retomada não traz de volta: o <strong>raciocínio</strong> das
+          respostas (o texto delas volta inteiro) e a conversa quando você
+          <strong>trocou de modelo</strong> para outro provedor desde a última sessão —
+          nesse caso as peças são retomadas, mas o chat começa limpo, porque o histórico de
+          um provedor não roda no outro. O mapa mental vive só enquanto o navegador estiver
+          aberto; a minuta fica em <em>Minhas minutas</em>.
         </p>
       </div>
 

@@ -295,6 +295,7 @@ flowchart LR
 | `src/prompts.js` | Biblioteca de prompts do usuário: CRUD no `chrome.storage.sync` (um item por prompt), sincronizado entre os navegadores da mesma conta Google. |
 | `src/content.js` | Orquestra: downloads paralelos, cache por peça, prompt caching, conversa multi-turno. |
 | `src/background.js` + `claude.js` / `gemini.js` / `openai.js` | Service worker que guarda as chaves e chama a API do provedor do modelo escolhido (Anthropic, Google ou OpenAI) com streaming. **As chaves nunca são expostas à página.** |
+| `src/casodb.js` + `caso.js` | **Memória de processos**: banco local (IndexedDB) que guarda o texto das peças, a conversa e a seleção de cada processo, para reabrir sem baixar tudo de novo. O banco vive no *service worker* — na origem da extensão, nunca na do tribunal —, e `caso.js` é o cliente que o content script usa. |
 | `src/mapa.html` + `mapa.js` / `mapa.css` | Página do **mapa mental**: converte o Markdown da resposta em árvore de nós (com ícones por eixo, tabelas e realces de fl./id) e desenha com markmap (d3), em aba própria da extensão. |
 | `vendor/` | `d3.min.js` e `markmap-view.js` oficiais, sem modificação, usados **só** pela página do mapa (nunca carregados nas páginas do PJe). Licenças em `vendor/LICENSES.md`. |
 | `src/popup.html` | Configuração em 1 clique no ícone da barra (chave, modelo, guia de primeiros passos). |
@@ -304,6 +305,7 @@ flowchart LR
 - As chaves de API ficam **somente** no `chrome.storage.local` do seu navegador (não sincronizam, não passam por servidores de terceiros).
 - Os documentos marcados são enviados **diretamente à API do provedor do modelo escolhido** (Anthropic, Google ou OpenAI) — nenhum outro serviço intermedia.
 - A extensão só roda em sites da Justiça (`*.jus.br`), só injeta o painel em telas de autos do PJe e não coleta telemetria.
+- A **memória de processos** grava, neste computador, o texto das peças e a conversa de cada processo — **nunca os PDFs nem as imagens**. Apaga-se sozinha em 14 dias, tem um botão **Esquecer este processo** na própria conversa e pode ser desligada por completo na configuração.
 - Política completa em [PRIVACY.md](PRIVACY.md) — sem servidor próprio, sem analytics, o desenvolvedor nunca tem acesso a nenhum dado.
 
 > ⚠️ **Aviso legal:** autos judiciais podem conter dados pessoais e sigilosos. O uso da
@@ -324,6 +326,8 @@ flowchart LR
 - [x] Biblioteca de prompts do usuário (`/` no campo, sincronizada entre navegadores)
 - [x] Biblioteca de modelos de peças — a minuta segue a forma das **suas** peças
 - [x] Importar peças-modelo de `.docx` em lote, com a espécie reconhecida pelo conteúdo
+- [x] Memória de processos — reabrir um processo retoma a conversa sem baixar as peças de novo
+- [ ] Mais de uma conversa por processo
 - [ ] Compaction para conversas muito longas
 - [ ] Limpeza de uploads antigos na Files API
 - [x] Publicação na Chrome Web Store — v0.9.9 **aprovada e publicada**; atualização **v0.14.0** (rebrand TecJustiça PJe, Gemini, editor de minutas, mapa mental) em publicação

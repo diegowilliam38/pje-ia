@@ -222,6 +222,20 @@ var PJE = (function () {
     return /2grau|2g(?![a-z])/.test(getBase() + " " + location.hostname) ? "2g" : "1g";
   }
 
+  // Identidade do processo para a memória de caso (o banco no service worker).
+  // NÃO pode ser só o idProcesso: ele é a chave primária no banco DAQUELE
+  // tribunal e colide entre tribunais — o processo 123456 do TJCE e o 123456 do
+  // TRF5 são coisas diferentes, e sem o host um leria a conversa do outro. O
+  // grau entra pela mesma razão (1º e 2º grau são bancos distintos no mesmo
+  // host, em vários tribunais).
+  // null quando a página não tem idProcesso na URL — e null DESLIGA a memória
+  // naquela aba, em vez de inventar uma chave que agruparia processos distintos.
+  function chaveDoCaso() {
+    const proc = getIdProcesso();
+    if (!proc) return null;
+    return location.hostname + "|" + grauAtual() + "|" + proc;
+  }
+
   // Rotas de download, da mais capaz para a mais antiga:
   //  1. COMPLETA — .../download/{TRIBUNAL}/{grau}/{idProcesso}/{idDocumento}
   //     serve os DOIS tipos de peça: as nascidas digitais (HTML — decisões,
@@ -1150,6 +1164,7 @@ var PJE = (function () {
     getBase,
     getIdProcesso,
     getNumeroProcesso,
+    chaveDoCaso,
     lerCabecalhoProcesso,
     listarDocumentos,
     baixar,

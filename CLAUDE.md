@@ -30,6 +30,7 @@ Content scripts injetados nesta ordem
 | Arquivo | Global | Papel |
 |---|---|---|
 | `src/pje.js` | `PJE` | Acesso ao PJe: lista peças da timeline (`#divTimeLine`), baixa cada uma pelo endpoint REST autenticado por cookie de sessão. |
+| `src/caso.js` | `CASO` | Cliente RPC da memória de caso (o banco vive no worker, `casodb.js`). Toda função devolve valor NEUTRO em vez de lançar. Ver "Memória de caso". |
 | `src/prompts.js` | `PLIB` | Biblioteca de prompts do usuário: CRUD sobre `chrome.storage.sync` (um item por prompt, `plib:<id>`) + `aoMudar` para propagação entre abas/dispositivos. |
 | `src/docx-importar.js` | `DocxImport` | Leitor de `.docx` sem biblioteca (ZIP à mão + `DecompressionStream` + `DOMParser` sobre `word/document.xml`) e leitura em LOTE. Ver "Importar peças-modelo de .docx". |
 | `src/panel.js` | `PjePanel` | Toda a UI (chat, seletor de peças, chips, popups `@` e `/`, card de progresso), isolada em **Shadow DOM**. CSS carregado de `src/panel.css` via `web_accessible_resources`. |
@@ -637,6 +638,127 @@ e até a v0.23 as dez fontes eram tratadas como equivalentes.
   - `PROMPT_FIM` traz a regra correspondente: **nunca afirmar conteúdo de peça não
     anexada**, e distinguir "não consta das peças anexadas" de "não existe no
     processo". Sem ela o modelo trataria a lista como conteúdo disponível.
+
+## Memória de caso (`casodb.js` no worker + `caso.js` + `content.js`)
+
+Reabrir um processo já analisado retoma a conversa e **não re-baixa as peças**.
+Antes disso, fechar a aba matava `conversation`, `pecasNaConversa` e — o mais
+caro — o `docsCache`, que custou até `200 × 5,6 s ≈ 18 min` da fila serializada
+do PJe. O `fileId` sobrevivia em `storage.session` mas era lido de DENTRO do
+`docsCache`: na prática o cache de sessão poupava o upload e nunca o download.
+
+- **O banco NÃO PODE viver no content script.** Content scripts rodam na origem
+  da PÁGINA: um `indexedDB.open()` em `content.js` abriria o banco de
+  `pje.tjce.jus.br` — os autos ficariam legíveis por qualquer script do tribunal
+  e sumiriam quando o usuário limpasse os dados do site. Por isso `casodb.js` é
+  um ES module do worker e `caso.js` é só o cliente RPC.
+  IndexedDB e não `storage.local` por três razões: **cota** (o `local` tem teto
+  de 10 MB e já hospeda config + `minuta:*` + `modelo:*`; estourá-lo faz o `set`
+  de uma minuta FALHAR — o IndexedDB segue a cota por origem do navegador);
+  **structured clone**, que preserva o `{type:"x-gemini-item", raw}` que precisa
+  voltar byte a byte; e **escrita granular** por peça.
+  Nota de fato conferida na doc oficial (2026-08): `unlimitedStorage` **NÃO
+  gera aviso de permissão** — só `bookmarks`, `history`, `tabs` e afins geram.
+  Não a declaramos porque não é necessária (o teto de 20 casos de texto fica em
+  poucos MB); o que ela daria de útil é isenção de *eviction* sob pressão de
+  disco. Não repetir a afirmação de que ela "mexeria no aviso de instalação":
+  isso é falso e levaria a decisões erradas.
+- **O b64 dos PDFs e das imagens NUNCA vai ao disco.** O que dispensa o download
+  é o `fileId` da Files API — `montarBlocos` o prefere e nem toca no base64
+  (content.js:1330). `salvarPecas` apaga `b64`/`semBytes` como última barreira.
+  Peça de TEXTO guarda o texto: ali ele É o conteúdo e dispensa o download por
+  completo.
+- **Três predicados são a fonte única da regra** (irmãos de `precisaUpload`):
+  `fileIdValido` (provedor bate · `fileExp` com 60 s de folga · `chaveHash`),
+  `podeAnexar` (ramos EXPLÍCITOS por `kind` — imagem vai **sempre** inline em
+  base64 nos três provedores, então um `fileId` não a dispensa de nada) e
+  `precisaBaixar`. Todo `!docsCache.has(id)` de decisão de download virou
+  `precisaBaixar`; `garantirBaixada` é o funil ÚNICO e **mescla** (`Object.assign`)
+  em vez de substituir — um `set` cru apagaria o `fileId` e a peça subiria de
+  novo a cada sessão, anulando metade da economia.
+- **Armadilhas que já custaram bug nesta rodada:**
+  - **Gravar antes de hidratar apaga o caso.** O `refresh()` do boot roda
+    `setDocs` → `syncSelection` → `selChangeCb` SÍNCRONO, com a lista vazia. Sem
+    a trava `casoCarregado`, a primeira gravação salva `selecao: []` por cima da
+    memória. A ordem `hidratar → casoCarregado = true` é a correção inteira.
+  - **`fileIdValido` lê `modelCaps`**, que no boot é `null` e cai no default
+    "anthropic": hidratar antes do `await garantirCaps()` descartaria em silêncio
+    todo `fileId` do Gemini, que é o provedor PADRÃO. O recurso pareceria não
+    existir.
+  - **`subirPecas` sem guarda de `b64`** subiria arquivo VAZIO, receberia um
+    fileId válido e contaminaria o cache de sessão E o banco — o modelo
+    responderia "não consta" sobre peças que recebeu em branco.
+  - **`montarBlocos` fazia `d.b64.length`** no fallback: uma peça hidratada sem
+    bytes derrubava o turno inteiro com TypeError. Agora sai por `podeAnexar` e
+    entra em `semConteudo`, reportado no chat.
+  - **O debounce precisa de TETO** (`TETO_ADIAR`): cada peça que baixa pede uma
+    gravação e reagenda o timer — num prefetch de 200 peças a gravação seria
+    adiada até o fim, e fechar a aba perderia exatamente o download que a
+    memória existe para preservar.
+  - **A poda NÃO pode rodar a cada gravação.** `podarCasos` percorre todos os
+    casos; com `getAll()` ela desserializava as CONVERSAS INTEIRAS de 20
+    processos a cada 1,2 s de debounce, dentro do worker — o processo que o
+    Chrome mata primeiro. Agora usa `openKeyCursor` no índice `porAtualizacao`
+    (só timestamps, o valor nunca é lido) e só roda quando um caso NOVO nasce —
+    a criação é o único momento em que o teto de quantidade pode ser cruzado.
+  - **`metaDe` tem fallback (`"Peça 123"`) e ele NÃO pode ir ao disco.** A
+    timeline é lazy, então uma peça do histórico pode não estar no `docsIndex`;
+    gravar o fallback trocaria "184100639 - Contestação" por "Peça 184100639"
+    PARA SEMPRE, porque a mesclagem do banco aceita o campo. `pecaParaBanco` lê
+    `docsIndex.get(id)` direto e OMITE o título quando não há — omitir preserva
+    o que está gravado.
+- **`selecaoEfetiva()` = checkboxes + `selPendente`, e ela é a fonte de verdade
+  do TURNO** (não `getSelected()` puro). A timeline do PJe é lazy: ao reabrir um
+  processo, boa parte das rows não existe no DOM e os checkboxes correspondentes
+  não podem estar marcados. Três coisas quebravam por isso, e as três em
+  silêncio: (1) o `if (selectedIds.length === 0)` do `onSend` recusava o envio
+  com "marque ao menos uma peça" numa conversa que o usuário acabara de ver
+  retomada; (2) `prepararEnvio` filtrava TODOS os blocos `document` do histórico
+  — a IA responderia sobre um processo vazio; (3) a gravação salvaria a seleção
+  encolhida, e ela sumiria um pouco a cada sessão. A guarda de peça marcada
+  passou a valer só quando **não há** peça no histórico (`pecasNaConversa`).
+  Vale para chat, minuta e mapa.
+- **O `fileId` também vive DENTRO do histórico**, e é o modo de falha mais
+  provável do recurso: `conversation` guarda `{source:{type:"file", file_id}}`
+  dos turnos anteriores, e re-baixar a peça NÃO conserta o bloco antigo — o
+  usuário levaria um 400 críptico na primeira mensagem de toda conversa
+  retomada. `revalidarPecasDoHistorico` (chamada em `onSend` após
+  `garantirCaps`) re-sobe o que venceu e **reescreve os `file_id` in-place**
+  (legítimo: o bloco `document` não carrega assinatura, ao contrário do
+  thinking). Peça que não voltou sai do histórico e é reportada. No caminho
+  normal custa uma varredura e mais nada. **Minuta e mapa NÃO chamam essa
+  função**: são requests isolados, montam blocos do zero e não reenviam
+  `conversation`.
+- **`chaveHash`** (SHA-256 da chave truncado em 8 hex, calculado no worker —
+  a chave nunca sai de lá) invalida os uploads quando o usuário troca de conta.
+  Viaja no `upload` e no **`caps`**, que já roda no boot e no `storage.onChanged`
+  de chave/modelo: a invalidação acontece sozinha, sem caminho novo. A resposta
+  de `upload` passou a levar `exp` também — antes a expiração do Gemini existia
+  só dentro do worker, o que bastava enquanto o cache morria com a aba.
+- **"Nova conversa" apaga a CONVERSA, preserva as PEÇAS.** O botão promete zerar
+  o chat, não esquecer o processo; apagar as peças faria o usuário pagar o
+  download inteiro por ter trocado de assunto.
+- **Duas abas no mesmo processo**: `salvarCaso` recebe o `base` (o
+  `atualizadoEm` que aquela aba leu ao hidratar). Se o registro mudou desde
+  então, os `CAMPOS_DE_SESSAO` (conversa, transcript, seleção, custo) são
+  descartados e só o aditivo (peças, ficha) passa. **Não existe merge de
+  conversas** — são duas sequências de raciocínio assinado, e intercalá-las
+  produziria um histórico que nenhuma API aceita.
+- **Retomada da UI**: `restaurarConversa` é REPLAY de `addMessage`/
+  `updateAssistant` (o `transcript` interno volta correto sozinho e o ⬇ segue
+  funcionando). Card de minuta/mapa retomado vira UMA LINHA — o `__entry.text`
+  deles guarda o markdown inteiro, que como bolha despejaria 30 KB na conversa.
+  `restaurarSelecao` guarda `selPendente` e o `setDocs` aplica cada id UMA vez:
+  cobre a timeline lazy sem ressuscitar peça que o usuário desmarcou.
+  **Troca de provedor desde a última sessão retoma só as PEÇAS** — o histórico
+  de um provedor não roda no outro, e retomá-lo entregaria um estado que o envio
+  bloquearia de todo jeito.
+- **Privacidade**: default ligado, `chrome.storage.local.memoriaCaso` (desligar
+  **apaga tudo na hora** — um interruptor que só impede gravações futuras
+  deixaria no disco o que o usuário acabou de recusar); poda de 14 dias/20 casos
+  de carona em cada gravação e no `onInstalled`; a faixa `.retomada` ANUNCIA a
+  memória e hospeda o botão de apagar (dois cliques, nunca `confirm()`).
+  Documentado em `PRIVACY.md`, `help.html#memoria` e `README.md`.
 
 ## Busca de peças e orientações (panel.js)
 

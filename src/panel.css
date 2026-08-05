@@ -804,6 +804,38 @@ button > svg { flex: none; }
   font-size: var(--fs-body); line-height: 1.55;
   word-break: break-word; max-width: 90%;
 }
+
+/* ---------- Faixa de retomada (memória de caso) ----------
+   Confirmação SUAVE (--ok-*), não aviso: nada deu errado, o trabalho anterior
+   voltou. O --warn-* leria como problema e o vermelho da .alertbar está
+   reservado para o que bloqueia o envio. Ver DESIGN.md §5. */
+.retomada {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  font-size: var(--fs-meta); color: var(--ok-ink);
+  background: var(--ok-bg); border: 1px solid var(--ok-line);
+  border-radius: 10px; padding: 7px 11px;
+  /* fora do gap da coluna de mensagens: a faixa não é uma bolha */
+  margin-bottom: 2px;
+}
+.retomada .ret-t { flex: 1; min-width: 0; line-height: 1.45; }
+.retomada .ret-t b { font-weight: 650; }
+/* A nota de onde os dados estão quebra para a linha de baixo no painel
+   estreito — ela é o conteúdo de privacidade e não pode ser cortada. */
+.retomada .ret-onde { display: block; color: var(--muted); font-size: var(--fs-micro); }
+.retomada .ret-esq {
+  flex: none; border: 1px solid var(--ok-line); background: #fff;
+  color: var(--ok-ink); border-radius: 8px; padding: 4px 10px;
+  font-size: var(--fs-meta); font-weight: 600; cursor: pointer;
+}
+.retomada .ret-esq:hover { background: #fff; border-color: var(--ok); }
+/* Segundo clique: a exclusão fica ARMADA e se veste de destrutiva. */
+.retomada .ret-esq.armado {
+  border-color: var(--erro); color: var(--erro); background: #fff;
+}
+/* Card de minuta/mapa numa conversa RETOMADA: sem os botões de ação (a aba do
+   mapa morreu com o navegador; a minuta vive na sua própria lista), só a linha
+   que diz onde o documento está. */
+.mapacard-hint { font-size: var(--fs-meta); color: var(--muted); margin-top: 4px; }
 .wrap.expanded .msg { font-size: var(--fs-lg); max-width: 82%; }
 .msg.user { background: var(--pje-2); color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
 .msg.user .txt { white-space: pre-wrap; }

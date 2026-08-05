@@ -394,6 +394,203 @@
   // Estado assim vive AQUI, junto do `panel`.
 
   // ---------------------------------------------------------------------------
+  // MEMÓRIA DE CASO — estado. Mora aqui pela regra do parágrafo acima: o
+  // `onSelectionChange` (registrado ~1.400 linhas abaixo) chama `agendarSalvar`,
+  // e o `refresh()` do boot dispara esse callback de forma SÍNCRONA.
+  // ---------------------------------------------------------------------------
+  const memoriaDisponivel = typeof CASO !== "undefined";
+  // Identidade do processo (host|grau|idProcesso). null = página sem idProcesso:
+  // a memória fica desligada nesta aba em vez de inventar uma chave que
+  // agruparia processos distintos.
+  let casoChave = null;
+  // TRAVA DE GRAVAÇÃO, e o bug nº 1 desta rodada mora aqui: o `refresh()` do
+  // boot roda setDocs → syncSelection → selChangeCb ANTES de qualquer leitura,
+  // com a lista de peças ainda vazia. Sem esta trava, a primeira gravação
+  // salvaria `selecao: []` por cima da memória do processo — a extensão
+  // apagaria sozinha o que existe para lembrar.
+  let casoCarregado = false;
+  let salvarTimer = null;
+  // Instante do primeiro pedido de gravação da rodada atual de debounce. O
+  // debounce agrupa, mas NÃO pode adiar para sempre: durante um prefetch cada
+  // peça que baixa pede uma gravação, e sem teto o timer seria empurrado peça
+  // após peça — num processo de 200 a gravação só aconteceria no fim, e fechar
+  // a aba no meio perderia justamente o download que a memória existe para
+  // preservar. Passado o teto, grava e recomeça a contar.
+  let salvarDesde = 0;
+  // Teto de adiamento do debounce. Fica AQUI, antes de `agendarSalvar`, e não
+  // logo abaixo dela: `const` tem zona morta temporal, e `agendarSalvar` é
+  // chamada pelo `selChangeCb` que o `refresh()` do boot dispara de forma
+  // síncrona. Hoje a guarda de `casoChave` retorna antes de a constante ser
+  // lida — mas depender disso é exatamente a armadilha que já derrubou o painel
+  // inteiro uma vez.
+  const TETO_ADIAR = 5000;
+  // Ids cujo registro mudou desde a última gravação. Gravar a lista inteira a
+  // cada peça baixada reescreveria centenas de registros por turno.
+  const pecasSujas = new Set();
+  // Desliga a gravação nesta sessão depois que o disco encheu mesmo com a poda
+  // de emergência: insistir só gastaria RPC para falhar de novo.
+  let memoriaMorta = false;
+  // Impressão digital da chave da API em uso (vem do worker no `caps`). É ela
+  // que invalida um fileId gravado quando o usuário troca de conta.
+  let chaveHashAtual = null;
+  // Peças que a última montagem de blocos deixou de fora por não ter conteúdo
+  // anexável — preenchida por `montarBlocos`, relatada pelo envio.
+  let semConteudo = [];
+
+  // Seleção EFETIVA: os checkboxes marcados mais as peças restauradas da
+  // memória cuja row a timeline lazy do PJe ainda não criou. Ponto único, usado
+  // pelo filtro do histórico e pela gravação — os dois precisam do mesmo
+  // conjunto, e divergir aqui faria a peça sair do request numa sessão e do
+  // disco na seguinte. Degrada para os checkboxes se o painel for antigo.
+  function selecaoEfetiva() {
+    return panel.selecaoParaMemoria ? panel.selecaoParaMemoria() : panel.getSelected();
+  }
+  // Carimbo do retrato do caso que ESTA aba tem em mãos. Vai em toda gravação
+  // para o banco detectar que outra aba do mesmo processo escreveu no
+  // meio-tempo (ver CAMPOS_DE_SESSAO em casodb.js).
+  let casoVersao = 0;
+  let avisouConflito = false;
+
+  // Extrai de uma entrada do docsCache só o que vai ao disco. O `b64` fica de
+  // fora POR CONSTRUÇÃO — são os autos inteiros, e o que evita o re-download é o
+  // `fileId`, não os bytes (montarBlocos prefere o fileId e nem toca no b64).
+  function pecaParaBanco(id) {
+    const d = docsCache.get(id);
+    if (!d) return null;
+    const p = {
+      id: String(id),
+      kind: d.kind,
+      fmt: d.fmt,
+      size: d.size,
+      baixadoEm: Date.now(),
+    };
+    // O título só entra quando a peça está MESMO na lista. `metaDe` tem
+    // fallback (`"Peça 123"`) para nunca devolver undefined, e usá-lo aqui era
+    // um apagador silencioso: a timeline do PJe é lazy, então numa sessão em
+    // que o usuário não rolou até a peça o `docsIndex` não a tem — e a
+    // gravação trocaria "184100639 - Contestação" por "Peça 184100639" no
+    // disco, para sempre. Omitir o campo faz a mesclagem do banco preservar o
+    // título bom.
+    const m = docsIndex.get(id);
+    if (m && m.titulo) p.titulo = m.titulo;
+    if (m && m.tipo) p.tipo = m.tipo;
+    if (m && m.juntadoEm) p.juntadoEm = m.juntadoEm;
+    if (m && m.juntadoPor) p.juntadoPor = m.juntadoPor;
+    if (d.kind === "pdf") p.pages = d.pages;
+    if (d.kind === "img") {
+      p.mime = d.mime;
+      p.w = d.w;
+      p.h = d.h;
+    }
+    // Só peça de TEXTO guarda conteúdo: nela o texto É o que vai ao modelo, e
+    // guardá-lo dispensa o download por completo (não depende de fileId nenhum).
+    if (d.kind === "text" && d.text) p.text = d.text;
+    if (d.fileId) {
+      p.fileId = d.fileId;
+      p.fileProvider = d.fileProvider || "anthropic";
+      if (d.fileExp) p.fileExp = d.fileExp;
+      if (d.chaveHash) p.chaveHash = d.chaveHash;
+    }
+    return p;
+  }
+
+  // Monta o registro do caso a partir do estado vivo. Recalcula a chave e
+  // ABORTA se ela mudou: o PJe novo é uma SPA e troca de autos sem recarregar a
+  // página — gravar aqui escreveria a conversa de um processo no registro de
+  // outro, que é pior do que não gravar nada.
+  function snapshotCaso() {
+    if (PJE.chaveDoCaso() !== casoChave) return null;
+    return {
+      cnj: PJE.getNumeroProcesso() || null,
+      host: location.hostname,
+      grau: casoChave.split("|")[1] || null,
+      idProcesso: PJE.getIdProcesso() || null,
+      versaoExt: (chrome.runtime.getManifest && chrome.runtime.getManifest().version) || null,
+      conversation,
+      pecasNaConversa: [...pecasNaConversa],
+      transcript: panel.lerTranscript ? panel.lerTranscript() : [],
+      // `selecaoParaMemoria` e não `getSelected`: inclui as peças restauradas
+      // que ainda esperam a timeline lazy do PJe carregar as rows delas.
+      selecao: selecaoEfetiva(),
+      custoConversaUsd,
+      conversaProvider,
+      buscaNaConversa,
+      ultimoTotalExato,
+    };
+  }
+
+  // Grava agora. Chamada nos `finally` dos turnos — o fim de um turno é o
+  // momento mais valioso para persistir, e é também quando `busy` acabou de
+  // cair. NUNCA rejeita: a memória de caso é comodidade, e um
+  // `unhandledrejection` aqui derrubaria o turno que ela deveria proteger.
+  async function salvarCasoAgora() {
+    clearTimeout(salvarTimer);
+    salvarDesde = 0;
+    if (!memoriaDisponivel || !casoChave || !casoCarregado || memoriaMorta) return;
+    try {
+      const patch = snapshotCaso();
+      if (!patch) return; // trocou de processo no meio (SPA)
+      if (pecasSujas.size) {
+        const ids = [...pecasSujas];
+        const lote = ids.map(pecaParaBanco).filter(Boolean);
+        // Limpa ANTES de gravar (para uma peça que mude no meio do await entrar
+        // na próxima rodada), mas DEVOLVE os ids se a gravação falhar — senão
+        // uma falha transitória do worker faria a peça baixada nunca chegar ao
+        // disco, e o download seria repetido na sessão seguinte.
+        pecasSujas.clear();
+        try {
+          await CASO.pecas(casoChave, lote);
+        } catch (e) {
+          for (const id of ids) pecasSujas.add(id);
+          throw e;
+        }
+      }
+      const r = await CASO.salvar(casoChave, patch, casoVersao);
+      if (r && r.cheio) {
+        memoriaMorta = true;
+        console.debug("[PJe IA] memória de caso desligada nesta sessão: disco cheio");
+      }
+      // O carimbo desta gravação vira a base da próxima: sem atualizá-lo, a
+      // segunda gravação desta mesma aba pareceria vir de um retrato velho e
+      // seria tratada como conflito consigo mesma.
+      if (r && r.atualizadoEm) casoVersao = r.atualizadoEm;
+      if (r && r.conflito) {
+        // Outra aba do mesmo processo gravou nesse meio-tempo. A conversa DELA
+        // foi preservada (as peças, que são aditivas, entraram assim mesmo) —
+        // ver CAMPOS_DE_SESSAO em casodb.js. Só se avisa uma vez: repetir a
+        // cada gravação viraria ruído no que já é um caso de borda.
+        if (!avisouConflito) {
+          avisouConflito = true;
+          panel.setStatus(
+            "Este processo está aberto em outra aba, e é a conversa de lá que está sendo " +
+              "guardada. Feche uma das abas para não perder o que fizer aqui."
+          );
+        }
+      }
+    } catch (e) {
+      console.debug("[PJe IA] memória de caso não gravou:", e && e.message);
+    }
+  }
+
+  // Gravação com debounce, para os gatilhos de alta frequência (cada clique na
+  // seleção, cada peça que termina de baixar).
+  function agendarSalvar() {
+    if (!memoriaDisponivel || !casoChave || !casoCarregado || memoriaMorta) return;
+    // Durante um turno ou uma exportação, quem grava é o `finally` de cada um:
+    // o estado no meio do caminho é parcial (peças anexadas sem a resposta que
+    // as consumiu) e a gravação disputaria o worker com o próprio streaming.
+    if (busy || exportando) return;
+    const agora = Date.now();
+    if (!salvarDesde) salvarDesde = agora;
+    // Teto de adiamento: passou de TETO_ADIAR sendo empurrado, grava já.
+    if (agora - salvarDesde >= TETO_ADIAR) return void salvarCasoAgora();
+    clearTimeout(salvarTimer);
+    salvarTimer = setTimeout(() => {
+      salvarCasoAgora();
+    }, 1200);
+  }
+
+  // ---------------------------------------------------------------------------
   // Contexto órfão: quando a extensão é atualizada/recarregada em
   // chrome://extensions, o content script antigo continua vivo na aba, mas
   // QUALQUER chamada a chrome.runtime/chrome.storage passa a lançar
@@ -487,6 +684,11 @@
     try {
       chrome.runtime.sendMessage({ type: "caps" }, (r) => {
         void chrome.runtime.lastError; // worker pode estar acordando — sem ruído
+        // Impressão digital da chave em uso: este handler já roda no boot E a
+        // cada troca de chave/modelo, então é por ele que os fileId gravados no
+        // disco são invalidados quando o usuário muda de conta — sem um caminho
+        // novo só para isso.
+        if (r && "chaveHash" in r) chaveHashAtual = r.chaveHash || null;
         if (r && r.caps) {
           modelCaps = r.caps;
           modelInfo = { model: r.model, effort: r.effort };
@@ -597,6 +799,13 @@
     panel.setAlerta(null);
     panel.clearMessages();
     refreshKey(); // re-renderiza CTA de chave se necessário
+    // "Nova conversa" apaga a CONVERSA, nunca a memória das PEÇAS: o botão
+    // promete zerar o chat e o contexto, não esquecer o processo. Apagar as
+    // peças aqui faria o usuário pagar o download inteiro de novo por ter
+    // querido trocar de assunto — o oposto do que a memória existe para
+    // resolver. Para esquecer o processo há o botão próprio na faixa de
+    // retomada.
+    salvarCasoAgora();
   });
 
   // "Ver na timeline": rola a página do PJe até a peça com destaque temporário
@@ -693,6 +902,7 @@
       panel.setTimelineTip(null); // volta ao padrão; o botão segue disponível
     } finally {
       carregandoTimeline = false;
+      agendarSalvar();
     }
   });
 
@@ -773,6 +983,9 @@
     } finally {
       exportando = false;
       panel.setZipOcupado(false);
+      // A exportação baixou dezenas de peças que a memória ainda não conhece —
+      // gravá-las aqui é o que faz um "Baixar .zip" adiantar o turno seguinte.
+      salvarCasoAgora();
     }
   });
 
@@ -899,9 +1112,19 @@
   // por aqui e reaproveita o cache — envio, preview, exportação e medição.
   async function garantirBaixada(id) {
     let d = docsCache.get(id);
-    if (!d) {
-      d = await PJE.baixar(id);
+    if (precisaBaixar(id)) {
+      const novo = await PJE.baixar(id);
+      // MESCLA, nunca substitui: a entrada que veio do disco carrega o `fileId`
+      // e o `chaveHash`, e um `set` cru os apagaria — a peça subiria de novo à
+      // Files API a cada sessão, anulando metade da economia. `semBytes` sai
+      // porque agora os bytes estão aqui.
+      d = Object.assign({}, d || {}, novo);
+      delete d.semBytes;
       docsCache.set(id, d);
+      // Peça nova (ou completada) no cache: entra na fila da memória. O que vai
+      // ao disco são os metadados e o texto — nunca o base64.
+      pecasSujas.add(id);
+      agendarSalvar();
     }
     return d;
   }
@@ -989,7 +1212,7 @@
       while (queue.length) {
         const id = queue.shift();
         panel.setPrepState(id, "loading");
-        if (!docsCache.has(id)) {
+        if (precisaBaixar(id)) {
           try {
             await garantirBaixada(id);
             baixadas++;
@@ -1051,8 +1274,175 @@
   function precisaUpload(id) {
     const d = docsCache.get(id);
     if (!d || d.kind !== "pdf") return false;
+    // Sem bytes não há o que subir. Acontece com peça HIDRATADA da memória de
+    // caso: ela volta do disco só com metadados e fileId, e quem decide se
+    // precisa de download é `precisaBaixar`, não este predicado.
+    if (!d.b64) return false;
     const provAtual = (modelCaps && modelCaps.provider) || "anthropic";
     return !d.fileId || (d.fileProvider || "anthropic") !== provAtual;
+  }
+
+  // ---------------------------------------------------------------------------
+  // MEMÓRIA DE CASO — os três predicados que decidem o que fazer com uma peça
+  // que voltou do disco SEM os bytes (marca interna `semBytes`).
+  //
+  // Esta é a economia inteira do recurso: uma peça PDF cujo `fileId` ainda vale
+  // é reenviada à API sem baixar nada — `montarBlocos` prefere o file_id e nem
+  // toca no base64. Peça de TEXTO nem isso precisa: o texto veio junto.
+  // ---------------------------------------------------------------------------
+
+  // O fileId gravado ainda serve para o request de agora? Três formas de não
+  // servir, e as três dariam erro críptico da API se passassem batidas:
+  //  - provedor diferente (um file_id da Anthropic num request Gemini = 400);
+  //  - vencido (a File API do Google apaga os arquivos em 48 h);
+  //  - de OUTRA CONTA (o usuário trocou a chave; os arquivos são da conta).
+  // A folga de 60 s na expiração evita o caso em que o arquivo vence entre a
+  // checagem e a chegada do request ao servidor.
+  function fileIdValido(d) {
+    if (!d || !d.fileId) return false;
+    const provAtual = (modelCaps && modelCaps.provider) || "anthropic";
+    if ((d.fileProvider || "anthropic") !== provAtual) return false;
+    if (d.fileExp && d.fileExp <= Date.now() + 60000) return false;
+    // `chaveHash` ausente = upload feito antes desta versão: não dá para
+    // afirmar que mudou de conta, e recusar por precaução só custaria um
+    // download desnecessário a quem não trocou de chave.
+    if (d.chaveHash && chaveHashAtual && d.chaveHash !== chaveHashAtual) return false;
+    return true;
+  }
+
+  // Dá para anexar esta peça ao request AGORA, do jeito que ela está?
+  //
+  // A resposta depende de COMO cada tipo viaja, e por isso os ramos são
+  // explícitos: só o PDF tem a rota por referência (Files API). A IMAGEM vai
+  // sempre em base64 inline nos três provedores — um fileId não a dispensa de
+  // nada, e tratá-la junto do PDF faria uma peça sem bytes parecer pronta.
+  function podeAnexar(id) {
+    const d = docsCache.get(id);
+    if (!d) return false;
+    if (d.kind === "text") return !!d.text;
+    if (d.kind === "img") return !!d.b64;
+    return !!(d.b64 || fileIdValido(d));
+  }
+
+  // Precisa passar pelo PJe (a fila serializada de ~5,6 s por peça)? É a
+  // pergunta que a memória de caso existe para responder "não".
+  function precisaBaixar(id) {
+    const d = docsCache.get(id);
+    if (!d) return true; // nunca vista
+    if (!d.semBytes) return false; // veio inteira nesta sessão
+    return !podeAnexar(id);
+  }
+
+  // ---------------------------------------------------------------------------
+  // MEMÓRIA DE CASO — revalidação do que está no HISTÓRICO.
+  //
+  // O caso difícil do recurso, e o mais provável de dar errado sem tratamento:
+  // `conversation` guarda blocos `{type:"document", source:{type:"file",
+  // file_id}}` dos turnos anteriores. Numa conversa retomada dias depois, esses
+  // file_id podem não existir mais no provedor (Gemini apaga em 48 h; trocar de
+  // chave leva junto os da Anthropic e da OpenAI).
+  //
+  // E isso NÃO se conserta re-baixando a peça: o bloco antigo continua
+  // apontando para o arquivo morto, e o usuário recebe um 400 críptico da API
+  // logo na primeira mensagem da sessão — sem nada que ligue o erro à causa.
+  //
+  // Roda ANTES do download das peças novas, e no caminho normal custa zero (sai
+  // na primeira linha quando não há nada a revalidar).
+  // ---------------------------------------------------------------------------
+
+  // Percorre o histórico trocando o file_id de cada bloco pela referência ATUAL
+  // da peça. Mutação in-place é legítima aqui: o request é remontado do zero a
+  // cada turno e o bloco `document` não carrega assinatura do provedor (ao
+  // contrário do thinking, que é intocável).
+  function reescreverFileIdsNoHistorico(perdidas) {
+    let trocados = 0;
+    for (const turno of conversation) {
+      if (!Array.isArray(turno.content)) continue;
+      const mantidos = [];
+      for (const b of turno.content) {
+        const id = b && b.__pecaId;
+        if (!id || !b.source || b.source.type !== "file") {
+          mantidos.push(b);
+          continue;
+        }
+        if (perdidas.has(id)) continue; // some do histórico junto com a peça
+        const d = docsCache.get(id);
+        if (d && d.fileId && d.fileId !== b.source.file_id) {
+          b.source.file_id = d.fileId;
+          trocados++;
+        }
+        mantidos.push(b);
+      }
+      if (mantidos.length !== turno.content.length) turno.content = mantidos;
+    }
+    return trocados;
+  }
+
+  // O provedor disse que o arquivo referenciado não existe. As três APIs
+  // escrevem isso de formas diferentes, e nenhuma tem um código estável para
+  // isto — o casamento é por texto, de propósito conservador: um falso positivo
+  // aqui só custa um re-upload no envio seguinte.
+  function erroDeArquivoSumido(e) {
+    const m = String((e && e.message) || e || "");
+    return /(file|arquivo|files\/)/i.test(m) && /(not found|não encontrad|404|expired|invalid)/i.test(m);
+  }
+
+  // Solta as referências de upload do provedor atual: as peças voltam a precisar
+  // de upload (e de download, se os bytes também não estiverem aqui) no próximo
+  // envio. Não apaga nada do banco — `pecaParaBanco` regrava sem fileId na
+  // próxima gravação, que é o efeito desejado.
+  function esquecerUploadsDoProvedor() {
+    const provAtual = (modelCaps && modelCaps.provider) || "anthropic";
+    for (const [id, d] of docsCache) {
+      if (!d || !d.fileId || (d.fileProvider || "anthropic") !== provAtual) continue;
+      delete d.fileId;
+      delete d.fileProvider;
+      delete d.fileExp;
+      delete d.chaveHash;
+      pecasSujas.add(id);
+    }
+  }
+
+  async function revalidarPecasDoHistorico(ativos) {
+    if (!pecasNaConversa.size) return;
+    // Só peças que (a) estão no histórico POR REFERÊNCIA, (b) seguem marcadas —
+    // `prepararEnvio` já filtra as desmarcadas do request — e (c) cuja
+    // referência não vale mais.
+    const porReferencia = new Set();
+    for (const turno of conversation) {
+      if (!Array.isArray(turno.content)) continue;
+      for (const b of turno.content) {
+        if (b && b.__pecaId && b.source && b.source.type === "file") porReferencia.add(b.__pecaId);
+      }
+    }
+    const alvo = [...porReferencia].filter(
+      (id) => (!ativos || ativos.has(id)) && !fileIdValido(docsCache.get(id))
+    );
+    if (!alvo.length) return; // caminho normal
+
+    console.debug("[PJe IA] revalidando", alvo.length, "peça(s) do histórico");
+    const dl = await baixarSelecionadas(alvo);
+    await subirPecas(dl.ok);
+    // Quem não voltou sai do histórico: um bloco apontando para arquivo morto
+    // derrubaria o turno inteiro, e a peça some do contexto de forma HONESTA —
+    // volta a ser "nova" e pode ser reanexada marcando-a de novo.
+    const perdidas = new Set(alvo.filter((id) => !fileIdValido(docsCache.get(id))));
+    reescreverFileIdsNoHistorico(perdidas);
+    for (const id of perdidas) pecasNaConversa.delete(id);
+    if (perdidas.size) {
+      panel.setPecasEnviadas([...pecasNaConversa]);
+      panel.mostrarFalhasPecas(
+        [...perdidas].map((id) => ({
+          id,
+          titulo: metaDe(id).titulo,
+          erro: "o arquivo enviado antes expirou e a peça não pôde ser baixada de novo",
+        })),
+        {
+          titulo: "peça(s) saíram do contexto desta conversa",
+          dica: "Marque-as de novo para reanexá-las ao próximo envio.",
+        }
+      );
+    }
   }
 
   // Sobe as peças PDF ainda sem file_id para a Files API (2 por vez). Falha de
@@ -1074,6 +1464,12 @@
       while (queue.length) {
         const id = queue.shift();
         const d = docsCache.get(id);
+        // Sem bytes não se sobe nada. Sem esta guarda o worker receberia
+        // `b64: undefined`, subiria um arquivo VAZIO, devolveria um fileId
+        // perfeitamente válido para ele e contaminaria o cache de sessão E o
+        // banco — o modelo então responderia "não consta" sobre peças que
+        // recebeu em branco. Falha silenciosa e persistente, a pior espécie.
+        if (!d || !d.b64) continue;
         try {
           const r = await rpc({
             type: "upload",
@@ -1086,6 +1482,13 @@
           });
           d.fileId = r.fileId;
           d.fileProvider = r.provider || "anthropic";
+          // `exp` (Gemini, 48 h) e `chaveHash` (conta da chave) são o que
+          // permite, na sessão seguinte, decidir se este fileId ainda vale sem
+          // ter de descobrir isso por um 400 no meio do turno.
+          if (r.exp) d.fileExp = r.exp;
+          if (r.chaveHash) d.chaveHash = r.chaveHash;
+          pecasSujas.add(id);
+          agendarSalvar();
         } catch (e) {
           console.debug("[PJe IA] upload da peça", id, "falhou; usando base64:", e && e.message);
         }
@@ -1316,6 +1719,11 @@
   function montarBlocos(ids) {
     const blocks = [];
     let totalB64 = 0;
+    // Peças que ficaram de fora por não ter mais conteúdo anexável (memória de
+    // caso com fileId vencido). Vive no escopo do IIFE, e não no retorno, porque
+    // `montarBlocos` é chamada de quatro lugares e mudar a assinatura obrigaria
+    // os quatro a lidar com um segundo valor que só um deles reporta.
+    semConteudo = [];
     // fileId só vale se o upload foi feito para o provedor ATUAL — um URI da
     // File API do Google num request Anthropic (ou o inverso) daria 400
     const provAtual = (modelCaps && modelCaps.provider) || "anthropic";
@@ -1326,6 +1734,20 @@
       // turno inteiro por causa de uma peça — exatamente o que a tolerância a
       // falha de download existe para evitar.
       if (!d) continue;
+      // Peça HIDRATADA da memória cujo fileId não vale mais e cujos bytes não
+      // foram rebaixados: não há o que anexar. Sai da lista e é REPORTADA — um
+      // `continue` mudo faria o modelo responder sobre um conjunto de peças
+      // diferente do que o usuário marcou, sem nada na tela dizendo isso.
+      // (Sem esta guarda o ramo de fallback faria `d.b64.length` e o TypeError
+      // derrubaria o turno inteiro por causa de uma peça.)
+      if (!podeAnexar(id)) {
+        semConteudo.push({
+          id,
+          titulo: metaDe(id).titulo,
+          erro: "o arquivo enviado antes não está mais disponível no provedor",
+        });
+        continue;
+      }
       if (d.kind === "pdf") {
         if (d.fileId && (d.fileProvider || "anthropic") === provAtual) {
           // caminho normal: referência por file_id (Files API) — payload mínimo
@@ -1713,7 +2135,10 @@
   // o envio tenta de novo com erro visível). onProgresso(feitas, total) deixa
   // o usuário ver o andamento em seleções grandes.
   async function baixarQuieto(ids, onProgresso) {
-    const fila = ids.filter((id) => !docsCache.has(id));
+    // `precisaBaixar` e não `!has`: peça hidratada da memória com fileId vivo
+    // (ou de texto) já está pronta para o request — pedi-la ao PJe gastaria a
+    // fila serializada para não mudar nada.
+    const fila = ids.filter(precisaBaixar);
     if (!fila.length) return;
     const total = fila.length;
     let feitas = 0;
@@ -1766,12 +2191,14 @@
       if (!d) continue;
       if (d.kind === "img") {
         t += tokensImagem(d);
-      } else {
-        t +=
-          d.kind === "pdf"
-            ? (d.pages || 1) * tokensPagina
-            : Math.ceil(Math.min(d.text.length, MAX_CHARS_TEXTO) / CHARS_POR_TOKEN);
+      } else if (d.kind === "pdf") {
+        t += (d.pages || 1) * tokensPagina;
+      } else if (d.text) {
+        t += Math.ceil(Math.min(d.text.length, MAX_CHARS_TEXTO) / CHARS_POR_TOKEN);
       }
+      // Peça de texto sem `text` é a hidratada cujo conteúdo passou do teto de
+      // sanidade do banco: só metadados voltaram. Some da conta como uma peça
+      // ainda não baixada — que é o que ela é.
     }
     for (const turn of conversation) {
       if (typeof turn.content === "string") {
@@ -1850,6 +2277,11 @@
 
   panel.onSelectionChange((ids) => {
     clearTimeout(estTimer);
+    // A seleção é trabalho do usuário: marcar 30 peças à mão e perdê-las ao
+    // fechar a aba é a mesma perda que a conversa. Vai antes da guarda de
+    // `busy` porque `agendarSalvar` já não faz nada durante um turno — e ali
+    // quem grava é o `finally`.
+    agendarSalvar();
     // Durante um turno o ENVIO é dono do medidor: refreshs da timeline do PJe
     // disparam syncSelection sem mudança real e sobrescreveriam a medição
     // oficial com uma estimativa local defasada.
@@ -1927,7 +2359,7 @@
     const seq = ++estSeq;
     try {
       await garantirCaps();
-      const faltam = ids.filter((id) => !docsCache.has(id));
+      const faltam = ids.filter(precisaBaixar);
       if (faltam.length > LIMIAR_PREFETCH) {
         // SELEÇÃO GRANDE (ex.: "principais" com 40 peças, ou "todas").
         //
@@ -1961,7 +2393,11 @@
       // request PROSPECTIVO: histórico filtrado + um turno de rascunho com
       // as peças novas (as que ainda não têm blocos no histórico)
       const ativos = new Set(ids);
-      const novas = ids.filter((id) => !pecasNaConversa.has(id) && docsCache.has(id));
+      // `podeAnexar` e não `has`: uma peça hidratada sem conteúdo utilizável
+      // entraria em `montarBlocos` logo abaixo, que a descartaria — e no
+      // caminho antigo (b64 ausente) estouraria um TypeError DENTRO deste try,
+      // matando a medição em silêncio e deixando o medidor congelado.
+      const novas = ids.filter((id) => !pecasNaConversa.has(id) && podeAnexar(id));
       const rascunho = [...conversation];
       if (novas.length) {
         rascunho.push({
@@ -2012,9 +2448,19 @@
     return true;
   }
 
-  panel.onSend(async (text, selectedIds) => {
+  panel.onSend(async (text, selectedIdsDoPainel) => {
     if (busy || bloqueadoPelaExportacao()) return;
-    if (selectedIds.length === 0) {
+    // A seleção do turno é a EFETIVA (checkboxes + peças restauradas cuja row a
+    // timeline lazy ainda não criou) — ver `selecaoEfetiva`.
+    const selectedIds = selecaoEfetiva().length
+      ? selecaoEfetiva()
+      : selectedIdsDoPainel;
+    // A guarda só vale para conversa NOVA. Com peças já no histórico, perguntar
+    // sem marcar nada é legítimo — e numa conversa RETOMADA cujas rows ainda
+    // não carregaram era o caso comum: o usuário via a conversa de volta,
+    // digitava e levava um "marque ao menos uma peça" sobre um processo que ele
+    // acabara de ver analisado.
+    if (selectedIds.length === 0 && !pecasNaConversa.size) {
       panel.setStatus("Marque ao menos uma peça — na lista acima ou digitando @ no campo.");
       return;
     }
@@ -2056,6 +2502,15 @@
 
     try {
       await garantirCaps(); // limites do modelo antes de qualquer validação
+      // Conversa retomada da memória: as referências de upload dos turnos
+      // ANTERIORES podem ter expirado. Isto roda antes do download das peças
+      // novas e, no caminho normal (nada a revalidar), custa uma varredura do
+      // histórico e mais nada.
+      // Mesmo conjunto que o filtro do histórico usa (ver `selecaoEfetiva`):
+      // revalidar por `selectedIds` puro deixaria de fora justamente as peças
+      // cujas rows a timeline lazy ainda não trouxe — que são as que o request
+      // vai carregar por referência.
+      await revalidarPecasDoHistorico(new Set(selecaoEfetiva()));
       let userContent;
       let paginas = 0;
       if (attach) {
@@ -2089,7 +2544,17 @@
 
       // O request de fato: histórico + turno novo, SEM os blocos das peças
       // desmarcadas (prepararEnvio filtra por __pecaId) e sem campos internos.
-      const ativos = new Set(selectedIds);
+      //
+      // `selecaoEfetiva` e não `selectedIds`, e a diferença é a que separa
+      // "desmarcada" de "ainda não apareceu": a timeline do PJe é LAZY, então
+      // ao reabrir um processo boa parte das rows não existe no DOM e os
+      // checkboxes correspondentes não podem estar marcados. Filtrar por
+      // `selectedIds` puro mandaria o histórico da conversa retomada SEM
+      // NENHUMA das peças que o usuário havia anexado — a IA responderia sobre
+      // um processo vazio, e nada na tela diria isso. As pendentes entram
+      // porque o usuário não as desmarcou; desmarcar de verdade continua
+      // liberando contexto, porque o id sai do `selPendente` ao ser aplicado.
+      const ativos = new Set(selecaoEfetiva());
       // O inventário entra AQUI, na cópia que vai à API — antes do count_tokens,
       // para o pré-voo medir exatamente o request que será enviado.
       const msgsEnvio = comInventario(
@@ -2125,6 +2590,16 @@
       // cada peça e tentar de novo depois — sem que a análise que ele pediu
       // tenha sido perdida no caminho.
       if (falhasDownload.length) panel.mostrarFalhasPecas(falhasDownload);
+      // Peças que a memória retomou mas cujo upload não existe mais no
+      // provedor, e que não foram rebaixadas a tempo. Grupo próprio porque a
+      // causa e a saída são outras: não é "o PJe não entregou", é "o arquivo
+      // enviado antes expirou" — e o conserto é reenviar, não desmarcar.
+      if (semConteudo.length) {
+        panel.mostrarFalhasPecas(semConteudo, {
+          titulo: "peça(s) não entraram: o envio anterior expirou",
+          dica: "Envie a mensagem de novo — elas serão baixadas e reenviadas.",
+        });
+      }
       // Peças que entraram CORTADAS. Só as deste turno: as dos turnos
       // anteriores já foram reportadas quando entraram.
       const cortadas = pecasTruncadas(anexadas);
@@ -2341,7 +2816,21 @@
       }
     } catch (e) {
       panel.endPrep(true); // remove o card de preparo, se ainda estiver na tela
-      panel.setStatus("Erro: " + (e && e.message ? e.message : e));
+      // REDE REATIVA da memória de caso: a revalidação preventiva cobre o que
+      // dá para prever (expiração, troca de chave), mas o provedor pode apagar
+      // um arquivo por conta própria. Aqui o erro já aconteceu — o turno foi
+      // desfeito pelo bloco abaixo de qualquer forma —, então o que resta é
+      // limpar as referências mortas para que o PRÓXIMO envio re-suba as peças,
+      // e dizer isso em vez de repassar o 404 cru da API.
+      if (erroDeArquivoSumido(e)) {
+        esquecerUploadsDoProvedor();
+        panel.setStatus(
+          "Os arquivos enviados antes não estão mais disponíveis no provedor. " +
+            "Envie a mensagem de novo — as peças serão reenviadas."
+        );
+      } else {
+        panel.setStatus("Erro: " + (e && e.message ? e.message : e));
+      }
       // contexto cheio: além do erro no status, liga a barra de alerta
       // persistente — o usuário precisa AGIR (desmarcar peças ou recomeçar)
       if (e && e.ctxCheio) {
@@ -2365,6 +2854,10 @@
       // (turno bem-sucedido, resposta vazia, erro e turno desfeito): o finally
       // roda em todos, e espalhar a chamada garantiria esquecer um deles.
       panel.setPecasEnviadas([...pecasNaConversa]);
+      // Fim de turno é o momento mais valioso para persistir, e o único em que
+      // TODOS os quatro desfechos convergem — inclusive os dois que desfazem o
+      // turno, cujo estado revertido também precisa ir ao disco.
+      salvarCasoAgora();
     }
   });
 
@@ -2719,8 +3212,12 @@
     };
   }
 
-  panel.onMinuta(async (text, selectedIds, modelos) => {
+  panel.onMinuta(async (text, selecaoDoPainel, modelos) => {
     if (busy || bloqueadoPelaExportacao()) return;
+    // Seleção EFETIVA, pelo mesmo motivo do chat: num processo retomado as rows
+    // da timeline lazy podem não existir ainda, e a minuta recusaria peças que
+    // o usuário vê marcadas na conversa.
+    const selectedIds = selecaoEfetiva().length ? selecaoEfetiva() : selecaoDoPainel;
     if (selectedIds.length === 0) {
       panel.setStatus("Marque as peças que devem embasar a minuta.");
       return;
@@ -2998,8 +3495,9 @@
     " na seção correspondente, com no máximo 3 colunas e células curtas. NÃO use emojis," +
     " imagens, HTML, fórmulas nem numeração de tópicos.";
 
-  panel.onMapa(async (text, selectedIds) => {
+  panel.onMapa(async (text, selecaoDoPainel) => {
     if (busy || bloqueadoPelaExportacao()) return;
+    const selectedIds = selecaoEfetiva().length ? selecaoEfetiva() : selecaoDoPainel;
     if (selectedIds.length === 0) {
       panel.setStatus("Marque as peças que devem embasar o mapa mental.");
       return;
@@ -3156,6 +3654,184 @@
     const itens = linhas.filter((l) => /^\s*(?:[-*+]|\d+[.)])\s+/.test(l)).length;
     return eixos + " eixo(s) · " + itens + " tópico(s)";
   }
+
+  // ---------------------------------------------------------------------------
+  // MEMÓRIA DE CASO — arranque.
+  //
+  // Roda no FIM de `iniciar()`, e a posição é a decisão: acima disso o arquivo
+  // ainda está registrando callbacks e declarando estado, e a hidratação toca
+  // exatamente as variáveis que a zona morta temporal pune (ver o comentário
+  // longo lá em cima). Aqui tudo já existe.
+  //
+  // Sem `await`: nada do painel depende dela para funcionar, e um processo cujo
+  // banco esteja lento não pode segurar a montagem da lista de peças.
+  // ---------------------------------------------------------------------------
+  async function iniciarMemoria() {
+    if (!memoriaDisponivel) return;
+    casoChave = PJE.chaveDoCaso();
+    if (!casoChave) return; // página sem idProcesso: memória desligada nesta aba
+    try {
+      // ESPERAR os caps é obrigatório, e a razão não é óbvia: `fileIdValido`
+      // compara `d.fileProvider` com o provedor ATUAL, e sem `modelCaps` esse
+      // provedor cai no default "anthropic". Hidratar antes do caps chegar
+      // descartaria em silêncio todo fileId do Gemini — que é o provedor
+      // PADRÃO da extensão. O recurso pareceria simplesmente não funcionar.
+      await garantirCaps();
+      const { caso, desligado } = await CASO.ler(casoChave);
+      // O usuário desligou a memória nas opções. Não basta deixar de hidratar:
+      // sem `memoriaMorta`, cada clique na lista custaria uma ida ao worker só
+      // para ser recusada lá.
+      if (desligado) memoriaMorta = true;
+      else if (caso) {
+        casoVersao = caso.atualizadoEm || 0;
+        hidratarPecas(caso.pecas);
+        retomarConversa(caso);
+      }
+      // A trava só cai DEPOIS da leitura: até aqui, qualquer gravação
+      // disparada pelo boot escreveria por cima da memória que ainda não foi
+      // lida. É o bug nº 1 desta rodada, e a ordem destas duas linhas é a
+      // correção inteira.
+      casoCarregado = true;
+      agendarSalvar();
+    } catch (e) {
+      console.debug("[PJe IA] memória de caso indisponível:", e && e.message);
+      casoCarregado = true; // falha de leitura não impede a extensão de gravar
+    }
+  }
+
+  // Repõe o estado da CONVERSA e o desenha de volta na tela.
+  //
+  // O provedor é a primeira coisa conferida: um histórico da Anthropic não roda
+  // no Gemini (raciocínio assinado) e vice-versa. Se o usuário trocou de modelo
+  // desde a última sessão, retomar a conversa entregaria um histórico que o
+  // envio bloquearia de todo jeito, com um alerta que ele não pediu logo ao
+  // abrir os autos. Melhor começar limpo: as PEÇAS (que já foram hidratadas e
+  // são o caro) continuam valendo.
+  function retomarConversa(caso) {
+    if (!Array.isArray(caso.conversation) || !caso.conversation.length) return;
+    const provAtual = (modelCaps && modelCaps.provider) || "anthropic";
+    if (caso.conversaProvider && caso.conversaProvider !== provAtual) {
+      console.debug(
+        "[PJe IA] memória de caso: conversa anterior era do provedor " +
+          caso.conversaProvider + " e o atual é " + provAtual + " — só as peças foram retomadas"
+      );
+      return;
+    }
+    conversation = caso.conversation;
+    pecasNaConversa = new Set(caso.pecasNaConversa || []);
+    custoConversaUsd = caso.custoConversaUsd || 0;
+    conversaProvider = caso.conversaProvider || null;
+    buscaNaConversa = !!caso.buscaNaConversa;
+    ultimoTotalExato = caso.ultimoTotalExato || 0;
+
+    const n = panel.restaurarConversa(caso.transcript || []);
+    panel.setPecasEnviadas([...pecasNaConversa]);
+    if (caso.selecao && caso.selecao.length) panel.restaurarSelecao(caso.selecao);
+    panel.mostrarRetomada({
+      quando: dataAmigavel(caso.atualizadoEm),
+      nMsgs: n,
+      onEsquecer: esquecerEsteProcesso,
+    });
+    if (custoConversaUsd > 0) {
+      // Só o acumulado da conversa: não houve turno nesta sessão, e mostrar um
+      // "nesta resposta" seria afirmar um custo que não aconteceu agora.
+      panel.setCusto({ conversaUsd: custoConversaUsd });
+    }
+  }
+
+  // "3 de agosto" / "ontem" / "hoje". O usuário pensa a distância em dias, não
+  // em data absoluta — e a data completa não cabe na faixa no painel estreito.
+  const MESES = ["janeiro","fevereiro","março","abril","maio","junho","julho",
+    "agosto","setembro","outubro","novembro","dezembro"];
+  function dataAmigavel(ts) {
+    if (!ts) return "";
+    const d = new Date(ts);
+    const hoje = new Date();
+    const dias = Math.floor((hoje.setHours(0,0,0,0) - new Date(ts).setHours(0,0,0,0)) / 86400000);
+    if (dias <= 0) return "hoje";
+    if (dias === 1) return "ontem";
+    if (dias < 7) return dias + " dias atrás";
+    return d.getDate() + " de " + MESES[d.getMonth()];
+  }
+
+  // Apaga a memória DESTE processo. Não mexe na conversa em andamento nem no
+  // docsCache: o usuário pediu para não guardar mais, não para perder o que
+  // está fazendo agora. `memoriaMorta` impede que o próximo `agendarSalvar`
+  // regrave tudo em seguida — sem isso o botão pareceria não funcionar.
+  async function esquecerEsteProcesso() {
+    if (!memoriaDisponivel || !casoChave) return;
+    clearTimeout(salvarTimer);
+    memoriaMorta = true;
+    pecasSujas.clear();
+    try {
+      await CASO.esquecer(casoChave);
+      // A segunda frase não é enfeite: `memoriaMorta` desliga a gravação até o
+      // fim desta sessão, de propósito (senão a conversa em andamento seria
+      // regravada segundos depois e o botão pareceria não ter funcionado). Sem
+      // dizer isso, o usuário continuaria trabalhando achando que está sendo
+      // guardado — e não estaria.
+      panel.setStatus(
+        "A memória deste processo foi apagada deste computador. Nada será guardado " +
+          "até você recarregar a página."
+      );
+    } catch (e) {
+      panel.setStatus("Não foi possível apagar a memória: " + (e && e.message));
+    }
+  }
+
+  // Repõe no docsCache o que o banco guardou. As entradas voltam PARCIAIS —
+  // sem `b64` — e é a marca `semBytes` que avisa os predicados disso. Toda a
+  // economia do recurso mora nesta função: uma peça de texto volta completa, e
+  // uma peça PDF com fileId vivo volta pronta para o request sem nenhum byte
+  // ter atravessado a rede.
+  function hidratarPecas(pecas) {
+    if (!Array.isArray(pecas)) return;
+    let comFile = 0;
+    let texto = 0;
+    for (const p of pecas) {
+      if (!p || !p.id) continue;
+      // Nunca sobrescrever o que esta sessão já baixou: o disco é o retrato
+      // antigo, e o cache vivo tem os bytes.
+      if (docsCache.has(p.id)) continue;
+      const d = { kind: p.kind, fmt: p.fmt, size: p.size, semBytes: true };
+      if (p.kind === "pdf") d.pages = p.pages;
+      if (p.kind === "img") {
+        d.mime = p.mime;
+        d.w = p.w;
+        d.h = p.h;
+      }
+      if (p.text) d.text = p.text;
+      if (p.fileId) {
+        d.fileId = p.fileId;
+        d.fileProvider = p.fileProvider || "anthropic";
+        if (p.fileExp) d.fileExp = p.fileExp;
+        if (p.chaveHash) d.chaveHash = p.chaveHash;
+      }
+      // Entrada sem NADA de aproveitável (peça binária cujo upload venceu e
+      // cujos bytes não guardamos) fica de fora: no cache ela só serviria para
+      // fazer `precisaBaixar` responder o mesmo que responderia sem ela, e
+      // atrapalharia o gauge, que conta `docsCache.has` como "medida".
+      if (!d.text && !fileIdValido(d)) continue;
+      docsCache.set(p.id, d);
+      if (d.text) texto++;
+      else comFile++;
+    }
+    if (texto + comFile) {
+      console.debug(
+        "[PJe IA] memória de caso: " + (texto + comFile) + " peça(s) retomadas do disco (" +
+          texto + " de texto, " + comFile + " por referência de upload) — sem novo download"
+      );
+    }
+  }
+  iniciarMemoria();
+
+  // Rede de segurança: o usuário troca de aba ou fecha a janela sem ter mexido
+  // em nada desde o último debounce. É best-effort de propósito — em `pagehide`
+  // o sendMessage pode não chegar, e por isso os `finally` dos turnos continuam
+  // sendo o caminho principal, não este.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") salvarCasoAgora();
+  });
 
   } // fim de iniciar()
 

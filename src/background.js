@@ -23,6 +23,16 @@ import {
   uploadFileOpenAI,
   countTokensOpenAI,
 } from "./openai.js";
+import {
+  lerCaso,
+  salvarCaso,
+  salvarPecas,
+  esquecerCaso,
+  esquecerTudo,
+  listarCasos,
+  podarCasos,
+  podarAgressivo,
+} from "./casodb.js";
 
 // Capacidades por modelo. Governam limites de páginas/contexto, as versões das
 // ferramentas web, a configuração de thinking/effort aceita por cada um e o
@@ -280,6 +290,29 @@ function chaveDe(cfg, provider) {
   return cfg.apiKey;
 }
 
+// Impressão digital da chave da API, para a memória de caso saber se um fileId
+// gravado no disco ainda vale. Os arquivos da Anthropic e da OpenAI não expiram,
+// mas pertencem à CONTA da chave: trocar de chave transforma todo fileId gravado
+// num 404 — e, pior, num 404 que aparece no meio do histórico da conversa
+// retomada, como erro críptico da API.
+//
+// SHA-256 truncado em 8 hex (32 bits) e calculado AQUI: a chave nunca sai do
+// worker, e o que viaja ao content script é um resumo irreversível (a chave tem
+// mais de 100 bits de entropia — não há dicionário a percorrer). Colisão em 32
+// bits é irrelevante aqui: o custo de um falso "ainda vale" é um request que
+// falha e cai no re-download, que é exatamente o caminho de recuperação.
+const hashCache = new Map(); // chave crua -> hash (só em memória, morre com o worker)
+async function hashDaChave(chave) {
+  if (!chave) return null;
+  if (hashCache.has(chave)) return hashCache.get(chave);
+  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(chave));
+  const hex = [...new Uint8Array(bytes).slice(0, 4)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  hashCache.set(chave, hex);
+  return hex;
+}
+
 // Cache (sessão do navegador) de uploads na Files API: peça já enviada não
 // sobe de novo, mesmo que a aba recarregue. Chave: idProcesso:idPeca:tamanho.
 function sessGet(key) {
@@ -332,13 +365,25 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === "caps") {
     // model + effort vão junto: o painel mostra o que está ATIVO (o usuário
     // não deveria precisar confiar às cegas no que salvou nas opções).
-    getCfg().then(({ model, effort }) =>
+    // `chaveHash` viaja junto porque este handler já roda no boot E a cada
+    // storage.onChanged de chave/modelo — ou seja, a invalidação dos fileId
+    // gravados acontece sozinha, sem um caminho novo só para isso. Chave
+    // ausente vira null (o painel já está no estado "configure a chave").
+    (async () => {
+      const cfg = await getCfg();
+      let chaveHash = null;
+      try {
+        chaveHash = await hashDaChave(chaveDe(cfg, providerDe(cfg.model)));
+      } catch {
+        /* sem chave para este provedor: nada a invalidar */
+      }
       sendResponse({
-        model,
-        effort,
-        caps: capsDe(model),
-      })
-    );
+        model: cfg.model,
+        effort: cfg.effort,
+        caps: capsDe(cfg.model),
+        chaveHash,
+      });
+    })();
     return true; // resposta assíncrona
   }
 
@@ -348,6 +393,13 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         const cfg = await getCfg();
         const provider = providerDe(cfg.model);
         const apiKey = chaveDe(cfg, provider);
+        // `exp` e `chaveHash` acompanham TODA resposta, inclusive os cache-hits:
+        // é com eles que a memória de caso decide, na sessão seguinte, se o
+        // fileId gravado no disco ainda serve ou se a peça precisa re-subir.
+        // Antes desta rodada a expiração do Gemini existia só aqui dentro e o
+        // content script recebia um URI sem prazo — o que funcionava enquanto o
+        // cache morria junto com a aba, e deixaria de funcionar agora.
+        const chaveHash = await hashDaChave(apiKey);
         if (provider === "gemini") {
           // namespace próprio ("gfile:") e VALIDAÇÃO de expiração na leitura:
           // a File API do Google apaga os arquivos após 48 h — um URI vencido
@@ -356,7 +408,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           if (key) {
             const cached = await sessGet(key);
             if (cached && cached.uri && cached.exp > Date.now()) {
-              return sendResponse({ fileId: cached.uri, provider });
+              return sendResponse({
+                fileId: cached.uri,
+                provider,
+                exp: cached.exp,
+                chaveHash,
+              });
             }
           }
           const r = await uploadFileGemini({
@@ -366,16 +423,22 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             mime: msg.payload.mime,
           });
           if (key) await sessSet(key, { uri: r.fileUri, exp: r.expiraEm });
-          return sendResponse({ fileId: r.fileUri, provider });
+          return sendResponse({
+            fileId: r.fileUri,
+            provider,
+            exp: r.expiraEm,
+            chaveHash,
+          });
         }
         if (provider === "openai") {
           // namespace próprio ("ofile:"): um file_id da OpenAI nunca pode ser
           // lido num request Anthropic/Gemini (e vice-versa). Os arquivos da
-          // OpenAI persistem na conta, então não há validação de expiração.
+          // OpenAI persistem na conta, então não há validação de expiração —
+          // mas há a da CONTA, que é o `chaveHash`.
           const key = msg.payload.cacheKey ? "ofile:" + msg.payload.cacheKey : null;
           if (key) {
             const cached = await sessGet(key);
-            if (cached) return sendResponse({ fileId: cached, provider });
+            if (cached) return sendResponse({ fileId: cached, provider, chaveHash });
           }
           const fileId = await uploadFileOpenAI({
             apiKey,
@@ -384,12 +447,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             mime: msg.payload.mime,
           });
           if (key) await sessSet(key, fileId);
-          return sendResponse({ fileId, provider });
+          return sendResponse({ fileId, provider, chaveHash });
         }
         const key = msg.payload.cacheKey ? "file:" + msg.payload.cacheKey : null;
         if (key) {
           const cached = await sessGet(key);
-          if (cached) return sendResponse({ fileId: cached, provider });
+          if (cached) return sendResponse({ fileId: cached, provider, chaveHash });
         }
         const fileId = await uploadFile({
           apiKey,
@@ -398,7 +461,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           mime: msg.payload.mime,
         });
         if (key) await sessSet(key, fileId);
-        sendResponse({ fileId, provider });
+        sendResponse({ fileId, provider, chaveHash });
       } catch (e) {
         sendResponse({ error: String((e && e.message) || e) });
       }
@@ -468,6 +531,67 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     })();
     return true;
   }
+
+  // ------------------------------------------------ memória de caso (casodb.js)
+  //
+  // Cinco RPCs finos: quem sabe o que é um caso é o content script; quem sabe
+  // guardá-lo é o casodb.js. O worker no meio existe por uma razão só, e ela é
+  // de segurança — o banco tem de morar na origem da EXTENSÃO, não na do
+  // tribunal (ver o cabeçalho de casodb.js).
+  //
+  // O interruptor do usuário é conferido AQUI, num ponto único: desligado, a
+  // leitura devolve vazio e a escrita vira no-op silencioso. Espalhar essa
+  // checagem pelo content script daria quatro lugares para esquecer um.
+  if (
+    msg.type === "casoLer" ||
+    msg.type === "casoSalvar" ||
+    msg.type === "casoPecas" ||
+    msg.type === "casoEsquecer" ||
+    msg.type === "casoListar"
+  ) {
+    (async () => {
+      try {
+        const { memoriaCaso } = await new Promise((r) =>
+          chrome.storage.local.get({ memoriaCaso: true }, r)
+        );
+        const chave = msg.chave || null;
+        if (msg.type === "casoEsquecer") {
+          // Apagar funciona mesmo com a memória desligada: é justamente o que
+          // alguém que acabou de desligá-la quer fazer com o que ficou para trás.
+          return sendResponse({
+            ok: true,
+            n: chave ? await esquecerCaso(chave) : await esquecerTudo(),
+          });
+        }
+        if (!memoriaCaso) return sendResponse({ ok: true, desligado: true, caso: null, casos: [] });
+        if (msg.type === "casoLer") return sendResponse({ ok: true, caso: await lerCaso(chave) });
+        if (msg.type === "casoListar") return sendResponse({ ok: true, casos: await listarCasos() });
+        if (msg.type === "casoPecas") {
+          return sendResponse({ ok: true, n: await salvarPecas(chave, msg.pecas) });
+        }
+        const r = await salvarCaso(chave, msg.patch || {}, msg.base);
+        sendResponse({ ok: true, atualizadoEm: r.atualizadoEm, conflito: r.conflito });
+      } catch (e) {
+        // Cota estourada é o único erro que vale uma segunda tentativa: poda
+        // metade dos casos e repete UMA vez. Se falhar de novo, o content
+        // script recebe `{ok:false}` e desliga a gravação naquela sessão —
+        // memória de caso nunca pode derrubar um turno.
+        const nome = String((e && e.name) || "");
+        if (nome === "QuotaExceededError") {
+          try {
+            await podarAgressivo();
+            if (msg.type === "casoPecas") await salvarPecas(msg.chave, msg.pecas);
+            else await salvarCaso(msg.chave, msg.patch || {});
+            return sendResponse({ ok: true, podado: true });
+          } catch {
+            return sendResponse({ ok: false, erro: "memória cheia", cheio: true });
+          }
+        }
+        sendResponse({ ok: false, erro: String((e && e.message) || e) });
+      }
+    })();
+    return true;
+  }
 });
 
 // Faxina única: apaga o texto que a extração de peças (removida na v0.22.0)
@@ -487,6 +611,11 @@ chrome.runtime.onInstalled.addListener(() => {
     );
     if (antigas.length) chrome.storage.local.remove(antigas);
   });
+  // Faxina da memória de caso na atualização da extensão. A poda normal anda de
+  // carona em cada gravação, mas quem parou de usar a extensão por um mês nunca
+  // dispara uma — e é justamente esse o caso em que o material antigo não
+  // deveria continuar no disco.
+  podarCasos().catch(() => {});
 });
 
 // Mantém no máximo MAX_MAPAS mapas na sessão (cada um é o markdown inteiro de

@@ -90,7 +90,7 @@
     <div class="page">
       <h1 class="serif">O que mudou na extensão</h1>
       <p class="lead">
-        Da primeira versão (19 de julho de 2026) até hoje foram <strong>51 versões</strong>. Esta
+        Da primeira versão (19 de julho de 2026) até hoje foram <strong>53 versões</strong>. Esta
         página agrupa o que foi feito <strong>por recurso</strong> — é assim que se usa a
         extensão, não versão a versão. O
         <a class="link" href="#historico">histórico completo</a>, com data e uma linha por
@@ -99,7 +99,57 @@
 
       <div class="card destaque">
         <p class="eyebrow" style="color: rgba(255,255,255,0.7)">A novidade mais recente</p>
-        <h2><span class="v novo">v0.26.0</span> Escolher com IA: em segundos, e escolhendo melhor</h2>
+        <h2><span class="v novo">v0.28.0</span> O assistente lembra dos seus processos</h2>
+        <p>
+          Até aqui, fechar a aba do processo apagava tudo: a conversa, as peças baixadas e o
+          trabalho de ter escolhido quais delas importavam. Voltar ao mesmo processo dois dias
+          depois — o que é a rotina, não a exceção — custava a fila inteira de download de
+          novo, <strong>cerca de 5 segundos por peça, uma de cada vez</strong>.
+        </p>
+        <p>
+          Agora a extensão <strong>lembra</strong>. Ao reabrir um processo já analisado, a
+          conversa volta à tela, as peças que estavam marcadas voltam marcadas e
+          <strong>nada é baixado outra vez</strong>: uma faixa no topo do chat avisa que houve
+          retomada e de quando ela é. A espera fica para a primeira vez.
+        </p>
+        <p>
+          O que fica guardado <strong>neste computador</strong> é o texto das peças de editor,
+          os dados de cada peça e a conversa daquele processo. O que <strong>não</strong> fica
+          são os <strong>PDFs</strong> e as <strong>imagens</strong> — eles são o volume dos
+          autos, e a extensão os rebusca no tribunal quando precisar. Tudo se apaga sozinho
+          depois de <strong>14 dias</strong>; a faixa de retomada tem um botão
+          <strong>Esquecer este processo</strong>; e há um interruptor para desligar a memória
+          por completo na configuração completa, que apaga tudo na hora. A explicação está em
+          <a class="link" href="help.html#memoria" target="_blank">O assistente lembra dos seus
+          processos</a>.
+        </p>
+        <p>
+          Duas ressalvas ditas de propósito: a retomada não traz de volta o
+          <strong>raciocínio</strong> das respostas (o texto delas volta inteiro), e se você
+          trocou de modelo para <strong>outro provedor</strong> desde a última sessão, as peças
+          são retomadas mas o chat começa limpo — o histórico de um provedor não roda no outro.
+        </p>
+
+        <h2><span class="v">v0.27.0</span> Arraste seus <code>.docx</code> e a biblioteca de modelos se preenche sozinha</h2>
+        <p>
+          Cadastrar dez peças-modelo deixou de custar dez formulários. Solte de uma vez os
+          arquivos <strong>.docx</strong> das suas sentenças, decisões e despachos — no modal
+          <strong>Modelos</strong> do painel ou na página <em>Modelos de peças</em> — e cada
+          arquivo vira uma <strong>ficha já preenchida</strong>, com a
+          <strong>espécie reconhecida pelo próprio conteúdo</strong> (o nome do arquivo, o
+          cabeçalho e o dispositivo, nessa ordem de prioridade). Um clique cadastra o lote
+          inteiro.
+        </p>
+        <p>
+          O palpite da espécie vem marcado como <strong>sugerida</strong>, com o motivo no
+          tooltip, e o selo some assim que você troca o seletor — depois disso ele deixaria de
+          ser verdade. Os arquivos são lidos <strong>dentro do seu navegador</strong>: não sobem
+          para lugar nenhum. Nada é silencioso — arquivo que falha vira uma ficha de erro com o
+          motivo, arquivo grande demais entra desmarcado sem travar o lote, e o resultado nomeia
+          um a um o que ficou de fora.
+        </p>
+
+        <h2><span class="v">v0.26.0</span> Escolher com IA: em segundos, e escolhendo melhor</h2>
         <p>
           A escolha assistida demorava dezenas de segundos porque rodava com o
           <strong>raciocínio no nível alto</strong> — o mesmo da análise dos autos — para uma
@@ -638,7 +688,7 @@
 
       <h1 class="serif" id="historico">Histórico completo</h1>
       <p class="lead">
-        As 51 versões, da mais recente à primeira. As marcadas com
+        As 53 versões, da mais recente à primeira. As marcadas com
         <span class="dot-marco"></span> mudaram o produto de forma visível.
       </p>
 
@@ -648,7 +698,9 @@
             <tr><th>Versão</th><th>Data</th><th>O que mudou</th></tr>
           </thead>
           <tbody>
-            <tr class="marco"><td><span class="v novo">0.26.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span><strong>Escolher com IA</strong> responde em segundos (raciocínio baixo nesta tarefa) e marca as peças ao vivo; a lista vai em ordem cronológica — antes a instrução apontava para a petição errada — e leva quem juntou, tipo, páginas e a triagem local; corte pelo meio em listas gigantes; a faixa de ações da lista não quebra mais em duas fileiras no painel expandido; a tela de configuração reúne num bloco só onde a chave fica, para onde as peças vão e <strong>por que a conexão importa</strong> (cabo » Wi-Fi)</td></tr>
+            <tr class="marco"><td><span class="v novo">0.28.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span><strong>Memória de processos</strong>: reabrir um processo já analisado retoma a conversa, a seleção de peças e o contexto <strong>sem baixar nada de novo</strong> — faixa de retomada no topo do chat, com botão “Esquecer este processo”. Fica guardado neste computador o texto das peças e a conversa (nunca os PDFs nem as imagens), por no máximo 14 dias e 20 processos; interruptor para desligar na configuração completa. Referências de arquivos vencidas no provedor são renovadas sozinhas antes do envio</td></tr>
+            <tr class="marco"><td><span class="v">0.27.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span><strong>Importar peças-modelo de <code>.docx</code> em lote</strong>: arraste vários arquivos e cada um vira uma ficha preenchida, com a espécie reconhecida pelo nome, cabeçalho e dispositivo; leitura 100% local; falhas nomeadas uma a uma, sem travar o lote</td></tr>
+            <tr class="marco"><td><span class="v">0.26.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span><strong>Escolher com IA</strong> responde em segundos (raciocínio baixo nesta tarefa) e marca as peças ao vivo; a lista vai em ordem cronológica — antes a instrução apontava para a petição errada — e leva quem juntou, tipo, páginas e a triagem local; corte pelo meio em listas gigantes; a faixa de ações da lista não quebra mais em duas fileiras no painel expandido; a tela de configuração reúne num bloco só onde a chave fica, para onde as peças vão e <strong>por que a conexão importa</strong> (cabo » Wi-Fi)</td></tr>
             <tr><td><span class="v">0.25.2</span></td><td>05/08/2026</td><td>A linha <strong>Seguir modelos</strong> do modo minuta aparece mesmo com a biblioteca vazia, com atalho para cadastrar; respostas de chat que parecem uma peça ganham o caminho <strong>Refazer seguindo seus modelos</strong>, que devolve o pedido ao campo; regra prática do guia atualizada para o novo modelo padrão</td></tr>
             <tr class="marco"><td><span class="v">0.25.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span><strong>Gemini 3.6 Flash</strong> passa a ser o modelo padrão (1.000 páginas por análise, contra 100 do anterior); com Jurisprudência ligada, a 2ª pergunta da conversa não falha mais; erros da API do Google explicam o motivo; lupa animada enquanto a busca acontece</td></tr>
             <tr class="marco"><td><span class="v">0.24.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span>Peça dos autos e fonte da web separadas no rodapé da resposta, com o domínio de origem à vista; prioridade <strong>STF/STJ → tribunal do processo → demais</strong> na busca; tipografia própria embarcada; painel estreito e telas de apoio redesenhados; botão <strong>Testar chave</strong></td></tr>

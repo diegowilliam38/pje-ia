@@ -193,6 +193,21 @@ label.field .hint { display: block; font-weight: 400; font-size: var(--fs-meta);
 .kstate.on::before { background: var(--ok); }
 label.field .kstate { float: right; }
 
+/* Campo de INTERRUPTOR: caixa + rótulo em negrito na mesma linha, e a
+   explicação longa abaixo, alinhada ao texto (não à caixa). O <i> aqui não é
+   ênfase, é a mesma função do .hint dos outros campos — vem em tamanho de meta
+   e cor abafada, para o rótulo continuar sendo o que se lê primeiro. */
+label.field-check { font-weight: 400; }
+label.field-check .chk {
+  display: flex; align-items: center; gap: 8px;
+  font-weight: 600; font-size: var(--fs-ui);
+}
+label.field-check .chk input { flex: none; width: 15px; height: 15px; accent-color: var(--pje); }
+label.field-check i {
+  display: block; margin: 3px 0 0 23px; font-style: normal;
+  font-size: var(--fs-meta); color: var(--muted); line-height: 1.5;
+}
+
 
 /* Linha de dois campos: controle curto à esquerda, explicação ao lado — em vez
    de a dica empurrar mais uma linha inteira para baixo da dobra. */

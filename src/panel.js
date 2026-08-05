@@ -801,6 +801,13 @@ var PjePanel = (function () {
     // reflete, via setPecasEnviadas.
     let pecasEnviadas = new Set();
 
+    // Seleção restaurada da memória de caso, esperando as rows aparecerem. A
+    // timeline do PJe é lazy: no boot só existe o trecho já rolado, e as demais
+    // peças chegam pelo MutationObserver minutos depois. Cada id é aplicado UMA
+    // vez (o `delete` no setDocs) — assim uma peça que o usuário desmarcou de
+    // propósito não volta marcada no próximo re-render da lista.
+    let selPendente = null;
+
     // -------------------------------------------------------------------------
     // Estado vazio em camadas (progressive disclosure): três passos + exemplos
     // clicáveis sempre visíveis; o texto explicativo mora num <details> fechado
@@ -2019,18 +2026,13 @@ var PjePanel = (function () {
       // fallback do PDF logo abaixo), e `img-src data:` passa onde `blob:` não
       // passa. A imagem já vem reduzida a 1568px pelo pje.js, então o custo de
       // memória do data URI é pequeno.
-      if (info.kind === "img") {
-        const im = document.createElement("img");
-        im.className = "preview-img";
-        im.alt = "Imagem da peça";
-        im.src = "data:" + (info.mime || "image/jpeg") + ";base64," + info.b64;
-        bd.appendChild(im);
-        return;
-      }
-
-      // PDF em cache. A guarda do `!info.b64` é defensiva: hoje toda entrada de
-      // PDF no cache vem de `PJE.baixar` com os bytes, mas sem ela um b64 vazio
-      // faria o `atob` do preview lançar e derrubar o popover no hover.
+      // Peça binária SEM os bytes. Deixou de ser um caso defensivo e virou o
+      // caso COMUM: com a memória de caso, uma peça retomada volta do disco só
+      // com metadados e a referência do upload — os bytes ficam de fora de
+      // propósito (são os autos inteiros). Cobre imagem e PDF de uma vez, e
+      // precisa vir ANTES do ramo de imagem: `"…base64," + undefined` renderiza
+      // uma imagem quebrada, sem nada que explique o que houve nem o botão que
+      // resolve.
       const pesado = (info.size || 0) > PREVIEW_MAX_HOVER_B;
       if (!info.b64) {
         modoCompact();
@@ -2062,6 +2064,21 @@ var PjePanel = (function () {
         bd.appendChild(box);
         return;
       }
+
+      // Anexo em imagem. Vai por `data:` URI e não por `blob:` de propósito: a
+      // CSP hostil de alguns tribunais barra `blob:` em embed (é o motivo do
+      // fallback do PDF logo abaixo), e `img-src data:` passa onde `blob:` não
+      // passa. A imagem já vem reduzida a 1568px pelo pje.js, então o custo de
+      // memória do data URI é pequeno.
+      if (info.kind === "img") {
+        const im = document.createElement("img");
+        im.className = "preview-img";
+        im.alt = "Imagem da peça";
+        im.src = "data:" + (info.mime || "image/jpeg") + ";base64," + info.b64;
+        bd.appendChild(im);
+        return;
+      }
+
       if (previewCspBloqueado || pesado) {
         modoCompact();
         const box = document.createElement("div");
@@ -4006,7 +4023,11 @@ var PjePanel = (function () {
       }
     }
 
-    return {
+    // Nomeada (em vez de devolvida direto) porque a retomada da memória de caso
+    // precisa REUSAR os métodos públicos: `restaurarConversa` é replay de
+    // addMessage/updateAssistant, e depender de `this` ali quebraria se alguém
+    // desestruturasse a API — nenhum outro ponto deste arquivo usa `this`.
+    const api = {
       open,
       onSend(cb) {
         sendCb = cb;
@@ -4068,6 +4089,140 @@ var PjePanel = (function () {
         previewDlCb = cb;
       },
       setConfigured,
+      // Fonte de verdade da seleção: os checkboxes. Exposto para a memória de
+      // caso poder GRAVAR o que está marcado — o content script já sabia a
+      // seleção pelos callbacks, mas só no momento em que ela muda, e a
+      // gravação acontece em outros instantes (fim de turno, fim de exportação).
+      getSelected,
+      // Seleção para GRAVAR na memória: os checkboxes marcados MAIS os ids que
+      // ainda esperam a row aparecer (`selPendente`).
+      //
+      // A diferença não é preciosismo. A timeline do PJe é lazy: ao reabrir um
+      // processo, boa parte das peças ainda não está no DOM. Gravar só
+      // `getSelected()` apagaria da memória exatamente as peças que ainda não
+      // tiveram chance de ser restauradas — e a cada sessão a seleção do
+      // usuário encolheria um pouco mais, sem nada na tela explicando por quê.
+      selecaoParaMemoria() {
+        const ids = getSelected();
+        if (selPendente && selPendente.size) ids.push(...selPendente);
+        return [...new Set(ids)];
+      },
+      // Cópia rasa do transcript, para a memória de caso persistir a conversa
+      // como o usuário a vê. Cópia, e não o array vivo: quem grava não pode
+      // segurar uma referência que o próximo delta do stream vai mutar.
+      lerTranscript() {
+        return transcript.map((e) => ({ ...e }));
+      },
+
+      // ----------------------------------------------------------------------
+      // MEMÓRIA DE CASO — retomada.
+      // ----------------------------------------------------------------------
+
+      // Repõe a conversa na tela a partir do transcript gravado. É REPLAY dos
+      // métodos normais (addMessage/updateAssistant), não um renderizador novo:
+      // assim o `transcript` interno volta correto sozinho e o ⬇ "Baixar a
+      // conversa em .md" segue funcionando sem saber que houve retomada.
+      // Os placeholders PUA de citação atravessam intactos — são caracteres do
+      // próprio texto, e o renderMd os converte em <sup> como no primeiro
+      // desenho.
+      restaurarConversa(itens) {
+        if (!Array.isArray(itens) || !itens.length) return 0;
+        clearEmptyHint();
+        let n = 0;
+        for (const t of itens) {
+          if (!t || !t.text) continue;
+          if (t.role === "user") {
+            api.addMessage("user", t.text, t.atts);
+          } else if (t.tipo === "minuta" || t.tipo === "mapa") {
+            // Minuta e mapa foram gravados com o MARKDOWN INTEIRO no texto (é o
+            // que o export precisa). Re-renderizá-lo como bolha despejaria
+            // dezenas de KB de documento na conversa — retomado, o turno vira
+            // uma linha que aponta para onde o arquivo realmente está.
+            const el = api.addMessage("assistant", "");
+            estruturaAssistant(el);
+            el.__entry.text = t.text;
+            el.__entry.tipo = t.tipo;
+            el.__body.innerHTML =
+              '<div class="mapacard' + (t.tipo === "minuta" ? " minutacard" : "") + '">' +
+              '<div class="mapacard-t">' + (t.tipo === "minuta" ? SVG.minuta : SVG.mapa) +
+              " <b>" + (t.tipo === "minuta" ? "Minuta gerada" : "Mapa mental gerado") +
+              " nesta conversa</b></div>" +
+              '<div class="mapacard-hint">' +
+              (t.tipo === "minuta"
+                ? "Abra em Configurações → Minhas minutas."
+                : "O mapa fica disponível enquanto o navegador estiver aberto.") +
+              "</div></div>";
+          } else {
+            api.updateAssistant(api.addMessage("assistant", ""), t.text, t.cites);
+          }
+          n++;
+        }
+        msgs.scrollTop = msgs.scrollHeight;
+        return n;
+      },
+
+      // Faixa no topo das mensagens. `onEsquecer` é opcional; sem ele o botão
+      // não aparece (é o caso da faixa mostrada sem memória gravável).
+      mostrarRetomada(info) {
+        if (!info) return;
+        const el = document.createElement("div");
+        el.className = "retomada";
+        const t = document.createElement("div");
+        t.className = "ret-t";
+        t.innerHTML =
+          "<b>Conversa retomada</b>" +
+          (info.quando ? " de " + escapeHtml(info.quando) : "") +
+          (info.nMsgs ? " · " + info.nMsgs + " mensagem(ns)" : "") +
+          '<span class="ret-onde">O texto das peças deste processo está guardado ' +
+          "neste computador para não baixar tudo de novo.</span>";
+        el.appendChild(t);
+        if (info.onEsquecer) {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.textContent = "Esquecer este processo";
+          // Exclusão em DOIS cliques, nunca confirm() nativo: o dialog da página
+          // vive fora do Shadow DOM e congela a extensão junto com o PJe.
+          let armado = false;
+          b.addEventListener("click", () => {
+            if (!armado) {
+              armado = true;
+              b.classList.add("armado");
+              b.textContent = "Esquecer?";
+              setTimeout(() => {
+                if (!armado) return;
+                armado = false;
+                b.classList.remove("armado");
+                b.textContent = "Esquecer este processo";
+              }, 4000);
+              return;
+            }
+            info.onEsquecer();
+            el.remove();
+          });
+          el.appendChild(b);
+        }
+        msgs.insertBefore(el, msgs.firstChild);
+      },
+
+      // Marca os checkboxes da seleção anterior. NÃO marca nada agora: guarda os
+      // ids e o `setDocs` os aplica conforme as rows aparecem. É o que resolve a
+      // corrida com o MutationObserver da timeline — peça que só entra na lista
+      // depois de rolar também é restaurada — SEM ressuscitar peça que o
+      // usuário desmarcou (cada id é aplicado uma única vez).
+      restaurarSelecao(ids) {
+        if (!Array.isArray(ids) || !ids.length) return;
+        selPendente = new Set(ids);
+        // As rows que JÁ estão na tela são marcadas na hora; o resto espera o
+        // próximo setDocs.
+        let mexeu = false;
+        for (const row of doclist.querySelectorAll(".docrow")) {
+          if (!selPendente.has(row.dataset.id)) continue;
+          selPendente.delete(row.dataset.id);
+          row.querySelector('input[type="checkbox"]').checked = true;
+          mexeu = true;
+        }
+        if (mexeu) syncSelection();
+      },
       clearMessages() {
         msgs.innerHTML = "";
         hintEl = null;
@@ -4128,7 +4283,12 @@ var PjePanel = (function () {
               : "") +
             '<button type="button" class="d-ver" title="Ver esta peça na linha do tempo do processo" aria-label="Localizar esta peça na linha do tempo">' +
             SVG.ver + "</button>";
-          if (cur.has(d.id)) row.querySelector("input").checked = true;
+          // `selPendente.delete` devolve true só na PRIMEIRA vez que este id
+          // aparece: restaura a seleção da sessão anterior sem re-marcar o que
+          // o usuário já desmarcou desde então.
+          if (cur.has(d.id) || (selPendente && selPendente.delete(d.id))) {
+            row.querySelector("input").checked = true;
+          }
           doclist.appendChild(row);
         }
         if (!docs.length) {
@@ -4146,7 +4306,12 @@ var PjePanel = (function () {
         clearEmptyHint();
         const el = document.createElement("div");
         el.className = "msg " + role;
+        // `atts` entra no transcript porque ele é o registro do turno, e os
+        // chips de peça anexada fazem parte do que foi perguntado. Ficavam só
+        // no DOM: não sobreviviam nem ao "Baixar a conversa em .md", que
+        // exportava a pergunta sem dizer sobre quais peças ela foi feita.
         el.__entry = { role, text: text || "" };
+        if (attachments && attachments.length) el.__entry.atts = attachments.slice();
         transcript.push(el.__entry);
         if (role === "assistant") {
           if (text) {
@@ -4319,7 +4484,14 @@ var PjePanel = (function () {
         if (!el || !info) return;
         estruturaAssistant(el);
         const entry = el.__entry;
-        if (entry) entry.text = info.md || ""; // exportar .md leva o mapa inteiro
+        if (entry) {
+          entry.text = info.md || ""; // exportar .md leva o mapa inteiro
+          // Marca o tipo para a RETOMADA: o markdown de um mapa tem dezenas de
+          // KB e re-renderizá-lo como bolha de chat despejaria o texto cru na
+          // conversa. Retomado, ele vira uma linha que aponta para onde o mapa
+          // está de fato.
+          entry.tipo = "mapa";
+        }
         el.__body.innerHTML =
           '<div class="mapacard">' +
           '<div class="mapacard-t">' + SVG.mapa + ' <b>Mapa mental gerado</b>' +
@@ -4353,7 +4525,10 @@ var PjePanel = (function () {
         if (!el || !info) return;
         estruturaAssistant(el);
         const entry = el.__entry;
-        if (entry) entry.text = info.md || "";
+        if (entry) {
+          entry.text = info.md || "";
+          entry.tipo = "minuta"; // mesma razão do card do mapa (ver acima)
+        }
         el.__body.innerHTML =
           '<div class="mapacard minutacard">' +
           '<div class="mapacard-t">' + SVG.minuta + ' <b>Minuta gerada</b>' +
@@ -4553,6 +4728,16 @@ var PjePanel = (function () {
           custoShort.textContent = "";
           return;
         }
+        // Conversa RETOMADA da memória: há acumulado, mas não houve resposta
+        // nesta sessão. Escrever "~US$ 0,00 nesta resposta" afirmaria um turno
+        // que não aconteceu — o acumulado sozinho é o número verdadeiro.
+        if (info.turnoUsd == null) {
+          custoFull.textContent = "~" + fmtUsd(info.conversaUsd) + " nesta conversa até aqui";
+          custoShort.textContent = "~" + fmtUsd(info.conversaUsd);
+          custoEl.title = "Custo acumulado da conversa retomada da memória deste processo.";
+          custoEl.hidden = false;
+          return;
+        }
         custoFull.textContent =
           "~" + fmtUsd(info.turnoUsd) + " nesta resposta · ~" +
           fmtUsd(info.conversaUsd) + " na conversa";
@@ -4639,6 +4824,7 @@ var PjePanel = (function () {
         modeloBadge.hidden = false;
       },
     };
+    return api;
   }
 
   return {

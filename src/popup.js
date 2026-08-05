@@ -4,6 +4,10 @@ const openaiKeyEl = document.getElementById("openaiApiKey");
 const modelEl = document.getElementById("model");
 const effortEl = document.getElementById("effort");
 const customEl = document.getElementById("customPrompt");
+// Só existe na página de opções (o popup é o console rápido). Como todo
+// elemento exclusivo de uma das duas telas, é acessado sempre sob `if (el)` —
+// tocá-lo direto quebraria a outra página.
+const memoriaEl = document.getElementById("memoriaCaso");
 const saveBtn = document.getElementById("save");
 const saveStatus = document.getElementById("saveStatus");
 const chip = document.getElementById("chip");
@@ -152,7 +156,7 @@ function pintarMascaras() {
 // inexistente. Quem mostra a chave do provedor ativo agora é `pintarProvedores`.
 
 chrome.storage.local.get(
-  ["apiKey", "geminiApiKey", "openaiApiKey", "model", "effort", "customPrompt"],
+  ["apiKey", "geminiApiKey", "openaiApiKey", "model", "effort", "customPrompt", "memoriaCaso"],
   (v) => {
     if (v.apiKey) apiKeyEl.value = v.apiKey;
     if (v.geminiApiKey) geminiKeyEl.value = v.geminiApiKey;
@@ -165,6 +169,9 @@ chrome.storage.local.get(
     if (!modelEl.value) modelEl.value = MODELO_PADRAO;
     if (v.effort) setEffort(v.effort);
     if (customEl && v.customPrompt) customEl.value = v.customPrompt;
+    // Default LIGADO, e por isso o teste é `!== false`: quem nunca abriu esta
+    // tela não tem a chave no storage, e `v.memoriaCaso` vem `undefined`.
+    if (memoriaEl) memoriaEl.checked = v.memoriaCaso !== false;
     pintarMascaras();
     setChip();
     // Os passos "Como usar" só existem enquanto NENHUMA chave foi salva: é
@@ -270,7 +277,17 @@ saveBtn.addEventListener("click", () => {
   const cfg = { apiKey, geminiApiKey, openaiApiKey, model: modelEl.value };
   if (effortEl) cfg.effort = getEffort();
   if (customEl) cfg.customPrompt = customEl.value.trim();
+  if (memoriaEl) cfg.memoriaCaso = memoriaEl.checked;
   chrome.storage.local.set(cfg, () => {
+    // DESLIGAR tem de apagar o que já existe, na hora. Um interruptor que só
+    // impede gravações futuras deixaria no disco exatamente o material que o
+    // usuário acabou de dizer que não quer guardado — e ele não teria como
+    // saber que continua lá.
+    if (memoriaEl && !memoriaEl.checked) {
+      chrome.runtime.sendMessage({ type: "casoEsquecer", chave: null }, () => {
+        void chrome.runtime.lastError;
+      });
+    }
     pintarMascaras();
     setChip();
     // salvou a primeira chave: os passos de primeiro uso cumpriram seu papel
