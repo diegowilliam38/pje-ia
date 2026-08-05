@@ -216,14 +216,30 @@ function custoUsdDe(usage, preco) {
     1e6
   );
 }
+// Modelo de fallback POR PROVEDOR. Um id desconhecido (config de uma versão
+// que oferecia outro modelo) tem o provedor decidido por `providerDe` — que
+// olha só o prefixo e acerta —, então cair sempre nas caps do Haiku dava um
+// par incoerente: o request ia para o Google com janela de 200 mil tokens,
+// guarda de 100 páginas e `citacoesNativas` ligada (o system prompt pediria
+// citação por página a um modelo que não as produz).
+const FALLBACK_POR_PROVEDOR = {
+  anthropic: "claude-haiku-4-5",
+  gemini: "gemini-3.6-flash",
+  openai: "gpt-5.6-luna",
+};
 function capsDe(model) {
-  return MODEL_CAPS[model] || MODEL_CAPS["claude-haiku-4-5"];
+  return MODEL_CAPS[model] || MODEL_CAPS[FALLBACK_POR_PROVEDOR[providerDe(model)]];
 }
 
-// Default: Haiku 4.5 — mais rápido e ~3× mais barato que o Sonnet 5; todas as
-// features funcionam nele. O custo funcional é a janela menor (200 mil tokens,
-// 100 págs. de PDF) — para autos volumosos o usuário troca para o Sonnet 5
-// (1M) no popup/opções; o MODEL_CAPS e o medidor cuidam dos limites.
+// Default: Gemini 3.6 Flash — 1M de tokens e 1000 páginas cobrem os autos
+// inteiros sem a guarda de páginas estourar, que é o caso comum aqui, e o
+// custo é baixo. O que se abre mão é a citação nativa por página
+// (`citacoesNativas:false` → citação textual, com o ⓘ ao lado do selo) e a
+// allowlist de domínios na busca; quem quiser os dois troca para um modelo
+// Anthropic no popup/opções. ESTE VALOR TAMBÉM VIVE EM `popup.js`
+// (`MODELO_PADRAO`), que é script clássico e não pode importar daqui —
+// mudar aqui exige mudar lá, senão a tela de configuração passa a mostrar um
+// modelo diferente do que a extensão usa.
 function getCfg() {
   return new Promise((resolve) =>
     chrome.storage.local.get(

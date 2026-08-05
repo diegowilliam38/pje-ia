@@ -31,6 +31,15 @@ const NOME_PROVEDOR = { anthropic: "Anthropic", gemini: "Google", openai: "OpenA
 // Primeiro modelo de cada provedor = o recomendado. Clicar num cartão troca
 // para ele; o provedor NÃO é gravado no storage — continua derivado do `model`.
 const PADRAO = { anthropic: "claude-haiku-4-5", gemini: "gemini-3.6-flash", openai: "gpt-5.6-luna" };
+// Modelo usado quando NADA foi salvo ainda. Precisa ser byte a byte o default
+// do `getCfg` em background.js: sem `model` no storage o worker chama o Gemini
+// 3.6 Flash, mas o <select> mostrava o PRIMEIRO <option> do HTML (o Haiku) —
+// então, na primeira instalação, o popup pedia a chave da Anthropic para uma
+// extensão que ia falar com o Google, e o selo do painel contradizia a tela de
+// configuração. Não dá para importar a constante do worker (este script é
+// clássico e aquele é ES module), então a duplicação é deliberada e anotada
+// nos dois lados.
+const MODELO_PADRAO = "gemini-3.6-flash";
 
 // O chip reflete a chave do PROVEDOR do modelo selecionado: escolher um modelo
 // de um provedor sem a chave dele avisa na hora, antes mesmo de salvar. O
@@ -148,7 +157,12 @@ chrome.storage.local.get(
     if (v.apiKey) apiKeyEl.value = v.apiKey;
     if (v.geminiApiKey) geminiKeyEl.value = v.geminiApiKey;
     if (openaiKeyEl && v.openaiApiKey) openaiKeyEl.value = v.openaiApiKey;
-    if (v.model) modelEl.value = v.model;
+    modelEl.value = v.model || MODELO_PADRAO;
+    // `select.value` com um id que não existe entre os <option> deixa o campo
+    // SEM seleção (value vira ""), e daí o chip cairia no provedor errado e um
+    // "Salvar" gravaria modelo vazio. Acontece com config de uma versão que
+    // oferecia outro modelo — o padrão atual é a saída correta.
+    if (!modelEl.value) modelEl.value = MODELO_PADRAO;
     if (v.effort) setEffort(v.effort);
     if (customEl && v.customPrompt) customEl.value = v.customPrompt;
     pintarMascaras();
