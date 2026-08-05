@@ -90,7 +90,7 @@
     <div class="page">
       <h1 class="serif">O que mudou na extensão</h1>
       <p class="lead">
-        Da primeira versão (19 de julho de 2026) até hoje foram <strong>57 versões</strong>. Esta
+        Da primeira versão (19 de julho de 2026) até hoje foram <strong>58 versões</strong>. Esta
         página agrupa o que foi feito <strong>por recurso</strong> — é assim que se usa a
         extensão, não versão a versão. O
         <a class="link" href="#historico">histórico completo</a>, com data e uma linha por
@@ -133,6 +133,16 @@
           (“Contestação…”, “Documento de Comprovação…”), o que distingue uma peça da outra vive
           justamente no fim — exatamente onde o corte caía. Agora ocupa até duas linhas, três
           quando a lista é coluna.
+        </p>
+        <p>
+          <strong>Na v0.31.1</strong>, duas correções na mesma causa: ao reabrir um processo
+          guardado na memória, o botão <strong>Abrir documento</strong> da pré-visualização não
+          fazia nada, e a exportação em <code>.zip</code> podia levar a peça <strong>vazia</strong>
+          — esta em silêncio, num arquivo que só se abre depois. As duas vinham de a extensão
+          concluir que não precisava baixar o documento: para <em>enviar</em> à IA ela realmente
+          não precisa (a peça já está no provedor), mas para <em>mostrar na tela</em> e para
+          <em>gravar no pacote</em> o conteúdo tem de estar aqui. Se você exportou um processo
+          retomado, vale conferir o pacote.
         </p>
       </div>
 
@@ -775,7 +785,7 @@
 
       <h1 class="serif" id="historico">Histórico completo</h1>
       <p class="lead">
-        As 57 versões, da mais recente à primeira. As marcadas com
+        As 58 versões, da mais recente à primeira. As marcadas com
         <span class="dot-marco"></span> mudaram o produto de forma visível.
       </p>
 
@@ -785,7 +795,8 @@
             <tr><th>Versão</th><th>Data</th><th>O que mudou</th></tr>
           </thead>
           <tbody>
-            <tr class="marco"><td><span class="v novo">0.31.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span><strong>Visita guiada no primeiro uso</strong>: o painel se explica sobre ele mesmo, destacando cada recurso na tela real com o gesto animado ao lado. Treze passos, e sete são sobre <strong>marcar peças</strong> — os três degraus, a busca e o <code>@</code>, o arrasto, o Shift+clique, o botão direito e o Escolher com IA —, que eram atalhos que quase ninguém descobria sozinho. Não toca no processo: os gestos são demonstrados numa lista de exemplo, nenhuma peça é marcada e nada é baixado. Recusando, não volta; o botão <strong>Ver como funciona</strong> fica no início de toda conversa nova. Junto, o <strong>nome da peça deixou de ser cortado no meio</strong> — agora ocupa até duas linhas, três quando a lista é coluna</td></tr>
+            <tr><td><span class="v novo">0.31.1</span></td><td>05/08/2026</td><td>Ao reabrir um processo guardado na memória, o botão <strong>Abrir documento</strong> da pré-visualização não fazia nada e a exportação em <code>.zip</code> podia levar a peça <strong>vazia</strong>: a extensão concluía que não precisava baixar o documento — o que é verdade para <em>enviar</em> à IA, já que a peça está no provedor, mas não para <em>mostrar na tela</em> nem para <em>gravar no pacote</em></td></tr>
+            <tr class="marco"><td><span class="v">0.31.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span><strong>Visita guiada no primeiro uso</strong>: o painel se explica sobre ele mesmo, destacando cada recurso na tela real com o gesto animado ao lado. Treze passos, e sete são sobre <strong>marcar peças</strong> — os três degraus, a busca e o <code>@</code>, o arrasto, o Shift+clique, o botão direito e o Escolher com IA —, que eram atalhos que quase ninguém descobria sozinho. Não toca no processo: os gestos são demonstrados numa lista de exemplo, nenhuma peça é marcada e nada é baixado. Recusando, não volta; o botão <strong>Ver como funciona</strong> fica no início de toda conversa nova. Junto, o <strong>nome da peça deixou de ser cortado no meio</strong> — agora ocupa até duas linhas, três quando a lista é coluna</td></tr>
             <tr class="marco"><td><span class="v">0.30.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span><strong>Conversa com minuta ou mapa mental deixa de se perder</strong>: a gravação passou a considerar o que está na tela, e não só o histórico de perguntas — antes, uma sessão inteira de minutas e mapas nunca chegava ao disco. Corrigidas também duas perdas silenciosas: conversa retomada que virava duplicata e conversa de outro provedor sobrescrita pela nova. As respostas ganharam <strong>avisos em bloco</strong> — <strong>Alerta</strong> (vermelho) para o que pode levar a erro de decisão, <strong>Atenção</strong> (âmbar) para ressalvas sobre a base da resposta, <strong>Nota</strong> para o resto —, e os botões de conversa no cabeçalho ficaram distinguíveis: <strong>+</strong> no de nova conversa, <strong>contador</strong> no da lista</td></tr>
             <tr><td><span class="v">0.29.1</span></td><td>05/08/2026</td><td>A lista de conversas não some ao excluir a penúltima, e uma pergunta deixa de virar duas conversas iguais quando duas gravações correm juntas</td></tr>
             <tr class="marco"><td><span class="v">0.29.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span><strong>Várias conversas por processo</strong>: “Nova conversa” arquiva em vez de apagar, e a lista no alto do painel traz as conversas guardadas daquele processo, com título e nº de mensagens. As peças baixadas servem a todas elas; duas abas no mesmo processo deixam de sobrescrever o trabalho uma da outra</td></tr>
