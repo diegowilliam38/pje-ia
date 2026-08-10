@@ -162,7 +162,7 @@ const MLIB = (() => {
 
   function doNome(nomeArquivo) {
     const s = norm(nomeArquivo)
-      .replace(/\.docx$/, "")
+      .replace(/\.(docx|rtf)$/, "")
       .replace(/[_\-.]+/g, " ");
     let melhor = null;
     for (const [cat, re] of RE_NOME) {

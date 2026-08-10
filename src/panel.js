@@ -284,6 +284,8 @@ var PjePanel = (function () {
     // mesmo desenho do botão "Importar de .docx" da página modelos.html: as
     // duas portas de entrada da importação precisam mostrar o mesmo ícone
     importar: '<path d="M12 20V9"/><path d="M7 13l5-5 5 5"/><path d="M5 4h14"/>',
+    // clipe de papel do botão de anexar arquivos no input
+    clip: '<path d="M20 11l-8.5 8.5a4 4 0 0 1-5.7-5.7l8.5-8.5a2.5 2.5 0 0 1 3.5 3.5l-8 8a1 1 0 0 1-1.4-1.4l7.3-7.3"/>',
   };
   // px = lado do ícone; w = stroke-width (a escala do DESIGN.md §5).
   function ic(paths, px, w) {
@@ -344,6 +346,7 @@ var PjePanel = (function () {
     importarG: ic(P.importar, 24, 1.4), // grande: traço mais fino (DESIGN.md §5)
     // --- demais ---
     info: ic(P.info, 15, 1.8),
+    clip: ic(P.clip, 16, 1.8),
     enviar: ic(P.enviar, 14, 2),
     chevron: ic(P.chevron, 11, 2.2),
     mais: ic(P.mais, 15, 1.8),
@@ -878,8 +881,11 @@ var PjePanel = (function () {
                 <button class="mapabar-x" title="Cancelar a geração do mapa mental (Esc)">${SVG.x}</button>
               </div>
               <div class="promptbar" hidden></div>
+              <div class="anexosbar" hidden></div>
               <div class="inrow">
-                <textarea class="in" rows="1" placeholder="Pergunte sobre as peças… (@ cita uma peça)"></textarea>
+                <button class="attach" title="Anexar arquivos (PDF, Word .docx, RTF, TXT ou Markdown) para analisar junto das peças — ou sozinhos" aria-label="Anexar arquivos">${SVG.clip}</button>
+                <input type="file" class="attach-input" accept=".pdf,.docx,.rtf,.txt,.md,.markdown,text/plain,text/markdown,text/rtf,application/rtf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple hidden aria-hidden="true">
+                <textarea class="in" rows="1" placeholder="Pergunte sobre as peças… (@ cita uma peça · 📎 anexa arquivo)"></textarea>
                 <button class="send"><span class="lbl">Enviar</span>${SVG.enviar}</button>
               </div>
               <div class="hint-key"><div class="hk-in"><b>@</b> cita peças &nbsp;·&nbsp; <b>/</b> insere um prompt salvo &nbsp;·&nbsp; <b>Enter</b> envia <span class="hk-shift">&nbsp;·&nbsp; <b>Shift+Enter</b> quebra linha</span></div></div>
@@ -910,7 +916,7 @@ var PjePanel = (function () {
           <div class="mlib-card plib-card" role="dialog" aria-modal="true" aria-label="Modelos de peças" tabindex="-1">
             <div class="plib-hd">
               <span class="t">${SVG.modelos} Modelos de peças</span>
-              <button class="mlib-imp-btn plib-new" title="Importar peças-modelo de arquivos .docx — pode escolher vários de uma vez, e você confere tudo antes de cadastrar">${SVG.importar}<span class="lbl">Importar</span></button>
+              <button class="mlib-imp-btn plib-new" title="Importar peças-modelo de arquivos .docx ou .rtf — pode escolher vários de uma vez, e você confere tudo antes de cadastrar">${SVG.importar}<span class="lbl">Importar</span></button>
               <button class="mlib-new plib-new">${SVG.novo}<span class="lbl">Novo</span></button>
               <button class="mlib-close plib-close" title="Fechar (Esc)" aria-label="Fechar o gerenciador de modelos">${SVG.close}</button>
             </div>
@@ -929,9 +935,9 @@ var PjePanel = (function () {
             </div>
             <div class="mlib-imp" hidden>
               <div class="imp-rolo">
-                <div class="imp-drop" role="button" tabindex="0" aria-label="Escolher arquivos .docx — ou arraste os arquivos até aqui">
+                <div class="imp-drop" role="button" tabindex="0" aria-label="Escolher arquivos .docx ou .rtf — ou arraste os arquivos até aqui">
                   ${SVG.importarG}
-                  <span class="imp-drop-t">Arraste seus arquivos <b>.docx</b> até aqui</span>
+                  <span class="imp-drop-t">Arraste seus arquivos <b>.docx</b> ou <b>.rtf</b> até aqui</span>
                   <span class="imp-drop-s">ou clique para escolher — pode mandar vários de uma vez</span>
                 </div>
                 <div class="imp-prog" hidden>
@@ -952,7 +958,7 @@ var PjePanel = (function () {
               <div class="imp-acts imp-acts-fim" hidden>
                 <button class="imp-fechar plib-save">Voltar aos modelos</button>
               </div>
-              <input type="file" class="imp-file" accept=".docx" multiple hidden>
+              <input type="file" class="imp-file" accept=".docx,.rtf" multiple hidden>
             </div>
           </div>
         </div>
@@ -3076,6 +3082,54 @@ var PjePanel = (function () {
       promptbar.appendChild(hint);
     }
 
+    // ----- Anexos do input (📎): botão, campo de arquivo e chips -----
+    // A UI é reflexo: o content script é dono da lista (Map `anexos`) e a manda
+    // pronta em `setAnexos`. Aqui só disparamos a escolha, entregamos os File ao
+    // content script e desenhamos os chips.
+    const anexosbar = $(".anexosbar");
+    const attachBtn = $(".attach");
+    const attachInput = $(".attach-input");
+    let anexarCb = null;
+    let removerAnexoCb = null;
+    let anexosAtuais = [];
+    if (attachBtn && attachInput) {
+      attachBtn.addEventListener("click", () => attachInput.click());
+      attachInput.addEventListener("change", () => {
+        const files = [...(attachInput.files || [])];
+        // Zera SEMPRE: senão escolher o mesmo arquivo de novo não dispara change,
+        // e um arquivo que falhou nunca poderia ser re-tentado.
+        attachInput.value = "";
+        if (files.length && anexarCb) anexarCb(files);
+      });
+    }
+    // Desenha os chips dos anexos. `enviado` (já no contexto) muda só o título.
+    function renderAnexos(lista) {
+      anexosAtuais = Array.isArray(lista) ? lista : [];
+      if (!anexosbar) return;
+      anexosbar.innerHTML = "";
+      anexosbar.hidden = !anexosAtuais.length;
+      inrowEl.classList.toggle("com-anexo", !!anexosAtuais.length);
+      if (!anexosAtuais.length) return;
+      for (const a of anexosAtuais) {
+        const chip = document.createElement("span");
+        chip.className = "achip" + (a.enviado ? " enviado" : "");
+        const nome = a.nome || a.id;
+        chip.innerHTML =
+          '<span class="achip-i" aria-hidden="true">' + SVG.clip + "</span>" +
+          '<span class="achip-t" title="' + escapeHtml(nome) + (a.sub ? " — " + escapeHtml(a.sub) : "") +
+          (a.enviado ? " (no contexto)" : "") + '">' +
+          '<b>' + escapeHtml(tituloCurto(nome)) + "</b>" +
+          (a.sub ? '<span class="achip-s">' + escapeHtml(a.sub) + "</span>" : "") +
+          "</span>" +
+          '<button class="chip-x achip-x" title="Remover o anexo do contexto" aria-label="Remover ' +
+          escapeHtml(tituloCurto(nome)) + ' do contexto">' + SVG.x + "</button>";
+        chip.querySelector(".achip-x").addEventListener("click", () => {
+          if (removerAnexoCb) removerAnexoCb(a.id);
+        });
+        anexosbar.appendChild(chip);
+      }
+    }
+
     // ----- Gerenciador de prompts (modal .plib) -----
     function abrirPlib(opts) {
       opts = opts || {};
@@ -3594,7 +3648,7 @@ var PjePanel = (function () {
         mlibListEl.innerHTML =
           '<div class="plib-empty">Nenhum modelo cadastrado ainda.<br>' +
           (temDocx
-            ? "Use <b>Importar</b> para trazer vários arquivos <b>.docx</b> de uma vez, ou <b>Novo</b> para colar o texto"
+            ? "Use <b>Importar</b> para trazer vários arquivos <b>.docx</b> ou <b>.rtf</b> de uma vez, ou <b>Novo</b> para colar o texto"
             : "Clique em <b>Novo</b> para cadastrar sua primeira peça-modelo") +
           " — depois, ao gerar uma minuta, escolha a categoria em <b>Seguir modelos</b>.</div>";
         return;
@@ -3745,7 +3799,7 @@ var PjePanel = (function () {
       impDrop.classList.toggle("compacta", conferindo);
       impDrop.querySelector(".imp-drop-t").innerHTML = conferindo
         ? "Arraste ou clique para <b>adicionar mais</b>"
-        : "Arraste seus arquivos <b>.docx</b> até aqui";
+        : "Arraste seus arquivos <b>.docx</b> ou <b>.rtf</b> até aqui";
       impProg.hidden = qual !== "lendo";
       impFichasEl.hidden = qual === "resultado";
       // O rodapé aparece também no VAZIO, com só o "Voltar": sem ele, quem abriu
@@ -4520,6 +4574,18 @@ var PjePanel = (function () {
       onSelectionChange(cb) {
         selChangeCb = cb;
       },
+      // Anexos do input (📎). onAnexar recebe os File escolhidos; onRemoverAnexo
+      // recebe o id do anexo a soltar; setAnexos redesenha os chips a partir da
+      // lista que o content script mantém.
+      onAnexar(cb) {
+        anexarCb = cb;
+      },
+      onRemoverAnexo(cb) {
+        removerAnexoCb = cb;
+      },
+      setAnexos(lista) {
+        renderAnexos(lista);
+      },
       // Clique no botão "ver na timeline" de uma peça (recebe o id).
       onVerNaTimeline(cb) {
         verTimelineCb = cb;
@@ -4746,6 +4812,57 @@ var PjePanel = (function () {
           mexeu = true;
         }
         if (mexeu) syncSelection();
+      },
+      // Desmarca peças pelo id (checkbox = fonte de verdade). Usada quando o
+      // download de uma peça falha: tirá-la da seleção é o que impede que ela
+      // trave os próximos turnos. Cobre também a peça ainda LAZY (row não criada)
+      // removendo-a de `selPendente`, senão ela voltaria marcada no próximo
+      // setDocs. Devolve true se algo mudou.
+      desmarcarPecas(ids) {
+        if (!Array.isArray(ids) || !ids.length) return false;
+        let mexeu = false;
+        for (const id of ids) {
+          const c = doclist.querySelector('input[value="' + CSS.escape(id) + '"]');
+          if (c && c.checked) {
+            c.checked = false;
+            mexeu = true;
+          }
+          if (selPendente && selPendente.delete(id)) mexeu = true;
+        }
+        if (mexeu) syncSelection();
+        return mexeu;
+      },
+      // Marca peças pelo id, de forma ADITIVA (não desmarca nada). É o que faz o
+      // botão "adicionar peça citada" incluir no contexto uma peça que o modelo
+      // apontou como faltante. Peça ainda LAZY entra em `selPendente` (mesclado,
+      // não substituído como em `restaurarSelecao`) e é marcada quando a row
+      // aparecer. Devolve os ids que ainda não estavam marcados.
+      marcarPecas(ids) {
+        if (!Array.isArray(ids) || !ids.length) return [];
+        const novos = [];
+        let mexeu = false;
+        for (const id of ids) {
+          const c = doclist.querySelector('input[value="' + CSS.escape(id) + '"]');
+          if (c) {
+            if (!c.checked) {
+              c.checked = true;
+              mexeu = true;
+              novos.push(id);
+            }
+          } else {
+            // row ainda lazy: guarda em selPendente e conta como mudança para
+            // o syncSelection rodar — assim a memória (selecaoParaMemoria inclui
+            // selPendente) persiste a peça já, simétrico ao desmarcarPecas.
+            if (!selPendente) selPendente = new Set();
+            if (!selPendente.has(id)) {
+              selPendente.add(id);
+              novos.push(id);
+              mexeu = true;
+            }
+          }
+        }
+        if (mexeu) syncSelection();
+        return novos;
       },
       clearMessages() {
         msgs.innerHTML = "";
@@ -5153,6 +5270,78 @@ var PjePanel = (function () {
         el.appendChild(box);
         msgs.scrollTop = msgs.scrollHeight;
       },
+      // Peças que o modelo CITOU como faltantes (ids que ele mencionou mas que
+      // não estão no contexto) viram botões de "adicionar" abaixo da bolha. O
+      // modelo já faz o trabalho de apontar "o comprovante está na peça
+      // 214661494, que não foi anexada"; aqui esse id vira um clique que marca a
+      // peça — o usuário não precisa procurá-la na lista.
+      //
+      // Irmão do `.editor-act`: sobrevive ao `updateAssistant` (é filho do
+      // container do turno, não do `.body`). `info.pecas` = [{id, titulo}];
+      // `info.onAdd(ids)` marca as peças (o content script decide o que fazer).
+      sugerirPecas(el, info) {
+        if (!el || !info || !info.pecas || !info.pecas.length) return;
+        if (el.querySelector(".pecas-sug")) return; // uma vez por bolha
+        estruturaAssistant(el);
+        const box = document.createElement("div");
+        box.className = "pecas-sug";
+        const lab = document.createElement("div");
+        lab.className = "pecas-sug-lab";
+        lab.textContent =
+          info.pecas.length === 1
+            ? "Peça citada que não está no contexto:"
+            : "Peças citadas que não estão no contexto:";
+        box.appendChild(lab);
+        const linha = document.createElement("div");
+        linha.className = "pecas-sug-chips";
+        const marcados = new Set();
+        // troca o + pelo ✓ e desabilita (a peça já foi marcada)
+        function marcarFeito(btn) {
+          btn.classList.add("feito");
+          btn.disabled = true;
+          const svg = btn.querySelector("svg");
+          if (svg) svg.outerHTML = SVG.check;
+        }
+        for (const p of info.pecas) {
+          const b = document.createElement("button");
+          b.className = "pecas-sug-add";
+          b.dataset.id = p.id;
+          b.innerHTML =
+            SVG.novo +
+            '<span class="ps-id">' + escapeHtml(String(p.id)) + "</span>" +
+            (p.titulo ? '<span class="ps-t">' + escapeHtml(tituloCurto(p.titulo)) + "</span>" : "");
+          b.title = "Marcar “" + (p.titulo || p.id) + "” para incluí-la no próximo envio";
+          b.addEventListener("click", () => {
+            if (marcados.has(p.id)) return;
+            marcados.add(p.id);
+            marcarFeito(b);
+            if (info.onAdd) info.onAdd([p.id]);
+          });
+          linha.appendChild(b);
+        }
+        // "Adicionar todas" só quando há mais de uma: com uma peça o botão único
+        // já resolve.
+        if (info.pecas.length > 1) {
+          const todas = document.createElement("button");
+          todas.className = "pecas-sug-all";
+          todas.textContent = "Adicionar todas";
+          todas.addEventListener("click", () => {
+            const restantes = info.pecas.map((p) => p.id).filter((id) => !marcados.has(id));
+            if (!restantes.length) return;
+            for (const p of info.pecas) marcados.add(p.id);
+            for (const b of linha.querySelectorAll(".pecas-sug-add")) {
+              if (b.classList.contains("feito")) continue;
+              marcarFeito(b);
+            }
+            todas.disabled = true;
+            if (info.onAdd) info.onAdd(restantes);
+          });
+          linha.appendChild(todas);
+        }
+        box.appendChild(linha);
+        el.appendChild(box);
+        msgs.scrollTop = msgs.scrollHeight;
+      },
       // busy=true mostra um spinner antes do texto (trabalho em andamento —
       // análise, geração de documento, upload…), para o usuário ver que a
       // extensão está trabalhando e não travada.
@@ -5328,6 +5517,7 @@ var PjePanel = (function () {
         btnMinuta.disabled = b;
         btnMapa.disabled = b;
         btnPlib.disabled = b;
+        if (attachBtn) attachBtn.disabled = b;
         const px = promptbar.querySelector(".pchip-x");
         if (px) px.disabled = b;
       },

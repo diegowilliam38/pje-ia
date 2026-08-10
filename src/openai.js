@@ -264,8 +264,15 @@ export async function* streamOpenAI(req) {
   // completa. Erro re-tentável: o executarTurno re-tenta o mesmo request (o
   // prefixo está no cache automático da OpenAI, custa pouco).
   if (!respostaFinal) {
+    // O SSE terminou sem `response.completed/incomplete` — a conexão caiu no
+    // meio. Continua re-tentável (o worker repete 2×); esta mensagem só chega ao
+    // usuário DEPOIS de as tentativas se esgotarem, então aponta o próximo passo
+    // real: com muitas peças o request fica grande e a queda se repete, logo
+    // reduzir o conjunto costuma ser o que resolve — não só "tentar de novo".
     const err = new Error(
-      "o stream da API da OpenAI terminou sem o evento de conclusão — tente de novo"
+      "a conexão com a OpenAI caiu antes de a resposta terminar. Se persistir, costuma " +
+        "ser o tamanho do envio: reduza as peças selecionadas (use os degraus “chave”/" +
+        "“principais” ou o ✨ Escolher com IA) e tente de novo."
     );
     err.retryable = true;
     throw err;

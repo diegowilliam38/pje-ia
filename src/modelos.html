@@ -15,7 +15,7 @@
         <span class="s">guardados neste computador · usados ao gerar minutas</span>
       </div>
       <div class="acoes">
-        <button id="importarLote"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V9"/><path d="M7 13l5-5 5 5"/><path d="M5 4h14"/></svg><span>Importar .docx</span></button>
+        <button id="importarLote"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V9"/><path d="M7 13l5-5 5 5"/><path d="M5 4h14"/></svg><span>Importar .docx/.rtf</span></button>
         <button id="novo" class="primario"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>Novo modelo</span></button>
       </div>
     </header>
@@ -74,15 +74,15 @@
           <label class="campo">
             <span class="rot">
               Texto da peça-modelo
-              <button type="button" id="importar" class="mini"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V9"/><path d="M7 13l5-5 5 5"/><path d="M5 4h14"/></svg><span>Importar de .docx</span></button>
+              <button type="button" id="importar" class="mini"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V9"/><path d="M7 13l5-5 5 5"/><path d="M5 4h14"/></svg><span>Importar de .docx/.rtf</span></button>
             </span>
             <textarea
               id="fTexto"
-              placeholder="Cole aqui a peça inteira, do cabeçalho ao dispositivo — ou importe um .docx que você já tenha."
+              placeholder="Cole aqui a peça inteira, do cabeçalho ao dispositivo — ou importe um .docx/.rtf que você já tenha."
             ></textarea>
             <span class="dica" id="contChars"></span>
           </label>
-          <input type="file" id="arquivo" accept=".docx" hidden />
+          <input type="file" id="arquivo" accept=".docx,.rtf" hidden />
 
           <div class="erro" id="formErro" role="alert" hidden></div>
 
@@ -96,7 +96,7 @@
       <!-- IMPORTAÇÃO EM LOTE -->
       <section id="telaImportar" class="col" hidden>
         <div class="form-card">
-          <h2 class="serif">Importar modelos de arquivos .docx</h2>
+          <h2 class="serif">Importar modelos de arquivos .docx ou .rtf</h2>
           <p class="form-sub">
             Escolha <b>vários de uma vez</b>. O título e a espécie vêm preenchidos e você
             confere tudo antes de cadastrar. Os arquivos são lidos <b>aqui no seu
@@ -105,9 +105,9 @@
 
           <!-- estado VAZIO -->
           <div class="imp-drop" id="impDrop" role="button" tabindex="0"
-               aria-label="Escolher arquivos .docx — ou arraste os arquivos até aqui">
+               aria-label="Escolher arquivos .docx ou .rtf — ou arraste os arquivos até aqui">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V9"/><path d="M7 13l5-5 5 5"/><path d="M5 4h14"/></svg>
-            <span class="imp-drop-t">Arraste seus arquivos <b>.docx</b> até aqui</span>
+            <span class="imp-drop-t">Arraste seus arquivos <b>.docx</b> ou <b>.rtf</b> até aqui</span>
             <span class="imp-drop-s">ou clique para escolher — pode mandar 5, 10, quantos quiser</span>
           </div>
 
@@ -136,7 +136,7 @@
             <button type="button" class="primario" id="impFechar">Voltar aos modelos</button>
           </div>
         </div>
-        <input type="file" id="arquivos" accept=".docx" multiple hidden />
+        <input type="file" id="arquivos" accept=".docx,.rtf" multiple hidden />
       </section>
     </main>
 

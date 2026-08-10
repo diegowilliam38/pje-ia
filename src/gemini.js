@@ -172,79 +172,116 @@ function traduzirHistorico(messages) {
 // no request para a resposta nunca ser cortada por um default menor.
 const MAX_OUTPUT_TOKENS = 65536;
 
+// "Deixar livre": afrouxa ao MÁXIMO o filtro de conteúdo CONFIGURÁVEL do Gemini.
+// Autos descrevem violência, crimes, drogas, abuso — conteúdo jurídico legítimo
+// que o filtro barra por padrão. BLOCK_NONE em todas as categorias é o mais
+// permissivo aceito de forma universal (o threshold "OFF" não existe em todos os
+// modelos). ATENÇÃO: isto NÃO afeta a camada NÃO-configurável do Google (o "400
+// blocked for an unspecified policy reason") — essa não há como desligar; para
+// conteúdo barrado ali, a saída segue sendo trocar para um modelo Claude.
+const SAFETY_LIVRE = [
+  { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+  { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+  { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+  { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+  { category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "BLOCK_NONE" },
+];
+// AUTOCURA: se a Interactions API não aceitar `safety_settings` (400 nomeando o
+// campo), reenviamos SEM ele e desligamos isto para a sessão — o provedor PADRÃO
+// (Gemini) nunca pode quebrar por causa de um campo que a versão da API não
+// conhece. Volta a `true` quando o worker reinicia (re-aprende).
+let safetyGeminiSuportado = true;
+
 // req: {apiKey, model, system, messages, tools?, thinkingLevel?}
 // Campos do caminho Anthropic (betas, container, thinking, output_config,
 // max_tokens) são simplesmente ignorados — em especial max_tokens (32000):
 // aqui o teto é MAX_OUTPUT_TOKENS (ver o cabeçalho do arquivo).
 export async function* streamGemini(req) {
-  const body = {
-    model: req.model,
-    system_instruction: req.system,
-    input: traduzirHistorico(req.messages),
-    store: false,
-    stream: true,
-    generation_config: { max_output_tokens: MAX_OUTPUT_TOKENS },
-  };
-  if (req.tools && req.tools.length) body.tools = req.tools;
-  if (req.thinkingLevel) {
-    body.generation_config.thinking_level = req.thinkingLevel;
+  // Histórico traduzido UMA vez — reusado se precisar re-montar o corpo sem
+  // safety_settings no fallback de autocura abaixo.
+  const input = traduzirHistorico(req.messages);
+  const generation_config = { max_output_tokens: MAX_OUTPUT_TOKENS };
+  if (req.thinkingLevel) generation_config.thinking_level = req.thinkingLevel;
+
+  // Monta e SERIALIZA o corpo (uma vez por chamada — `JSON.stringify` duas vezes
+  // custa caro no fallback base64, com peça inline de dezenas de MB). `incluiSafety`
+  // liga o afrouxamento do filtro configurável (ver SAFETY_LIVRE).
+  function prepararCorpo(incluiSafety) {
+    const body = {
+      model: req.model,
+      system_instruction: req.system,
+      input,
+      store: false,
+      stream: true,
+      generation_config,
+    };
+    if (req.tools && req.tools.length) body.tools = req.tools;
+    if (incluiSafety) body.safety_settings = SAFETY_LIVRE;
+    let corpoJson;
+    try {
+      corpoJson = JSON.stringify(body);
+    } catch (e) {
+      console.error("[PJe IA] Gemini: request não serializável:", e);
+      throw new Error("Falha ao montar o request para a API do Google.");
+    }
+    // Radiografia da FORMA no console do service worker (só tipos e KB; nenhum
+    // conteúdo de peça é impresso — NÃO despejar o body: carrega trecho dos autos).
+    try {
+      console.log(
+        "[PJe IA] Gemini request: " +
+          (corpoJson.length / 1024).toFixed(0) + " KB | itens: " +
+          (body.input || [])
+            .map((it) => {
+              if (it.type === "user_input" || it.type === "model_output") {
+                return it.type + "(" + (it.content || []).map((c) => c.type).join("+") + ")";
+              }
+              return it.type + (it.signature ? "[sig]" : "");
+            })
+            .join(" > ")
+      );
+    } catch {
+      /* console indisponível */
+    }
+    return corpoJson;
   }
 
-  // Serializa UMA vez: o mesmo texto vai no fetch e alimenta o tamanho no log.
-  // Fazer `JSON.stringify(body)` duas vezes por request custava caro de verdade
-  // no caminho de fallback base64 (uma peça inline pode ter dezenas de MB, e o
-  // service worker paga isso em memória e em latência antes do primeiro token).
-  let corpoJson;
-  try {
-    corpoJson = JSON.stringify(body);
-  } catch (e) {
-    // Corpo não serializável: isso por si só explicaria um request malformado,
-    // e o fetch falharia adiante com um erro que não diz nada.
-    console.error("[PJe IA] Gemini: request não serializável:", e);
-    throw new Error("Falha ao montar o request para a API do Google.");
-  }
+  const enviar = (incluiSafety) =>
+    fetch(API + "/interactions", {
+      method: "POST",
+      headers: headersGemini(req.apiKey),
+      body: prepararCorpo(incluiSafety),
+    });
 
-  // Radiografia da FORMA do request no console do service worker (F12 em
-  // chrome://extensions → "service worker"). Um 400 de corpo vazio é rejeição
-  // na BORDA — request malformado —, e o que resolveu o último caso foi
-  // comparar a forma do turno que passa com a do que falha. Só tipos e
-  // tamanho: nenhum conteúdo de peça é impresso.
-  try {
-    console.log(
-      "[PJe IA] Gemini request: " +
-        (corpoJson.length / 1024).toFixed(0) + " KB | itens: " +
-        (body.input || [])
-          .map((it) => {
-            if (it.type === "user_input" || it.type === "model_output") {
-              return it.type + "(" + (it.content || []).map((c) => c.type).join("+") + ")";
-            }
-            // steps opacos: mostra também se carregam assinatura
-            return it.type + (it.signature ? "[sig]" : "");
-          })
-          .join(" > ")
-    );
-  } catch {
-    /* console indisponível */
-  }
-
-  const resp = await fetch(API + "/interactions", {
-    method: "POST",
-    headers: headersGemini(req.apiKey),
-    body: corpoJson,
-  });
+  let resp = await enviar(safetyGeminiSuportado);
   if (!resp.ok) {
-    // NÃO logar o `body` aqui. Durante o diagnóstico do 400 do 2º turno ele foi
-    // despejado inteiro no console para poder ser reproduzido byte a byte — o
-    // que era certo naquele momento e é errado num pacote publicado: o objeto
-    // carrega trecho dos autos (e o base64 das peças que não subiram à Files
-    // API) e fica retido em memória enquanto o DevTools estiver aberto. A linha
-    // de forma acima já situa o request; se um caso novo exigir o corpo, este
-    // log volta temporariamente, em desenvolvimento.
-    const err = new Error(await friendlyHttpErrorGemini(resp));
-    err.status = resp.status;
-    // transitórios: o chamador re-tenta o MESMO request com backoff
-    err.retryable = resp.status === 429 || resp.status >= 500;
-    throw err;
+    let apiMsg = await lerCorpoErroGemini(resp);
+    // AUTOCURA do safety_settings: só quando o erro fala do CAMPO. Um bloqueio
+    // de política comum ("blocked for an unspecified policy reason") não fala,
+    // então não dispara um segundo envio dos autos (caro) à toa.
+    //
+    // O casamento é por `/safety/`, e não pelo literal `safety_settings`, porque
+    // a API recusa o campo em pelo menos TRÊS redações e só a primeira traz o
+    // nome em snake_case: campo desconhecido ("Unknown name \"safety_settings\""),
+    // valor de enum inválido ("Unknown value at 'safety_settings[4].category'" —
+    // o caso real de `HARM_CATEGORY_CIVIC_INTEGRITY`, que nem toda versão
+    // conhece) e threshold restrito ("Safety setting threshold ... restricted",
+    // com espaço e maiúscula). Errar aqui não custa um recurso: o Gemini é o
+    // provedor PADRÃO, então um 400 não reconhecido deixa a extensão sem
+    // responder nada na primeira pergunta de quem acabou de instalar. O preço do
+    // casamento largo é, no pior caso, UM reenvio por vida do worker.
+    if (resp.status === 400 && safetyGeminiSuportado && /safety/i.test(apiMsg)) {
+      safetyGeminiSuportado = false;
+      console.debug("[PJe IA] Gemini: safety_settings não aceito — reenviando sem o campo e desativando nesta sessão");
+      resp = await enviar(false);
+      if (!resp.ok) apiMsg = await lerCorpoErroGemini(resp);
+    }
+    if (!resp.ok) {
+      const err = new Error(mensagemErroGemini(resp.status, apiMsg));
+      err.status = resp.status;
+      // transitórios: o chamador re-tenta o MESMO request com backoff
+      err.retryable = resp.status === 429 || resp.status >= 500;
+      throw err;
+    }
   }
 
   // Acumula os STEPS do turno (indexados por ev.index). interaction.completed
@@ -641,15 +678,14 @@ function textoDeStep(s) {
   }
 }
 
-// Converte respostas de erro da API do Google em mensagens claras em português.
-export async function friendlyHttpErrorGemini(resp) {
+// Lê o corpo de erro de uma Response do Google UMA vez (o corpo de uma Response
+// só pode ser consumido uma vez — `resp.json()` + `resp.text()` no catch lança
+// "body stream already read") e devolve a mensagem da API. Também loga
+// status/URL: a única pista de QUAL endpoint recusou (stream /interactions vs.
+// pré-voo :countTokens). Separado de `mensagemErroGemini` para o stream poder
+// INSPECIONAR o corpo (detectar a rejeição de `safety_settings`) sem reler.
+export async function lerCorpoErroGemini(resp) {
   let apiMsg = "";
-  // O corpo é lido como TEXTO uma única vez e só depois interpretado. Ler com
-  // `resp.json()` e cair para `resp.text()` no catch não funciona: o corpo de
-  // uma Response só pode ser consumido UMA vez, então o `text()` do fallback
-  // lançaria "body stream already read" e o erro não-JSON (HTML de proxy, corpo
-  // vazio) — justamente o caso que o fallback existia para cobrir — chegaria ao
-  // usuário como "Erro da API do Google (400)", sem pista nenhuma.
   let bruto = "";
   try {
     bruto = await resp.text();
@@ -660,8 +696,7 @@ export async function friendlyHttpErrorGemini(resp) {
     const j = bruto ? JSON.parse(bruto) : null;
     // A API do Google devolve o erro em DUAS formas: o objeto {error:{message}}
     // e, em alguns endpoints, um ARRAY [{error:{message}}]. Sem tratar o array,
-    // `apiMsg` ficava vazio e o usuário via só "Erro da API do Google (400)" —
-    // uma mensagem que não diz nada e transforma o diagnóstico em adivinhação.
+    // `apiMsg` ficava vazio e o usuário via só "Erro da API do Google (400)".
     const raiz = Array.isArray(j) ? j.find((x) => x && x.error) || {} : j || {};
     apiMsg = (raiz.error && (raiz.error.message || raiz.error.status)) || "";
     // Último recurso: corpo JSON com forma inesperada. Melhor mostrar um trecho
@@ -671,11 +706,6 @@ export async function friendlyHttpErrorGemini(resp) {
     // corpo não-JSON: ainda assim pode ter texto útil (HTML de proxy, etc.)
     apiMsg = bruto.slice(0, 240);
   }
-  // O erro é CAPTURADO e vira texto para o usuário — sem este log ele nunca
-  // aparece no console do service worker, e um 400 de corpo vazio (rejeição no
-  // edge, antes de chegar ao modelo) fica indistinguível de um erro do modelo.
-  // A URL e o status são a única pista de QUAL endpoint recusou: o stream
-  // (/interactions) e o pré-voo (:countTokens) usam este mesmo handler.
   try {
     console.error(
       "[PJe IA] Gemini HTTP " + resp.status + " em " + resp.url + " — corpo: " + (apiMsg || "(vazio)")
@@ -683,7 +713,13 @@ export async function friendlyHttpErrorGemini(resp) {
   } catch {
     /* console indisponível */
   }
-  const low = apiMsg.toLowerCase();
+  return apiMsg;
+}
+
+// Converte status + corpo (já lido) em mensagem clara em português.
+function mensagemErroGemini(status, apiMsg) {
+  const resp = { status }; // as ramificações abaixo comparam resp.status
+  const low = (apiMsg || "").toLowerCase();
 
   if (resp.status === 400 && (low.includes("api key not valid") || low.includes("api_key_invalid"))) {
     return "Chave da API do Google inválida. Confira a chave Gemini nas configurações da extensão.";
@@ -696,6 +732,25 @@ export async function friendlyHttpErrorGemini(resp) {
     (low.includes("token count") || low.includes("exceeds the maximum") || low.includes("context"))
   ) {
     return "As peças selecionadas excedem o contexto do modelo. Desmarque algumas peças ou inicie uma nova conversa.";
+  }
+  // Filtro de CONTEÚDO do Google (não é erro da extensão nem das peças): autos
+  // descrevem violência, crimes, drogas etc. e o Gemini barra na borda, ANTES de
+  // o modelo ver. É determinístico pelo conteúdo — por isso não é re-tentável
+  // (o chamador não repete) — e a camada de "unspecified policy" costuma ser a
+  // NÃO-configurável (safety_settings não a afrouxam). A saída prática é trocar
+  // de provedor ou reduzir/isolar a peça que dispara o filtro.
+  if (
+    resp.status === 400 &&
+    (low.includes("policy") ||
+      low.includes("prohibited") ||
+      (low.includes("blocked") && low.includes("modify your input")))
+  ) {
+    return (
+      "O Google bloqueou esta análise no filtro de conteúdo dele — as peças descrevem " +
+      "fatos que a política do Gemini barra. Não é falha da extensão. Para seguir: use " +
+      "um modelo Claude (Anthropic) nesta análise (ele não aplica esse bloqueio a " +
+      "conteúdo jurídico), ou envie menos peças por vez para descobrir qual dispara o filtro."
+    );
   }
   if (resp.status === 429) {
     return (
@@ -710,4 +765,10 @@ export async function friendlyHttpErrorGemini(resp) {
     return "A API do Google está sobrecarregada no momento. Tente novamente em instantes.";
   }
   return "Erro da API do Google (" + resp.status + ")" + (apiMsg ? ": " + apiMsg.slice(0, 240) : "");
+}
+
+// Assinatura preservada para os call sites (upload/countTokens): lê o corpo e
+// monta a mensagem num passo só.
+export async function friendlyHttpErrorGemini(resp) {
+  return mensagemErroGemini(resp.status, await lerCorpoErroGemini(resp));
 }

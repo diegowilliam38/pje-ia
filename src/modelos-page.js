@@ -98,7 +98,7 @@
       '<div class="vd">Cadastre as suas peças-modelo — sentenças, decisões, despachos, ' +
       "ofícios — e, ao gerar uma minuta, o assistente segue a <b>estrutura</b> e o estilo " +
       "delas. Os fatos continuam saindo apenas das peças do processo em tela.<br><br>" +
-      "Se você já tem essas peças no Word, <b>Importar .docx</b> lê várias de uma vez " +
+      "Se você já tem essas peças no Word (.docx) ou em RTF, <b>Importar</b> lê várias de uma vez " +
       "e deixa tudo preenchido para você conferir.</div>" +
       "</div>"
     );
@@ -441,7 +441,7 @@
     elDrop.classList.toggle("compacta", conferindo);
     elDrop.querySelector(".imp-drop-t").innerHTML = conferindo
       ? "Arraste ou clique para <b>adicionar mais</b> arquivos"
-      : "Arraste seus arquivos <b>.docx</b> até aqui";
+      : "Arraste seus arquivos <b>.docx</b> ou <b>.rtf</b> até aqui";
     elProg.hidden = qual !== "lendo";
     elFichas.hidden = qual === "resultado";
     // O rodapé aparece também no VAZIO, com só o "Voltar": sem ele, quem abriu
