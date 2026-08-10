@@ -697,6 +697,25 @@ export async function friendlyHttpErrorGemini(resp) {
   ) {
     return "As peças selecionadas excedem o contexto do modelo. Desmarque algumas peças ou inicie uma nova conversa.";
   }
+  // Filtro de CONTEÚDO do Google (não é erro da extensão nem das peças): autos
+  // descrevem violência, crimes, drogas etc. e o Gemini barra na borda, ANTES de
+  // o modelo ver. É determinístico pelo conteúdo — por isso não é re-tentável
+  // (o chamador não repete) — e a camada de "unspecified policy" costuma ser a
+  // NÃO-configurável (safety_settings não a afrouxam). A saída prática é trocar
+  // de provedor ou reduzir/isolar a peça que dispara o filtro.
+  if (
+    resp.status === 400 &&
+    (low.includes("policy") ||
+      low.includes("prohibited") ||
+      (low.includes("blocked") && low.includes("modify your input")))
+  ) {
+    return (
+      "O Google bloqueou esta análise no filtro de conteúdo dele — as peças descrevem " +
+      "fatos que a política do Gemini barra. Não é falha da extensão. Para seguir: use " +
+      "um modelo Claude (Anthropic) nesta análise (ele não aplica esse bloqueio a " +
+      "conteúdo jurídico), ou envie menos peças por vez para descobrir qual dispara o filtro."
+    );
+  }
   if (resp.status === 429) {
     return (
       "Limite de requisições da API do Google atingido (no plano gratuito a cota é pequena). " +
