@@ -127,7 +127,31 @@ quebrar:
   read" e engole justamente o caso não-JSON que o fallback existia para cobrir.
   O Google devolve o erro em DUAS formas — `{error:{message}}` e o ARRAY
   `[{error:{message}}]`; sem tratar a segunda o usuário via só "Erro da API do
-  Google (400)".
+  Google (400)". A função foi PARTIDA em `lerCorpoErroGemini` (lê o corpo uma vez
+  e devolve a mensagem crua) + `mensagemErroGemini` (status + corpo → português),
+  para o stream poder INSPECIONAR o corpo sem reler; `friendlyHttpErrorGemini`
+  continua existindo com a assinatura de antes, para os call sites de
+  upload/countTokens.
+- **`safety_settings` = `BLOCK_NONE` em todas as categorias, com AUTOCURA**
+  (`SAFETY_LIVRE` + `safetyGeminiSuportado`). Autos descrevem violência, crimes,
+  drogas e abuso — conteúdo jurídico legítimo que o filtro configurável barra por
+  padrão. Duas coisas que não podem cair:
+  - Isto **não afeta a camada NÃO-configurável** do Google (o "blocked for an
+    unspecified policy reason"): ali não há o que desligar, e a saída é trocar
+    para um modelo Claude. A mensagem de erro diz isso, com o passo prático — o
+    filtro é determinístico pelo conteúdo, então o erro **não é `retryable`**.
+  - A autocura reenvia SEM o campo e desliga o recurso pela vida do worker
+    quando a API recusa `safety_settings`, e o casamento é **`/safety/i`**, não o
+    literal snake_case: a API recusa em pelo menos TRÊS redações — campo
+    desconhecido (`Unknown name "safety_settings"`), valor de enum inválido
+    (`Unknown value at 'safety_settings[4].category'` — o caso real do
+    `HARM_CATEGORY_CIVIC_INTEGRITY`, que nem toda versão conhece) e threshold
+    restrito (`Safety setting threshold ... restricted`, com espaço e maiúscula).
+    Estreitar isso de novo custa caro: o Gemini é o provedor **PADRÃO**, e um 400
+    não reconhecido deixa a extensão muda na primeira pergunta de quem acabou de
+    instalar. O preço do casamento largo é, no pior caso, UM reenvio por vida do
+    worker. Coberto por teste com `fetch` fake nas três redações + o bloqueio de
+    política (que NÃO pode custar um segundo envio dos autos).
 - **usage normalizado** para as 4 categorias da Anthropic em gemini.js
   (`input = total_input − total_cached`; `cache_read = total_cached`;
   `cache_creation = 0`; `output` inclui thoughts) — custo, tooltip e gauge funcionam
@@ -1407,6 +1431,91 @@ O relatório vai para o CHAT (`panel.mostrarFalhasPecas`), não para o `.status`
 (transitório) nem para a `.alertbar` (que é para o que impede de continuar): a análise
 seguiu, e o usuário precisa poder ler com calma o que faltou e por quê.
 
+**A peça que falha SAI DA SELEÇÃO** (`panel.desmarcarPecas`), e isso completa a
+tolerância acima — sem esse passo ela seguia marcada, era re-tentada a cada turno e,
+quando era a única peça NOVA, abortava o turno seguinte inteiro: o usuário perdia a
+pergunta já digitada e tinha de caçar na lista qual das duzentas era a culpada. Como
+ela nunca entrou no histórico, desmarcá-la não tira nada do contexto; marcar de novo é
+nova tentativa de download, e o aviso diz isso. `desmarcarPecas` cobre a row LAZY
+(remove de `selPendente`), senão a peça voltaria marcada no próximo `setDocs`.
+Desmarcar durante `busy` é seguro: `onSelectionChange` retorna cedo.
+
+O caso degenerado (tudo falhou, sem histórico e sem anexo) ainda derruba o turno — e
+ali o `throw` pula o relatório, então o `desmarcarPecas` acontece ANTES dele, ou o
+próximo envio repetiria a mesma falha.
+
+## Anexos do input (📎) — arquivos do usuário na conversa
+
+Arquivo que o usuário solta na caixa de mensagem (PDF, `.docx`, `.rtf`, `.txt`, `.md`)
+para analisar junto das peças **ou sozinho**. A UI é reflexo; o dono é a Map `anexos`
+em `content.js`.
+
+- **Id sintético `anexo:<n>` e entrada no MESMO formato do `docsCache`**
+  (`{kind, fmt, b64|text, pages…}`): é o que faz `montarBlocos`, `paginasDe`,
+  `estimativaLocalTokens` e `pecasTruncadas` tratarem anexo e peça pelo mesmo caminho,
+  via **`entradaDoc(id)`** (`docsCache.get(id) || anexos.get(id)`). Ler `docsCache` cru
+  num desses fazia todo anexo cair em `semConteudo` e nunca chegar ao modelo.
+- **`comAnexos(ids)` é a fronteira, e ela tem nome de propósito**: tudo que **MEDE**
+  (estimativa local, `paginasDe`, o `ativos` do pré-voo, o gauge) precisa dos anexos;
+  tudo que **BAIXA** (`precisaBaixar`, `baixarQuieto`, `subirPecas`,
+  `revalidarPecasDoHistorico`) precisa ficar SÓ com as peças — um `"anexo:1"` na fila de
+  download vira uma ida ao PJe atrás de peça que não existe. O erro que isso já causou:
+  `refinarContexto` montava o request prospectivo com `ativos = new Set(ids)` e, como
+  `prepararEnvio` remove todo bloco com `__pecaId` fora de `ativos`, o **pré-voo media um
+  envio SEM os anexos** — a guarda de 90% ficava otimista justamente depois de anexar um
+  PDF grande. Mesmo eixo do par `precisaBaixar`/`temBytes`: a pergunta parece uma só e
+  são duas.
+- **Nada vai ao disco.** `conversaParaDisco()` troca cada bloco de anexo por um STUB sem
+  bytes antes do snapshot da memória de caso, e `aplicarConversa` os REMOVE na retomada
+  (com aviso para reanexar). Ao contrário de uma peça, um arquivo do usuário não tem de
+  onde ser rebaixado — guardá-lo seria criar cópia permanente de um documento que ele só
+  quis mostrar uma vez. `ehBlocoAnexo` é o predicado ÚNICO dos dois lados.
+- **`upload` de anexo NÃO manda `cacheKey`**, ao contrário de `subirPecas`. O cache do
+  worker vive em `chrome.storage.session`, que sobrevive ao F5; os anexos, não — e
+  `anexo:<n>` reinicia em 1 a cada carga da página. O par (processo, `"anexo:1"`,
+  tamanho) de hoje colidia com o de um arquivo DIFERENTE de antes do último
+  recarregamento, e o worker devolvia o `file_id` do velho: o modelo analisava um
+  documento que o usuário não anexou, em silêncio. Dentro da sessão quem evita o
+  re-upload é o `d.fileId`, então o cache ali era só risco.
+- **`.docx` é o caso à parte**: NENHUM dos três provedores o lê nativamente como
+  documento (só o PDF tem a rota de visão), então o texto é extraído no cliente pelo
+  `DocxImport` e entra como bloco de texto, igual a `.txt`/`.md`. O resto passa por
+  `PJE.lerAnexo` → `lerCorpo`, o MESMO leitor das peças (`new Response(file)` herda o
+  content-type do File; vazio, a detecção por assinatura assume) — nada de um segundo
+  detector de tipo que pudesse divergir, e a barreira de binário/imagem vale igual.
+- **Os anexos entram SEMPRE em `ativos`** no envio: seus blocos levam `__pecaId` para o
+  ✕ do chip poder liberá-los do contexto como uma peça desmarcada, mas enquanto estão
+  anexados não são "peça desmarcada" — sem isso `prepararEnvio` os filtraria já no 2º
+  turno. Removê-los é ação explícita (o ✕ tira o id de `anexos`, e aí o filtro passa a
+  valer).
+- **Nunca pular o pré-voo com anexo novo** (`!anexosNovos.length && podePularPreVoo(…)`):
+  o que não foi medido não pode ser dispensado da medição.
+- Anexos são da CONVERSA, não do processo: "Nova conversa" os solta (as peças, não —
+  elas servem a todas as conversas daquele processo). Tetos: 10 por conversa, 32 MB por
+  arquivo, antes do teto de b64 compartilhado com as peças.
+- **LACUNA CONHECIDA** (documentada em `subirAnexos`): anexo PDF já no histórico não é
+  revalidado por `revalidarPecasDoHistorico` (o `ativos` dela é `selecaoEfetiva()`), então
+  trocar a CHAVE da API no meio da conversa deixa um `file_id` de outra conta e o turno
+  seguinte leva 400. "Nova conversa" resolve. Se for tratar: os bytes do anexo estão
+  sempre em memória, basta re-subir e reescrever o `file_id` no bloco — sem download.
+
+## Peça citada como faltante vira um clique (`pecasCitadasFaltantes` + `panel.sugerirPecas`)
+
+Quando a resposta aponta uma peça que não está no contexto ("o comprovante está na peça
+214661494, que não foi anexada"), aquele id vira um **botão de adicionar** abaixo da
+bolha. O modelo já fez o trabalho de identificar a peça; o clique poupa procurá-la entre
+duzentas. Fecha o ciclo que o `inventarioNaoMarcadas` abriu.
+
+- **Só entram ids que são peça REAL desta timeline** (`docsIndex`): é a comparação contra
+  ela que elimina o falso positivo — um valor, uma data ou um número de lei com 6+ dígitos
+  quase nunca casa um id real. Já-no-contexto (marcadas ou em `pecasNaConversa`) ficam de
+  fora, e há teto de 12.
+- `panel.marcarPecas` é **ADITIVO** (contrato oposto ao do "Escolher com IA", que
+  substitui) e **mescla** em `selPendente` em vez de substituir, ao contrário de
+  `restaurarSelecao` — cobrir a row lazy sem apagar o que já esperava.
+- A caixa é **irmã do `.body`**, como o `.editor-act`: sobrevive ao `updateAssistant`.
+  Uma vez por bolha (`if (el.querySelector(".pecas-sug")) return`).
+
 ## Seleção em faixa na lista de peças (panel.js)
 
 Marcar 40 petições em sequência não pode custar 40 cliques. Três gestos, todos sobre os
@@ -1680,12 +1789,22 @@ irmão do `PLIB`, com diferenças de propósito:
   handlers de lista dos dois são delegados e escopados no próprio `.*-list`, então só a
   ordem no DOM segura essa fronteira.
 
-## Importar peças-modelo de `.docx` (docx-importar.js + modelos.js + as duas cascas)
+## Importar peças-modelo de `.docx`/`.rtf` (docx-importar.js + modelos.js + as duas cascas)
 
-Cadastrar dez modelos não pode custar dez formulários. O usuário solta 5–10 `.docx`
-de uma vez, cada arquivo vira uma **ficha** já preenchida e um clique cadastra todas.
+Cadastrar dez modelos não pode custar dez formulários. O usuário solta 5–10 arquivos
+de uma vez, cada um vira uma **ficha** já preenchida e um clique cadastra todas.
 Existe nos DOIS lugares — modal `.mlib` do painel e página `src/modelos.html` —, com
 a lógica compartilhada e só a casca escrita duas vezes.
+
+- **`.rtf` entra pelo mesmo `lerArquivo`**, com extrator próprio no `docx-importar.js`
+  — nada de ZIP/`DecompressionStream` (RTF não é compactado). É o formato do editor
+  ANTIGO do PJe, então é nele que estão as peças-modelo de quem trabalha com processos
+  migrados. O extrator é uma **CÓPIA** do `rtfParaTexto` do `pje.js`, e a duplicação é
+  deliberada: a importação roda também na página `src/modelos.html`, contexto de
+  extensão que NÃO enxerga o global `PJE` (content script) — a mesma razão de o
+  `mapa.js` duplicar `escapeHtml`/`inlineMd`. `file.text()` decodifica em UTF-8, o que
+  basta porque o RTF bem-formado escapa os bytes altos como `\'XX` (resolvidos pela
+  CP1252, onde vivem os acentos e o travessão). Ao mexer num, conferir o outro.
 
 - **`src/docx-importar.js` já existia** (leitor de um arquivo, usado só na página) e
   **não estava no `manifest.json`** — por isso o modal do painel não tinha importação
@@ -1876,7 +1995,20 @@ que não podem quebrar:
   Conferir por COMPORTAMENTO que os handlers do fim do arquivo subiram —
   arrastar marca a faixa, Shift+clique estende, botão direito abre o `.selmenu`
   —, porque um `content.js` abortado no meio ainda monta o painel e lista as
-  peças. Testes de unidade fora do
+  peças. Quatro armadilhas do harness, todas já custaram um falso resultado:
+  (a) `runScripts: "dangerously"` no JSDOM, senão os `<script>` anexados não
+  executam e o teste morre no primeiro stub; (b) o jsdom **não implementa
+  `Response`** — sem um polyfill que herde o content-type do Blob, `PJE.lerAnexo`
+  falha com "Response is not defined" e o erro parece bug do produto; (c) para
+  alcançar `DocxImport`/`MLIB`/`PLIB` do lado do Node é preciso uma PONTE por
+  `<script>` (`window.__X = X`) — são `const` léxicos de script clássico e não
+  viram propriedade de `window`, então `if (w.DocxImport)` pula o bloco inteiro
+  em silêncio e o teste "passa" sem ter rodado; (d) a seleção que inclui a row
+  lazy é `selecaoParaMemoria()`, não `getSelected()` (esse é só os checkboxes).
+  Vale também extrair funções do fonte real por VARREDURA DE CHAVES e rodá-las em
+  `vm` — é assim que os predicados da memória de caso e as invariantes de
+  `refinarContexto`/`subirAnexos` são testados sem copiar código que possa
+  divergir. Testes de unidade fora do
   navegador no scratchpad da sessão: `renderMd` (escape-first + citações) roda com
   `eval` do `panel.js`; o acumulador SSE de `claude.js` roda com `fetch` fake devolvendo
   um `ReadableStream` de eventos simulados (chat com citação, `pause_turn`);

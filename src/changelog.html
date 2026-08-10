@@ -99,7 +99,54 @@
 
       <div class="card destaque">
         <p class="eyebrow" style="color: rgba(255,255,255,0.7)">A novidade mais recente</p>
-        <h2><span class="v novo">v0.32.0</span> A petição inicial deixa de ficar de fora</h2>
+        <h2><span class="v novo">v0.33.0</span> Uma peça que falha não trava mais a conversa — e dá para anexar seus próprios arquivos</h2>
+        <p>
+          Quando o PJe não entregava uma peça, a análise seguia com as demais — mas a peça
+          continuava <strong>marcada</strong>. No envio seguinte ela era tentada de novo, e
+          quando era a única peça nova, <strong>derrubava o turno inteiro</strong>: você
+          perdia a pergunta que já tinha escrito e precisava caçar na lista qual das
+          duzentas era a culpada. Agora a peça que falha <strong>sai da seleção
+          sozinha</strong>, o aviso diz que ela saiu e como tentar de novo (é só marcá-la
+          outra vez), e a conversa continua.
+        </p>
+        <p>
+          O campo de mensagem ganhou um <strong>clipe 📎</strong>: você anexa
+          <strong>PDF, Word (.docx), RTF, TXT e Markdown</strong> e conversa sobre eles
+          junto das peças do processo — ou <strong>sozinhos</strong>, sem marcar peça
+          nenhuma. Serve para o parecer que chegou por e-mail, a minuta do colega, o
+          contrato que a parte mandou fora dos autos. Cada formato vai pelo caminho certo:
+          o <strong>PDF</strong> é lido pelo modelo com texto <em>e</em> imagem das
+          páginas, como as peças; o <strong>Word</strong> nenhum dos provedores lê, então a
+          extensão extrai o texto <strong>aqui no seu navegador</strong> antes de enviar.
+          Os arquivos valem só para <strong>aquela sessão</strong> — não ficam gravados no
+          computador, e “Nova conversa” os solta.
+        </p>
+        <p>
+          E quando a resposta diz que falta uma peça — “o comprovante está na peça
+          214661494, que não foi anexada” —, aquele número vira um <strong>botão de
+          adicionar</strong> logo abaixo da resposta. Um clique marca a peça para o próximo
+          envio, sem procurá-la na lista. Só entram números que são mesmo peça deste
+          processo.
+        </p>
+        <p>
+          Duas correções de recado: quando o <strong>Gemini</strong> barra a análise no
+          filtro de conteúdo dele — comum em processo criminal, que descreve violência e
+          drogas —, a mensagem agora <strong>diz o que fazer</strong> (usar um modelo
+          Claude, ou enviar menos peças por vez para achar qual dispara o filtro) em vez de
+          mostrar um erro cru; e a extensão pede ao Google o filtro mais permissivo que ele
+          aceita. Quando a <strong>conexão com a OpenAI</strong> cai no meio da resposta, a
+          mensagem aponta a causa mais comum: envio grande demais.
+        </p>
+        <p>
+          Por fim, a biblioteca de <strong>Modelos</strong> passou a importar
+          <strong>.rtf</strong> além de <code>.docx</code> — é o formato do editor antigo do
+          PJe, e quem tem peças-modelo de processos migrados guardava tudo assim.
+        </p>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">Antes disso</p>
+        <h2><span class="v">v0.32.0</span> A petição inicial deixa de ficar de fora</h2>
         <p>
           O botão <strong>chave</strong> marca a espinha dorsal do processo — inicial,
           contestação, laudo, sentença — lendo o <strong>nome</strong> de cada peça. Só que
@@ -143,7 +190,6 @@
       </div>
 
       <div class="card">
-        <p class="eyebrow">Antes disso</p>
         <h2><span class="v">v0.31.0</span> Uma visita guiada — porque marcar peças tem seis atalhos que ninguém achava</h2>
         <p>
           Quem instalava a extensão marcava as peças <strong>uma a uma</strong>, clicando
@@ -829,7 +875,7 @@
 
       <h1 class="serif" id="historico">Histórico completo</h1>
       <p class="lead">
-        As 58 versões, da mais recente à primeira. As marcadas com
+        As 59 versões, da mais recente à primeira. As marcadas com
         <span class="dot-marco"></span> mudaram o produto de forma visível.
       </p>
 
@@ -839,7 +885,8 @@
             <tr><th>Versão</th><th>Data</th><th>O que mudou</th></tr>
           </thead>
           <tbody>
-            <tr class="marco"><td><span class="v novo">0.32.0</span></td><td>07/08/2026</td><td><span class="dot-marco"></span><strong>O degrau “chave” passa a reconhecer a petição inicial pela POSIÇÃO</strong>, e não só pelo nome: no PJe o título costuma ser o do arquivo (“Petição”, “Documentos diversos”), e a peça mais importante do processo ficava fora da seleção em silêncio. Considera também <strong>quem juntou</strong> o documento, o que distingue uma manifestação do <strong>Ministério Público</strong> ou da <strong>Defensoria</strong> de uma juntada qualquer; a dica da peça agora mostra o autor e, quando ela entrou por um desses sinais, o motivo. Exige <strong>⟳ Carregar tudo</strong> — sem a lista completa não há como saber qual é a primeira peça. O botão <strong>Analisar com IA</strong> pulsa até o primeiro clique para quem nunca abriu o painel, e a configuração ganhou o link <strong>Obter chave ↗</strong> direto para o console do provedor</td></tr>
+            <tr class="marco"><td><span class="v novo">0.33.0</span></td><td>10/08/2026</td><td><span class="dot-marco"></span><strong>Peça que falha no download sai da seleção sozinha</strong> — antes ela seguia marcada, era tentada a cada envio e derrubava o turno inteiro quando era a única peça nova, fazendo você perder a pergunta já escrita. O campo de mensagem ganhou o <strong>clipe 📎</strong>: anexe <strong>PDF, Word (.docx), RTF, TXT e Markdown</strong> e converse sobre eles junto das peças ou sozinhos — o PDF vai ao modelo com texto e imagem das páginas, o Word tem o texto extraído no próprio navegador, e nada disso fica gravado no computador (vale só para a sessão). Peça que a resposta aponta como <strong>faltante vira um botão</strong> de adicionar ao contexto. O <strong>Gemini</strong> passou a explicar o que fazer quando barra a análise no filtro de conteúdo dele, e pede ao Google o filtro mais permissivo aceito; a biblioteca de <strong>Modelos</strong> importa <code>.rtf</code> além de <code>.docx</code></td></tr>
+            <tr class="marco"><td><span class="v">0.32.0</span></td><td>07/08/2026</td><td><span class="dot-marco"></span><strong>O degrau “chave” passa a reconhecer a petição inicial pela POSIÇÃO</strong>, e não só pelo nome: no PJe o título costuma ser o do arquivo (“Petição”, “Documentos diversos”), e a peça mais importante do processo ficava fora da seleção em silêncio. Considera também <strong>quem juntou</strong> o documento, o que distingue uma manifestação do <strong>Ministério Público</strong> ou da <strong>Defensoria</strong> de uma juntada qualquer; a dica da peça agora mostra o autor e, quando ela entrou por um desses sinais, o motivo. Exige <strong>⟳ Carregar tudo</strong> — sem a lista completa não há como saber qual é a primeira peça. O botão <strong>Analisar com IA</strong> pulsa até o primeiro clique para quem nunca abriu o painel, e a configuração ganhou o link <strong>Obter chave ↗</strong> direto para o console do provedor</td></tr>
             <tr><td><span class="v">0.31.1</span></td><td>05/08/2026</td><td>Ao reabrir um processo guardado na memória, o botão <strong>Abrir documento</strong> da pré-visualização não fazia nada e a exportação em <code>.zip</code> podia levar a peça <strong>vazia</strong>: a extensão concluía que não precisava baixar o documento — o que é verdade para <em>enviar</em> à IA, já que a peça está no provedor, mas não para <em>mostrar na tela</em> nem para <em>gravar no pacote</em></td></tr>
             <tr class="marco"><td><span class="v">0.31.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span><strong>Visita guiada no primeiro uso</strong>: o painel se explica sobre ele mesmo, destacando cada recurso na tela real com o gesto animado ao lado. Treze passos, e sete são sobre <strong>marcar peças</strong> — os três degraus, a busca e o <code>@</code>, o arrasto, o Shift+clique, o botão direito e o Escolher com IA —, que eram atalhos que quase ninguém descobria sozinho. Não toca no processo: os gestos são demonstrados numa lista de exemplo, nenhuma peça é marcada e nada é baixado. Recusando, não volta; o botão <strong>Ver como funciona</strong> fica no início de toda conversa nova. Junto, o <strong>nome da peça deixou de ser cortado no meio</strong> — agora ocupa até duas linhas, três quando a lista é coluna</td></tr>
             <tr class="marco"><td><span class="v">0.30.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span><strong>Conversa com minuta ou mapa mental deixa de se perder</strong>: a gravação passou a considerar o que está na tela, e não só o histórico de perguntas — antes, uma sessão inteira de minutas e mapas nunca chegava ao disco. Corrigidas também duas perdas silenciosas: conversa retomada que virava duplicata e conversa de outro provedor sobrescrita pela nova. As respostas ganharam <strong>avisos em bloco</strong> — <strong>Alerta</strong> (vermelho) para o que pode levar a erro de decisão, <strong>Atenção</strong> (âmbar) para ressalvas sobre a base da resposta, <strong>Nota</strong> para o resto —, e os botões de conversa no cabeçalho ficaram distinguíveis: <strong>+</strong> no de nova conversa, <strong>contador</strong> no da lista</td></tr>
