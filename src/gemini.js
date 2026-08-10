@@ -255,14 +255,21 @@ export async function* streamGemini(req) {
   let resp = await enviar(safetyGeminiSuportado);
   if (!resp.ok) {
     let apiMsg = await lerCorpoErroGemini(resp);
-    // AUTOCURA do safety_settings: só se o erro NOMEIA o campo. Um bloqueio de
-    // política comum ("unspecified policy reason") não cita `safety_settings`,
-    // então NÃO dispara um segundo envio dos autos (caro) à toa.
-    if (
-      resp.status === 400 &&
-      safetyGeminiSuportado &&
-      apiMsg.toLowerCase().includes("safety_settings")
-    ) {
+    // AUTOCURA do safety_settings: só quando o erro fala do CAMPO. Um bloqueio
+    // de política comum ("blocked for an unspecified policy reason") não fala,
+    // então não dispara um segundo envio dos autos (caro) à toa.
+    //
+    // O casamento é por `/safety/`, e não pelo literal `safety_settings`, porque
+    // a API recusa o campo em pelo menos TRÊS redações e só a primeira traz o
+    // nome em snake_case: campo desconhecido ("Unknown name \"safety_settings\""),
+    // valor de enum inválido ("Unknown value at 'safety_settings[4].category'" —
+    // o caso real de `HARM_CATEGORY_CIVIC_INTEGRITY`, que nem toda versão
+    // conhece) e threshold restrito ("Safety setting threshold ... restricted",
+    // com espaço e maiúscula). Errar aqui não custa um recurso: o Gemini é o
+    // provedor PADRÃO, então um 400 não reconhecido deixa a extensão sem
+    // responder nada na primeira pergunta de quem acabou de instalar. O preço do
+    // casamento largo é, no pior caso, UM reenvio por vida do worker.
+    if (resp.status === 400 && safetyGeminiSuportado && /safety/i.test(apiMsg)) {
       safetyGeminiSuportado = false;
       console.debug("[PJe IA] Gemini: safety_settings não aceito — reenviando sem o campo e desativando nesta sessão");
       resp = await enviar(false);

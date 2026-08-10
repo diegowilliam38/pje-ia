@@ -382,6 +382,19 @@
     return docsCache.get(id) || anexos.get(id);
   }
 
+  // Seleção de peças MAIS os anexos do input — o conjunto que de fato vai ao
+  // modelo, e portanto o único conjunto que se pode MEDIR.
+  //
+  // Existe como função porque a distinção importa e é fácil de errar: tudo que
+  // MEDE (estimativa local, páginas, `ativos` do pré-voo, gauge) precisa dos
+  // anexos; tudo que BAIXA (`precisaBaixar`, `baixarQuieto`, `subirPecas`,
+  // `revalidarPecasDoHistorico`) precisa ficar SÓ com as peças — um id
+  // sintético "anexo:1" na fila de download vira uma ida ao PJe atrás de uma
+  // peça que não existe. Por isso os dois conjuntos nunca se fundem num só.
+  function comAnexos(ids) {
+    return anexos.size ? [...ids, ...anexos.keys()] : ids;
+  }
+
   // Um bloco do histórico é de anexo do input quando o `__pecaId` sintético
   // começa por "anexo:". Usado para (a) removê-los na retomada — os bytes são de
   // sessão e o `file_id` já venceu — e (b) NÃO gravar os bytes no disco.
@@ -1718,6 +1731,19 @@
   // não interrompe: o anexo cai no fallback base64 de `montarBlocos` (teto de
   // b64 compartilhado com as peças). Imagem e texto vão sempre inline; só PDF
   // sobe.
+  //
+  // LACUNA CONHECIDA, e ela é estreita de propósito: um anexo PDF já enviado
+  // fica no histórico por `file_id`, e `revalidarPecasDoHistorico` NÃO o
+  // revalida (o `ativos` dela é `selecaoEfetiva()`, que não tem anexo). Se o
+  // usuário TROCAR A CHAVE da API no meio da conversa, aquele `file_id` passa a
+  // ser de outra conta e o turno seguinte leva 400. Não é coberto aqui porque a
+  // saída certa — ensinar aquela função a tratar um segundo tipo de entidade —
+  // mexe na parte mais delicada da memória de caso, e o gatilho é raro (o
+  // provedor já é bloqueado por `conversaProvider`; sobra a troca de conta
+  // DENTRO do mesmo provedor, com PDF anexado, na mesma sessão). "Nova
+  // conversa" resolve. Se for tratar: os bytes do anexo estão sempre em
+  // memória, então basta re-subir e reescrever o `file_id` no bloco — sem
+  // download, que é o passo caro no caso das peças.
   async function subirAnexos(ids) {
     const provAtual = (modelCaps && modelCaps.provider) || "anthropic";
     const pend = ids.filter((id) => {
@@ -1728,7 +1754,6 @@
       );
     });
     if (!pend.length) return;
-    const idProc = PJE.getIdProcesso() || "proc";
     const queue = pend.slice();
     async function w() {
       while (queue.length) {
@@ -1742,7 +1767,18 @@
               filename: d.nome || "anexo-" + id + ".pdf",
               b64: d.b64,
               mime: "application/pdf",
-              cacheKey: idProc + ":" + id + ":" + (d.size || 0),
+              // SEM `cacheKey`, ao contrário de `subirPecas` — e isto não é
+              // esquecimento. Aquele cache vive em `chrome.storage.session`,
+              // que SOBREVIVE ao recarregar a página; os anexos, não (a Map é
+              // de memória e a retomada os descarta). Então ele nunca pode
+              // acertar de forma útil aqui: dentro da sessão quem já evita o
+              // re-upload é o `d.fileId` conferido acima. O que sobrava era só
+              // o risco — `anexo:<n>` reinicia em 1 a cada carga da página,
+              // então o par (processo, "anexo:1", tamanho) de HOJE colide com o
+              // de um arquivo DIFERENTE anexado antes do último F5, e o worker
+              // devolveria o file_id do arquivo velho. O modelo então analisa
+              // um documento que o usuário não anexou, sem nada na tela dizendo
+              // isso — a falha silenciosa que este projeto trata como a pior.
             },
           });
           d.fileId = r.fileId;
@@ -2574,15 +2610,19 @@
     // disparam syncSelection sem mudança real e sobrescreveriam a medição
     // oficial com uma estimativa local defasada.
     if (busy) return;
-    if (!ids.length && !conversation.length) {
+    if (!ids.length && !anexos.size && !conversation.length) {
       estSeq++; // cancela estimativas em voo
       panel.setContexto(null); // nada selecionado e nada conversado: sem medidor
       return;
     }
 
     // Camada 1: resposta IMEDIATA ao clique, com o que já se sabe localmente.
-    if (modelCaps) mostrarEstimativaLocal(ids);
-    else garantirCaps().then(() => !busy && mostrarEstimativaLocal(ids));
+    // `comAnexos`: o que vai ao modelo é seleção MAIS anexos do input, e medir
+    // só a seleção fazia o gauge encolher a cada clique numa peça — o anexo
+    // sumia da conta que ele mesmo tinha acabado de engordar.
+    const idsMedidos = comAnexos(ids);
+    if (modelCaps) mostrarEstimativaLocal(idsMedidos);
+    else garantirCaps().then(() => !busy && mostrarEstimativaLocal(idsMedidos));
 
     // Camada 2: refinamento em segundo plano (downloads + uploads + count).
     estTimer = setTimeout(() => refinarContexto(ids), 900);
@@ -2641,8 +2681,12 @@
     // que é serializada. Duas frentes de download só se atrapalhariam, e as
     // ativações da própria exportação re-disparam este handler o tempo todo.
     if (busy || exportando) return;
+    // O conjunto MEDIDO inclui os anexos do input; o conjunto BAIXADO, não (ver
+    // `comAnexos`). A chave da memoização é a do medido: anexar ou soltar um
+    // arquivo muda o request e precisa re-medir, exatamente como marcar uma peça.
+    const idsMedidos = comAnexos(ids);
     // mesma seleção e mesma conversa da última medição precisa: pula
-    const chave = ids.slice().sort().join(",") + "|" + conversation.length;
+    const chave = idsMedidos.slice().sort().join(",") + "|" + conversation.length;
     if (chave === ultimaChaveEst) return;
     const seq = ++estSeq;
     try {
@@ -2661,7 +2705,7 @@
         // exportação). O que baixar entra no cache e o envio reaproveita; o
         // que não baixar, o envio busca com o card de progresso visível — o
         // comportamento de antes, nunca pior.
-        mostrarEstimativaLocal(ids);
+        mostrarEstimativaLocal(idsMedidos);
         await prefetchProgressivo(ids, faltam, seq);
         return;
       }
@@ -2669,7 +2713,7 @@
       await baixarQuieto(ids, (feitas, total) => {
         if (seq !== estSeq || busy) return;
         panel.setStatus("Medindo o contexto… baixando peças (" + feitas + "/" + total + ")", true);
-        mostrarEstimativaLocal(ids);
+        mostrarEstimativaLocal(idsMedidos);
       });
       if (seq !== estSeq || busy) return;
       // sobe os PDFs à Files API JÁ na medição: o count_tokens referencia
@@ -2680,7 +2724,14 @@
 
       // request PROSPECTIVO: histórico filtrado + um turno de rascunho com
       // as peças novas (as que ainda não têm blocos no histórico)
-      const ativos = new Set(ids);
+      //
+      // `idsMedidos` e não `ids`: `prepararEnvio` trata todo bloco com
+      // `__pecaId` fora de `ativos` como "peça desmarcada" e o REMOVE. Com só a
+      // seleção aqui, os blocos dos anexos do input saíam do histórico do
+      // request medido — o pré-voo media um envio menor que o real, e a guarda
+      // de 90% ficava otimista exatamente quando o usuário tinha acabado de
+      // anexar um PDF grande.
+      const ativos = new Set(idsMedidos);
       // `podeAnexar` e não `has`: uma peça hidratada sem conteúdo utilizável
       // entraria em `montarBlocos` logo abaixo, que a descartaria — e no
       // caminho antigo (b64 ausente) estouraria um TypeError DENTRO deste try,
@@ -2709,9 +2760,9 @@
         panel.setContexto({
           tokens: est.tokens,
           ctxTokens: est.ctxTokens,
-          paginas: paginasDe(ids),
+          paginas: paginasDe(idsMedidos),
           maxPaginas: modelCaps ? modelCaps.maxPages : 0,
-          pecas: ids.length,
+          pecas: idsMedidos.length,
         });
       }
     } catch (e) {
@@ -3288,10 +3339,18 @@
     );
   }
 
-  // Feedback imediato no medidor ao anexar/remover, incluindo os anexos.
+  // Anexar ou soltar um arquivo muda o request tanto quanto marcar uma peça, e
+  // por isso passa pelas MESMAS duas camadas de medição: a estimativa local
+  // imediata e, com o mesmo debounce do clique na lista, o refinamento exato
+  // (count_tokens). Sem a segunda camada o gauge ficava no chute local até o
+  // envio — e um PDF anexado de 300 páginas só apareceria no número no momento
+  // em que já não dava para tirá-lo sem perder a pergunta digitada.
   function reestimarComAnexos() {
     if (busy || !modelCaps) return;
-    mostrarEstimativaLocal([...selecaoEfetiva(), ...anexos.keys()]);
+    clearTimeout(estTimer);
+    const sel = selecaoEfetiva();
+    mostrarEstimativaLocal(comAnexos(sel));
+    estTimer = setTimeout(() => refinarContexto(sel), 900);
   }
 
   // Teto de sanidade por anexo (antes do teto de b64 compartilhado que
