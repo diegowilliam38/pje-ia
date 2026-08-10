@@ -99,7 +99,52 @@
 
       <div class="card destaque">
         <p class="eyebrow" style="color: rgba(255,255,255,0.7)">A novidade mais recente</p>
-        <h2><span class="v novo">v0.31.0</span> Uma visita guiada — porque marcar peças tem seis atalhos que ninguém achava</h2>
+        <h2><span class="v novo">v0.32.0</span> A petição inicial deixa de ficar de fora</h2>
+        <p>
+          O botão <strong>chave</strong> marca a espinha dorsal do processo — inicial,
+          contestação, laudo, sentença — lendo o <strong>nome</strong> de cada peça. Só que
+          no PJe o nome costuma ser o do <em>arquivo</em>: “Petição”, “Documentos diversos”,
+          “Anexo 3”. Quando a inicial chegava assim, ela simplesmente <strong>não era
+          reconhecida</strong> — e a peça mais importante do processo ficava fora da seleção,
+          sem nada na tela dizendo isso.
+        </p>
+        <p>
+          Agora o <strong>chave</strong> olha além do nome. Ele considera a
+          <strong>posição</strong> da peça na cronologia do processo — a primeira petição é a
+          inicial, qualquer que seja o título do arquivo — e <strong>quem juntou</strong> o
+          documento, que é o que distingue uma manifestação do <strong>Ministério
+          Público</strong> ou da <strong>Defensoria</strong> de uma juntada qualquer. Passando
+          o mouse sobre a peça, a dica agora diz <em>quem a protocolou</em> e, quando ela
+          entrou por um desses sinais, <strong>por que entrou</strong>: você precisa poder
+          discordar.
+        </p>
+        <p>
+          Para isso funcionar, a lista precisa estar completa — clique em <strong>⟳ Carregar
+          tudo</strong> antes. Sem isso a extensão não tem como saber qual é a primeira peça
+          do processo (o PJe entrega a linha do tempo aos poucos), e prefere não chutar a
+          apontar a peça errada.
+        </p>
+        <p>
+          O botão <strong>Analisar com IA</strong> também passou a se anunciar: para quem
+          <strong>nunca abriu o painel</strong>, ele agora pulsa continuamente até o primeiro
+          clique, em vez de dar três sinais no carregamento da página — que é exatamente o
+          momento em que ninguém está olhando para o canto da tela. Depois do primeiro uso
+          ele para de vez.
+        </p>
+        <p>
+          E a tela de configuração ganhou o que faltava: um link <strong>Obter chave ↗</strong>
+          que abre direto a página de chaves do provedor (Anthropic, Google ou OpenAI), em vez
+          de mostrar o endereço como texto para copiar à mão. Ele fica visível também depois
+          de a chave estar salva — é por ali que se confere saldo e limite. Junto, três ajustes
+          de espaçamento: os botões <em>Testar chave</em> e <em>Salvar</em> deixaram de encostar
+          nos campos acima, e o convite <strong>Ver como funciona</strong> se separou do guia
+          recolhido logo abaixo, com que era fácil confundi-lo.
+        </p>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">Antes disso</p>
+        <h2><span class="v">v0.31.0</span> Uma visita guiada — porque marcar peças tem seis atalhos que ninguém achava</h2>
         <p>
           Quem instalava a extensão marcava as peças <strong>uma a uma</strong>, clicando
           quarenta vezes num processo de duzentas. Os atalhos existiam desde a v0.23 —
@@ -147,7 +192,6 @@
       </div>
 
       <div class="card">
-        <p class="eyebrow">Antes disso</p>
         <h2><span class="v">v0.30.0</span> Nada mais se perde — e o que importa salta aos olhos</h2>
         <p>
           Três correções e um recurso, todos sobre a mesma queixa: <strong>trabalho que
@@ -795,7 +839,8 @@
             <tr><th>Versão</th><th>Data</th><th>O que mudou</th></tr>
           </thead>
           <tbody>
-            <tr><td><span class="v novo">0.31.1</span></td><td>05/08/2026</td><td>Ao reabrir um processo guardado na memória, o botão <strong>Abrir documento</strong> da pré-visualização não fazia nada e a exportação em <code>.zip</code> podia levar a peça <strong>vazia</strong>: a extensão concluía que não precisava baixar o documento — o que é verdade para <em>enviar</em> à IA, já que a peça está no provedor, mas não para <em>mostrar na tela</em> nem para <em>gravar no pacote</em></td></tr>
+            <tr class="marco"><td><span class="v novo">0.32.0</span></td><td>07/08/2026</td><td><span class="dot-marco"></span><strong>O degrau “chave” passa a reconhecer a petição inicial pela POSIÇÃO</strong>, e não só pelo nome: no PJe o título costuma ser o do arquivo (“Petição”, “Documentos diversos”), e a peça mais importante do processo ficava fora da seleção em silêncio. Considera também <strong>quem juntou</strong> o documento, o que distingue uma manifestação do <strong>Ministério Público</strong> ou da <strong>Defensoria</strong> de uma juntada qualquer; a dica da peça agora mostra o autor e, quando ela entrou por um desses sinais, o motivo. Exige <strong>⟳ Carregar tudo</strong> — sem a lista completa não há como saber qual é a primeira peça. O botão <strong>Analisar com IA</strong> pulsa até o primeiro clique para quem nunca abriu o painel, e a configuração ganhou o link <strong>Obter chave ↗</strong> direto para o console do provedor</td></tr>
+            <tr><td><span class="v">0.31.1</span></td><td>05/08/2026</td><td>Ao reabrir um processo guardado na memória, o botão <strong>Abrir documento</strong> da pré-visualização não fazia nada e a exportação em <code>.zip</code> podia levar a peça <strong>vazia</strong>: a extensão concluía que não precisava baixar o documento — o que é verdade para <em>enviar</em> à IA, já que a peça está no provedor, mas não para <em>mostrar na tela</em> nem para <em>gravar no pacote</em></td></tr>
             <tr class="marco"><td><span class="v">0.31.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span><strong>Visita guiada no primeiro uso</strong>: o painel se explica sobre ele mesmo, destacando cada recurso na tela real com o gesto animado ao lado. Treze passos, e sete são sobre <strong>marcar peças</strong> — os três degraus, a busca e o <code>@</code>, o arrasto, o Shift+clique, o botão direito e o Escolher com IA —, que eram atalhos que quase ninguém descobria sozinho. Não toca no processo: os gestos são demonstrados numa lista de exemplo, nenhuma peça é marcada e nada é baixado. Recusando, não volta; o botão <strong>Ver como funciona</strong> fica no início de toda conversa nova. Junto, o <strong>nome da peça deixou de ser cortado no meio</strong> — agora ocupa até duas linhas, três quando a lista é coluna</td></tr>
             <tr class="marco"><td><span class="v">0.30.0</span></td><td>05/08/2026</td><td><span class="dot-marco"></span><strong>Conversa com minuta ou mapa mental deixa de se perder</strong>: a gravação passou a considerar o que está na tela, e não só o histórico de perguntas — antes, uma sessão inteira de minutas e mapas nunca chegava ao disco. Corrigidas também duas perdas silenciosas: conversa retomada que virava duplicata e conversa de outro provedor sobrescrita pela nova. As respostas ganharam <strong>avisos em bloco</strong> — <strong>Alerta</strong> (vermelho) para o que pode levar a erro de decisão, <strong>Atenção</strong> (âmbar) para ressalvas sobre a base da resposta, <strong>Nota</strong> para o resto —, e os botões de conversa no cabeçalho ficaram distinguíveis: <strong>+</strong> no de nova conversa, <strong>contador</strong> no da lista</td></tr>
             <tr><td><span class="v">0.29.1</span></td><td>05/08/2026</td><td>A lista de conversas não some ao excluir a penúltima, e uma pergunta deixa de virar duas conversas iguais quando duas gravações correm juntas</td></tr>

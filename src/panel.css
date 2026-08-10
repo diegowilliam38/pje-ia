@@ -177,11 +177,52 @@ button > svg { flex: none; }
    estava aqui — literal fora da escala era a única violação restante */
 .launcher .sc { font-size: var(--fs-lg); }
 .launcher:hover { filter: brightness(1.08); }
+/* Quem JÁ usou o painel: três halos no boot e silêncio. Localiza o botão para
+   quem sabe que ele existe, sem virar ruído permanente no canto da tela. */
 .wrap.pulse .launcher { animation: pulse 1.8s ease-out 3; }
 @keyframes pulse {
   0% { box-shadow: 0 6px 20px rgba(5, 48, 68, 0.32), 0 0 0 0 rgba(20, 96, 126, 0.55); }
   70% { box-shadow: 0 6px 20px rgba(5, 48, 68, 0.32), 0 0 0 14px rgba(20, 96, 126, 0); }
   100% { box-shadow: 0 6px 20px rgba(5, 48, 68, 0.32), 0 0 0 0 rgba(20, 96, 126, 0); }
+}
+/* Quem NUNCA abriu o painel: o chamado VOLTA, em rajadas.
+   Os três halos acima já existiam e ainda assim havia quem não achasse o botão
+   — e o motivo é QUANDO eles acontecem: rodam no boot da página, que é
+   exatamente o momento em que o usuário espera o PJe carregar e está olhando
+   para outro lugar. Cinco segundos depois não há mais nada na tela a que
+   voltar.
+   Duas diferenças em relação ao `pulse`, e as duas importam: a rajada REPETE
+   (pulso de ~1,4 s e ~3 s de silêncio — ritmo que se nota sem hipnotizar), e o
+   botão ganha ESCALA. Movimento de forma é o que a visão periférica capta; o
+   halo sozinho é mudança de cor num canto que o olho não está varrendo.
+   Some para sempre no primeiro clique (`launcherUsado`, em storage.local) —
+   um chamado que continua depois de atendido vira ruído, e ruído no canto é
+   o que faz o usuário aprender a ignorar aquele pedaço da tela. */
+.wrap.chamando .launcher { animation: chamando 1.9s ease-out infinite; }
+@keyframes chamando {
+  0%   { transform: scale(1);     box-shadow: 0 6px 20px rgba(5, 48, 68, 0.32), 0 0 0 0 rgba(20, 96, 126, 0.6); }
+  14%  { transform: scale(1.05); }
+  75%  { transform: scale(1);     box-shadow: 0 6px 20px rgba(5, 48, 68, 0.32), 0 0 0 20px rgba(20, 96, 126, 0); }
+  /* Repouso com spread ZERO: é o que faz o anel sumir em vez de encolher de
+     volta ao botão, e o que torna o salto para o pulso seguinte invisível
+     (a opacidade sobe, mas sobre um anel de tamanho nenhum).
+     Ele é CURTO de propósito — 0,45 s. A primeira versão deixava 3 s de
+     silêncio entre as rajadas, para não hipnotizar, e o efeito foi o oposto do
+     pretendido: quem olha para o botão vê um halo, espera, não vê mais nada, e
+     conclui que ele piscou uma vez e parou. Um chamado que precisa de paciência
+     para ser percebido não é um chamado. */
+  76%, 100% { transform: scale(1); box-shadow: 0 6px 20px rgba(5, 48, 68, 0.32), 0 0 0 0 rgba(20, 96, 126, 0); }
+}
+/* Movimento reduzido: a escala e o halo saem, mas o chamado NÃO pode sumir —
+   quem pediu menos animação é justamente quem mais precisa que o botão se
+   anuncie por outro canal. Fica uma respiração de brilho, sem deslocamento. */
+@media (prefers-reduced-motion: reduce) {
+  .wrap.pulse .launcher { animation: none; }
+  .wrap.chamando .launcher { animation: chamando-suave 3s ease-in-out infinite; }
+  @keyframes chamando-suave {
+    0%, 100% { filter: brightness(1); }
+    50%      { filter: brightness(1.18); }
+  }
 }
 .wrap.open .launcher { display: none; }
 
@@ -2668,13 +2709,32 @@ button > svg { flex: none; }
   .tp-cite, .tp-sup, .tp-kbd, .tp-pop-r, .tp-car { transition: none; animation: none; }
 }
 
-/* ----- convite permanente no estado vazio (some com a primeira mensagem) ----- */
+/* ----- convite permanente no estado vazio (some com a primeira mensagem) -----
+   Ele é irmão IMEDIATO do <details class="guia">, e os dois eram fáceis de ler
+   como uma coisa só: mesma largura de olhar, ambos com um triângulo à esquerda,
+   ambos começando por "como funciona", e ZERO espaço entre eles (o botão é
+   inline-flex sem margem e o details não tem margin-top). O que se perdia nessa
+   confusão era o tour — o onboarding do produto — tomado por cabeçalho de um
+   acordeão de texto.
+
+   A separação é feita nos três eixos de uma vez, e nenhum sozinho bastava:
+   ESPAÇO (a margem abaixo), PESO (--fs-ui e 600 contra --fs-micro e o cinza do
+   summary) e o SELO de duração, que responde "quanto tempo isto me custa?" —
+   a pergunta que decide se alguém aceita um tour. */
 .hint-tour {
-  display: inline-flex; align-items: center; gap: 6px;
-  border: 1px solid var(--line-strong); background: var(--surface);
-  border-radius: var(--r-pill); padding: 5px var(--sp-3b); cursor: pointer;
-  font-family: inherit; font-size: var(--fs-meta); font-weight: 500;
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  border: 1px solid var(--pje-soft); background: var(--surface);
+  border-radius: var(--r-pill); padding: 7px var(--sp-4) 7px var(--sp-3b);
+  cursor: pointer; margin-bottom: var(--sp-4);
+  font-family: inherit; font-size: var(--fs-ui); font-weight: 600;
   color: var(--pje-2); transition: 140ms ease;
 }
-.hint-tour:hover { background: var(--hover-2); border-color: var(--pje-soft); }
+.hint-tour:hover { background: var(--hover-2); border-color: var(--pje); }
 .hint-tour svg { color: var(--pje); }
+/* Duração como PÍLULA, não como parêntese no rótulo: o texto do botão é a ação
+   ("Ver como funciona") e precisa continuar sendo o que se lê primeiro. */
+.ht-dur {
+  font-size: var(--fs-nano); font-weight: 600; letter-spacing: 0.02em;
+  color: var(--pje); background: var(--accent-bg-2);
+  border-radius: var(--r-pill); padding: 2px var(--sp-2);
+}

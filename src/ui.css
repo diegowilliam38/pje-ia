@@ -457,15 +457,32 @@ input:focus, select:focus, textarea:focus {
   margin-top: var(--sp-3b); padding: var(--sp-4);
 }
 .pc-sec + .pc-sec, .provcard > label.field { margin-top: var(--sp-4); }
+/* Sair do cartão do provedor é MUDANÇA DE ASSUNTO (da configuração do modelo
+   para as instruções do usuário), e com os 12–14px do `label.field` o rótulo
+   seguinte parecia mais um campo de dentro do cartão. */
+.provcard + label.field { margin-top: var(--sp-5); }
 .pc-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3); }
 .pc-head label { font-size: var(--fs-ui); font-weight: 600; color: var(--ink); }
 .pc-head-sp { margin-top: var(--sp-4); }
 .pc-head .field { margin: 0; }
-.pc-trocar {
+/* Ações do cabeçalho da chave. São DUAS, e a distinção importa: "Obter chave"
+   leva para fora (console do provedor) e existe SEMPRE — inclusive com a chave
+   salva, porque é por ali que se confere saldo, limite e chave revogada.
+   "Trocar" só aparece quando há chave. Enquanto o endereço do console era
+   TEXTO na dica ("Crie em console.anthropic.com"), quem não tinha chave
+   precisava selecionar, copiar e colar na barra do navegador — e quem já tinha
+   não via nem isso, porque a dica inteira some com a máscara (pintarMascara). */
+.pc-acts { display: flex; align-items: baseline; gap: var(--sp-3); flex: none; }
+.pc-obter, .pc-trocar {
   border: 0; background: none; padding: 0; cursor: pointer; font-family: inherit;
   font-size: var(--fs-micro); font-weight: 500; color: var(--pje);
+  text-decoration: none; white-space: nowrap;
 }
-.pc-trocar:hover { text-decoration: underline; }
+.pc-obter:hover, .pc-trocar:hover { text-decoration: underline; }
+/* O link externo é a ação PRIMÁRIA deste cabeçalho enquanto não há chave, e a
+   seta é o que o anuncia como saída da extensão (mesma convenção do help.html
+   e da caixa de apoio). */
+.pc-obter { font-weight: 600; }
 /* Chave já salva: linha mascarada. A chave inteira NUNCA volta à tela — quem
    precisa trocá-la digita outra, não relê a atual. */
 .keymask {
@@ -509,6 +526,12 @@ input:focus, select:focus, textarea:focus {
 }
 .persona:hover { border-color: var(--line-focus); color: var(--pje-2); }
 
+/* A linha de ação precisa da própria margem. A regra `.save-acts .btn` abaixo
+   zera o `margin-top` que o `.btn` carregava quando nascia sozinho na coluna —
+   e como a `.save-row` não tinha margem nenhuma, "Testar chave"/"Salvar" ficavam
+   COLADOS nos chips de persona logo acima, sem a separação que anuncia "aqui
+   termina o formulário e começa a ação". Vale para o popup e para as opções. */
+.save-row { margin-top: var(--sp-5); }
 .save-acts { display: flex; gap: var(--sp-3); }
 /* `.btn` é `width: 100%` (ele nasceu sozinho na coluna). Numa linha flex isso
    vira a base dos DOIS, e como o secundário não encolhe (`flex: none`) o

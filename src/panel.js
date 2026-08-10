@@ -467,6 +467,22 @@ var PjePanel = (function () {
       ")\\b"
   );
 
+  // Órgãos cuja atuação é, por si, sinal de peça de CONTEÚDO. Casa contra o
+  // campo "Juntado por" da grid, e serve SÓ para promover (ver
+  // `refinarRelevancia`) — nunca para rebaixar.
+  //
+  // Mesmas armadilhas de construção das duas tabelas acima: o grupo vai entre
+  // \b…\b, então toda alternativa precisa terminar em palavra COMPLETA, e as
+  // flexões vão explícitas em vez de \w* solto.
+  const RE_AUTOR_CONTEUDO = new RegExp(
+    "\\b(" +
+      [
+        "ministerio publico", "promotor(a|ia)?", "procurador(a|ia)?",
+        "defensoria", "defensor(a)? public(o|a)",
+      ].join("|") +
+      ")\\b"
+  );
+
   // Classifica nos DOIS eixos de uma vez. Aceita string (título) ou o objeto da
   // peça, e devolve {cat, rel}.
   //
@@ -525,6 +541,117 @@ var PjePanel = (function () {
   // Usado pela busca da lista E pelo popup @, para os dois nunca divergirem.
   function textoBusca(d) {
     return norm(d.titulo + " " + (d.tipo || ""));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Refino ESTRUTURAL da relevância — o que a peça não sabe sozinha
+  // ---------------------------------------------------------------------------
+  // `classificarPeca` é PURA e POR PEÇA: entra um texto, sai um rótulo. Dois
+  // sinais fortes não cabem nesse formato, e por motivos diferentes:
+  //
+  //   (1) "é a inicial" quer dizer "é a primeira peça de conteúdo do processo",
+  //       que é propriedade da LISTA — nenhuma peça descobre isso olhando para
+  //       si mesma;
+  //   (2) "quem juntou" está no objeto, mas só significa alguma coisa COMPARADO
+  //       ao que o título já disse: é desempate, nunca veredito.
+  //
+  // Por isso o refino é uma passada à parte sobre a lista já classificada, e
+  // `classificarPeca`/`categoriaDe` seguem intocadas — elas continuam sendo
+  // chamadas com peça avulsa pelos chips, pelo popup @, pelo preview e pelo
+  // content.js, e nenhum desses tem lista nenhuma para oferecer.
+  //
+  // Devolve Map id -> {rel, motivo}. O MOTIVO não é enfeite: peça que entra num
+  // degrau por um sinal que NÃO está escrito no nome dela precisa poder ser
+  // contestada — vai para o `title` da row, o mesmo lugar onde o "Escolher com
+  // IA" já grava o motivo dele. Nada aqui muda a COR: categoria e relevância
+  // são eixos ortogonais (DESIGN.md §2), e repintar a peça promovida seria
+  // afirmar uma categoria que a classificação não reconheceu.
+  function refinarRelevancia(docs, clsPorId, temTipo) {
+    const ajustes = new Map();
+    if (!docs || !docs.length) return ajustes;
+
+    // (1) A PETIÇÃO INICIAL, por POSIÇÃO.
+    //
+    // É o sinal de maior retorno: o título costuma ser o nome do arquivo
+    // ("Petição", "Documentos diversos"), aí RE_CHAVE não casa nada e a peça
+    // mais importante do processo fica FORA do degrau `chave` — em silêncio.
+    //
+    // A guarda de `temTipo` é o que impede o falso positivo caro, e ela não é
+    // sobre o tipo em si: a timeline do PJe é LAZY, e numa lista parcial a peça
+    // mais antiga CARREGADA não é a mais antiga do PROCESSO. Marcá-la como
+    // inicial apontaria para a peça errada sem nenhum sintoma. O tipo oficial só
+    // existe depois que a grid foi lida, e a grid é justamente a rota que traz a
+    // lista inteira — então ele é a proxy de completude disponível aqui. Sem
+    // ele, a `.sel-nota` do degrau já manda carregar tudo.
+    if (temTipo) {
+      // `window.PjeExport.…` explícito, não o global nu: `exportar.js` publica a
+      // API SÓ como propriedade de window (o IIFE não declara `var PjeExport`),
+      // e o acesso nu só funciona por causa do global-object-is-window do
+      // navegador. Isso torna o refino testável fora dele — e é a mesma
+      // premissa de cronologia da exportação em .zip, que não pode ser
+      // duplicada aqui sob risco de as duas divergirem em silêncio.
+      const ord = window.PjeExport
+        ? window.PjeExport.ordenarCronologico(docs).docs
+        : docs.slice().reverse();
+      // Procura a primeira PETIÇÃO, dentro de uma janela curta.
+      //
+      // "Parar na primeira peça que não for ruído" foi a primeira versão e
+      // estava errada — o teste pegou: `RE_RUIDO` é conservadora de propósito e
+      // NUNCA usa `certidao` sozinho (certidão de trânsito em julgado é ato
+      // relevante), então "Certidão de Distribuição", que abre um número enorme
+      // de processos, não é ruído. O laço parava nela e a promovia a "provável
+      // inicial" — o erro silencioso que esta camada mais precisa evitar.
+      //
+      // A janela existe porque, sem ela, um processo que não tenha a inicial na
+      // lista faria o laço varrer os autos inteiros e rotular de "inicial" uma
+      // petição qualquer do meio. A inicial está entre as primeiras peças por
+      // definição: se não está aqui, o sinal não é confiável e desistir é o
+      // comportamento certo.
+      const janela = Math.min(5, ord.length);
+      for (let i = 0; i < janela; i++) {
+        const c = clsPorId.get(ord[i].id);
+        if (!c) continue;
+        if (c.rel === "ruido") continue; // procuração, guia, AR: expediente
+        // O título já reconheceu uma peça-chave aqui na abertura ("Petição
+        // Inicial", "Denúncia", "Reclamação Trabalhista"): não há o que
+        // promover, e seguir procurando só acharia uma petição POSTERIOR para
+        // rotular de inicial.
+        if (c.rel === "essencial") break;
+        if (c.cat === "cat-peticao") {
+          ajustes.set(ord[i].id, {
+            rel: "essencial",
+            motivo: "1ª petição do processo — provável inicial",
+          });
+          break;
+        }
+        // Certidão de distribuição, autuação, ofício de abertura: não são a
+        // inicial, mas também não bloqueiam a busca por ela.
+      }
+    }
+
+    // (2) AUTOR INSTITUCIONAL, só para PROMOVER.
+    //
+    // Rebaixar por quem juntou foi avaliado e DESCARTADO, por duas razões que
+    // se somam. A estrutural: nenhum dos três degraus distingue `neutro` de
+    // `ruido` (`principais` exclui os dois), então rebaixar não mudaria seleção
+    // nenhuma — só criaria mais uma forma de a peça sumir sem ninguém ver. E a
+    // de domínio: o caso que parece render, "Petição juntada pela secretaria",
+    // é justamente onde a secretaria protocola petição de parte que chegou em
+    // papel.
+    for (const d of docs) {
+      if (ajustes.has(d.id) || !d.juntadoPor) continue;
+      const c = clsPorId.get(d.id);
+      // Só onde o título e o tipo não disseram nada: quem juntou é DESEMPATE.
+      // Sobrepor um RE_CHAVE que casou faria uma sentença virar outra coisa por
+      // causa de quem a protocolou.
+      if (!c || c.rel !== "neutro") continue;
+      if (!RE_AUTOR_CONTEUDO.test(norm(d.juntadoPor))) continue;
+      ajustes.set(d.id, {
+        rel: "relevante",
+        motivo: "juntada por órgão de atuação institucional",
+      });
+    }
+    return ajustes;
   }
 
   // Aviso da lista possivelmente incompleta. Fora do painel ele é UM ÍCONE ⚠️
@@ -1084,7 +1211,7 @@ var PjePanel = (function () {
         (temTour
           ? '<button type="button" class="hint-tour" title="Visita guiada pelos recursos do painel — cerca de um minuto, sem alterar nada no seu processo">' +
             SVG.play +
-            "Ver como funciona</button>"
+            'Ver como funciona<span class="ht-dur">1 min</span></button>'
           : "") +
         '<details class="guia"' +
         (guiaAberta ? " open" : "") +
@@ -1093,7 +1220,15 @@ var PjePanel = (function () {
         // inteira) e ficava atrás de um rótulo — "limites e alternativas" — que
         // não prometia falar disso. Ninguém abre um acordeão para descobrir o
         // que não sabe que está lá dentro.
-        "><summary>Como funciona, limites e o que deixa mais rápido</summary>" +
+        //
+        // Mas ele NÃO pode mais começar por "Como funciona": o botão do tour,
+        // logo acima, chama-se "Ver como funciona" e também abre com um
+        // triângulo. Dois controles empilhados, com o mesmo ícone e a mesma
+        // primeira palavra, liam-se como um só — e o que se perdia era
+        // justamente a visita guiada, que é o onboarding. O rótulo passa a
+        // nomear o CONTEÚDO (limites e privacidade), preservando a promessa de
+        // velocidade que o parágrafo de rede cumpre.
+        "><summary>Limites, privacidade e o que deixa mais rápido</summary>" +
         "<p><b>Não é um agente autônomo</b> (como o Claude Code): ele não navega no " +
         "processo sozinho. Você marca as peças, envia a solicitação e a resposta usa " +
         "somente os documentos marcados — dá para marcar e desmarcar entre uma " +
@@ -1186,11 +1321,49 @@ var PjePanel = (function () {
       /* sem storage (harness de teste): guia fechada */
     }
 
+    // O chamado do launcher (ver `.chamando` no panel.css) vale só para quem
+    // NUNCA abriu o painel — depois de atendido, ele vira ruído no canto da
+    // tela, e ruído no canto é o que ensina o usuário a ignorar aquele pedaço.
+    //
+    // O ESTADO mora nas classes do wrap, não numa variável espelho: uma
+    // variável "já usou" inicializada de forma pessimista fazia o `open` que
+    // acontece ANTES da resposta do storage (o content.js abre o painel em
+    // alguns caminhos) sair pela guarda sem gravar nada — e o chamado voltava
+    // na carga seguinte, para quem já tinha usado. `jaGravou` é só para não
+    // repetir a escrita, e a declaração vem antes de `open`, que a consome
+    // (a armadilha da zona morta temporal vale aqui dentro também).
+    let jaGravou = false;
+    function marcarLauncherUsado() {
+      wrap.classList.remove("chamando");
+      if (jaGravou) return;
+      jaGravou = true;
+      try {
+        chrome.storage.local.set({ launcherUsado: true });
+      } catch {
+        /* contexto da extensão invalidado — segue sem persistir */
+      }
+    }
     function open() {
       wrap.classList.add("open");
       wrap.classList.remove("pulse");
+      marcarLauncherUsado(); // abrir pelo botão ou pela API conta como uso
     }
     launcher.addEventListener("click", open);
+    // O `get` vem DEPOIS de `open`/`marcarLauncherUsado` existirem: o stub de
+    // teste chama o callback de forma síncrona, a mesma armadilha já
+    // documentada para `docsOcultas` e `guiaAberta`.
+    try {
+      chrome.storage.local.get(["launcherUsado"], (v) => {
+        if (v && v.launcherUsado) return;
+        // Painel já aberto quando a resposta chegou: isso É uso. Grava e
+        // NUNCA liga o chamado — ligá-lo aqui o deixaria armado para quando o
+        // usuário fechasse o painel que ele mesmo acabou de usar.
+        if (wrap.classList.contains("open")) return marcarLauncherUsado();
+        wrap.classList.add("chamando");
+      });
+    } catch {
+      /* fora da extensão (harness de teste): sem chamado, nada quebra */
+    }
 
     // -------------------------------------------------------------------------
     // Modos de layout (classes no .wrap): flutuante (nenhuma), expandido
@@ -4602,17 +4775,25 @@ var PjePanel = (function () {
         // essenciais mudou. Isso é o sinal certo (a seleção é estado do
         // usuário); não "conserte" re-aplicando o degrau aqui.
         temTipoOficial = docs.some((d) => d.tipo);
+        // UMA classificação por peça, reaproveitada pelo refino e pelo render.
+        // O custo real aqui nunca foram as regex, é o norm() (toLowerCase + NFD
+        // + replace), e `setDocs` roda a cada mutação da timeline do PJe —
+        // classificar duas vezes dobraria justamente a parte cara.
+        const clsPorId = new Map();
+        for (const d of docs) clsPorId.set(d.id, classificarPeca(d));
+        const refino = refinarRelevancia(docs, clsPorId, temTipoOficial);
         doclist.innerHTML = "";
         for (const d of docs) {
           const p = partesTitulo(d.titulo);
-          const cls = classificarPeca(d);
+          const cls = clsPorId.get(d.id);
+          const aj = refino.get(d.id); // {rel, motivo} ou undefined
           const row = document.createElement("label");
           row.className = "docrow " + cls.cat;
           // Relevância vai em DATASET, não em classe: as classes cat-* são
           // semânticas (DESIGN.md §2) e uma classe .rel-* convidaria a pendurar
           // cor nela — o eixo de cor já é a categoria. Aqui o dado serve aos
           // seletores dos atalhos de seleção, não à aparência.
-          row.dataset.rel = cls.rel;
+          row.dataset.rel = aj ? aj.rel : cls.rel;
           row.dataset.busca = textoBusca(d); // título + tipo, sem acentos
           row.dataset.id = d.id; // usado pelo preview e pelo "ver na timeline"
           if (pecasEnviadas.has(d.id)) row.classList.add("enviada");
@@ -4624,10 +4805,21 @@ var PjePanel = (function () {
           // peça, para responder uma pergunta que a ORDEM da lista já responde
           // (a timeline vem em ordem cronológica). Quem escolhe peça escolhe
           // pelo nome; a data é conferência, e conferência cabe no hover.
+          // QUEM JUNTOU entra aqui pelo mesmo argumento da data: é o campo que
+          // distingue peças de nome igual (a petição do autor da do réu, a
+          // manifestação do MP da do assistente) e não cabe na linha, onde
+          // disputaria os pixels do nome da peça.
+          //
+          // O MOTIVO do refino fecha a dica, e é ele que torna o degrau
+          // AUDITÁVEL: uma peça marcada por posição ou por autor entrou por um
+          // sinal que não está escrito no nome dela, e sem isso o usuário não
+          // teria como discordar do que não vê.
           const dica =
             d.titulo +
             (d.tipo && d.tipo !== p.nome ? " — " + d.tipo : "") +
-            (dataCurta(d.juntadoEm) ? " · juntada em " + dataCurta(d.juntadoEm) : "");
+            (dataCurta(d.juntadoEm) ? " · juntada em " + dataCurta(d.juntadoEm) : "") +
+            (d.juntadoPor ? " · por " + d.juntadoPor : "") +
+            (aj ? " · " + aj.motivo : "");
           row.innerHTML =
             `<input type="checkbox" value="${escapeHtml(d.id)}">` +
             '<span class="d-dot" aria-hidden="true"></span>' +
@@ -5187,5 +5379,6 @@ var PjePanel = (function () {
     _findSlashToken: findSlashToken,
     _montarTextoEnvio: montarTextoEnvio,
     _classificarPeca: classificarPeca,
+    _refinarRelevancia: refinarRelevancia,
   };
 })();

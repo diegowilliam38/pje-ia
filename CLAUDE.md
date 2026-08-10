@@ -1003,6 +1003,59 @@ o que não sabe que existe. **Sete dos treze passos são sobre marcar peças**, 
     Saneadora" e `acordo homologad` não pega "homologado". Flexões explícitas, nunca
     `\w*` solto (faria "inicial" casar "inicialmente"). Valem também o lookbehind de
     `(?<!cumprimento de )sentenca` e a separação `acordao` ≠ `acordo`.
+- **Refino ESTRUTURAL da relevância** (`refinarRelevancia` em panel.js): dois
+  sinais fortes não cabem em `classificarPeca` porque **não são propriedades da
+  peça**. Ele roda em `setDocs`, sobre a lista já classificada, e devolve
+  `Map id -> {rel, motivo}`; `classificarPeca`/`categoriaDe` ficam INTOCADAS —
+  elas seguem sendo chamadas com peça avulsa pelos chips, pelo popup `@`, pelo
+  preview e pelo content.js, e nenhum desses tem lista para oferecer. **UMA
+  classificação por peça** é calculada em `setDocs` e reaproveitada pelos dois
+  (classificar duas vezes dobraria o `norm()`, que é a parte cara).
+  - **(1) A petição inicial, por POSIÇÃO.** É o sinal de maior retorno: o
+    título costuma ser o nome do arquivo ("Petição", "Documentos diversos"),
+    aí `RE_CHAVE` não casa nada e a peça mais importante do processo fica fora
+    do degrau `chave`, em silêncio. Procura a primeira **petição**
+    (`cat-peticao`) nas **5 primeiras** peças em ordem cronológica
+    (`window.PjeExport.ordenarCronologico` — a MESMA premissa da exportação em
+    `.zip`; duplicá-la aqui faria as duas divergirem sem ninguém ver).
+  - **A guarda de `temTipoOficial` é o que impede o falso positivo caro**, e
+    ela não é sobre o tipo: a timeline do PJe é LAZY, e numa lista parcial a
+    peça mais antiga CARREGADA não é a mais antiga do PROCESSO. O tipo oficial
+    só existe depois que a grid foi lida, e a grid é a rota que traz a lista
+    inteira — é a proxy de completude disponível no painel.
+  - **"Parar na primeira peça que não for ruído" está ERRADO** (foi a primeira
+    versão, e o teste pegou): `RE_RUIDO` nunca usa `certidao` sozinho, então
+    "Certidão de Distribuição" — que abre um número enorme de processos — não é
+    ruído. O laço parava nela e a promovia a "provável inicial". Peça que não é
+    petição não bloqueia a busca; a **janela** é que impede o laço de varrer os
+    autos e rotular de inicial uma petição do meio.
+  - **(2) Autor institucional, só para PROMOVER** (`RE_AUTOR_CONTEUDO` sobre
+    `d.juntadoPor`): MP, promotoria, procuradoria e defensoria promovem a
+    `relevante` o que o título e o tipo NÃO classificaram (`rel === "neutro"`).
+    Quem juntou é **desempate**, nunca veredito — sobrepor um `RE_CHAVE` que
+    casou faria uma sentença virar outra coisa por causa de quem a protocolou.
+  - **Rebaixar por quem juntou foi avaliado e DESCARTADO**, por duas razões que
+    se somam. Estrutural: nenhum degrau distingue `neutro` de `ruido`
+    (`principais` exclui os dois), então rebaixar não mudaria seleção nenhuma —
+    só criaria mais uma forma de a peça sumir sem ninguém ver. De domínio: o
+    caso que parece render, "Petição juntada pela secretaria", é justamente
+    onde a secretaria protocola petição de parte que chegou em papel.
+  - **O motivo NÃO é enfeite**: peça que entra num degrau por um sinal que não
+    está escrito no nome dela precisa poder ser contestada. Vai para o `title`
+    da row, junto de quem juntou — o mesmo lugar onde o "Escolher com IA" já
+    grava o motivo dele. O refino **nunca mexe na COR**: categoria e relevância
+    são eixos ortogonais (DESIGN.md §2), e repintar a peça promovida afirmaria
+    uma categoria que a classificação não reconheceu.
+  - **Nº de páginas do PDF NÃO está disponível aqui** (e a tentação é real): o
+    `paginas` que a grid devolve é a paginação da TABELA. O número de páginas
+    da peça só existe no `docsCache`, depois do download, e o `docsCache` é do
+    content.js — é por isso que ele aparece na lista do "Escolher com IA" e não
+    nos degraus.
+  - Testado fora do navegador (19 casos) carregando `exportar.js` + `panel.js`
+    reais em `vm`, via `_refinarRelevancia`/`_classificarPeca`. O acesso a
+    `PjeExport` é `window.PjeExport.…` explícito, e não o global nu: o IIFE de
+    `exportar.js` publica a API só como propriedade de `window`, e o acesso nu
+    só funciona pelo global-object-is-window do navegador.
 - **Orientações no estado vazio** (`showEmptyHint`) — **progressive disclosure em
   quatro camadas**, nesta ordem: (1) três passos (`.passos`: marcar → pedir →
   conferir a origem), em coluna única e em 3 colunas SÓ no `.expanded` (na janela
@@ -1019,7 +1072,16 @@ o que não sabe que existe. **Sete dos treze passos são sobre marcar peças**, 
   alternativas" — que não prometia falar disso, e ninguém abre um acordeão para
   descobrir o que não sabe que está lá dentro. A mesma frase agora abre também a
   caixa `.privacy` do popup/opções, que é onde ela alcança quem ainda não usou a
-  extensão; (4) botão "Guia completo,
+  extensão. **Mas ele não pode COMEÇAR por "Como funciona"** (é "Limites,
+  privacidade e o que deixa mais rápido"): o convite ao tour, logo acima, chama-se
+  "Ver como funciona" e também abre com um triângulo — dois controles empilhados,
+  com o mesmo ícone e a mesma primeira palavra, liam-se como um só, e o que se
+  perdia era justamente a visita guiada. A separação dos dois é feita em TRÊS
+  eixos, e nenhum sozinho basta: espaço (`margin-bottom` no `.hint-tour` — ele é
+  `inline-flex` e o `<details>` não tem `margin-top`, então o padrão eram 0px),
+  peso (`--fs-ui`/600 contra o `--fs-micro` cinza do summary) e o selo de duração
+  `.ht-dur` ("1 min"), que responde à pergunta que decide se alguém aceita um
+  tour; (4) botão "Guia completo,
   modelos e preços →" abrindo `src/help.html` (por isso ele está em
   `web_accessible_resources`). **A referência que envelhece — tabela de modelos,
   preços, fluxo recomendado, dicas de cache — vive SÓ no `help.html`**: o painel
@@ -1040,6 +1102,40 @@ o que não sabe que existe. **Sete dos treze passos são sobre marcar peças**, 
 
 ## Modos de layout, preview no hover e "ver na timeline" (panel.js/pje.js)
 
+- **O launcher ("Analisar com IA") chama atenção em DOIS regimes**, e a
+  diferença é ter usado o painel alguma vez:
+  - `.wrap.pulse` — três halos no boot, e silêncio. É o de sempre, e vale para
+    quem já usou: localiza o botão para quem sabe que ele existe.
+  - `.wrap.chamando` — pulso CONTÍNUO (ciclo de 1,9 s: anel de ~1,4 s e 0,45 s
+    de repouso) para quem **nunca abriu o painel**. Os três halos já existiam e
+    mesmo assim havia quem não achasse o botão, e o motivo é QUANDO eles
+    acontecem: rodam no boot da página, exatamente quando o usuário espera o PJe
+    carregar e está olhando para outro lugar — cinco segundos depois não há mais
+    nada na tela a que voltar. Duas diferenças: o pulso REPETE até o primeiro
+    clique, e o botão ganha **escala** (movimento de forma é o que a visão
+    periférica capta; o halo sozinho é mudança de cor num canto que o olho não
+    está varrendo).
+  - **O repouso é curto de propósito.** A primeira versão deixava 3 s de
+    silêncio entre as rajadas, para não hipnotizar, e o efeito foi o oposto:
+    quem olha para o botão vê um halo, espera, não vê mais nada e conclui que
+    ele piscou uma vez e parou. Um chamado que exige paciência para ser
+    percebido não é um chamado.
+  - **O repouso do keyframe tem spread ZERO**, não só opacidade zero: é o que
+    faz o anel sumir em vez de encolher de volta ao botão, e o que torna o salto
+    para a rajada seguinte invisível.
+  - **O estado mora nas CLASSES do wrap, não numa variável espelho.** Uma
+    variável "já usou" inicializada de forma pessimista fazia o `open()` que
+    acontece ANTES da resposta do storage (o content.js abre o painel em alguns
+    caminhos) sair pela guarda sem gravar nada — e o chamado voltava na carga
+    seguinte para quem já tinha usado. Painel já aberto quando a resposta chega
+    conta como uso: grava e **nunca** liga o chamado, senão ele ficaria armado
+    para quando o usuário fechasse o painel que acabou de usar.
+  - `chrome.storage.local.launcherUsado`; o `get` vem DEPOIS de
+    `open`/`marcarLauncherUsado` existirem (o stub de teste chama o callback de
+    forma síncrona — a mesma armadilha do `docsOcultas` e do `guiaAberta`).
+  - Em `prefers-reduced-motion` o chamado **não some**: perde a escala e o halo
+    e vira uma respiração de brilho. Quem pediu menos animação é justamente quem
+    mais precisa que o botão se anuncie por outro canal.
 - **Modos de layout** (classes no `.wrap`): flutuante → `expanded` (modal central com
   backdrop) → `expanded full` (tela cheia), o modo `lateral` (sidebar colada à
   direita, página do PJe visível e CLICÁVEL ao lado — sem backdrop; `lateral` e
@@ -1891,6 +1987,22 @@ expandido.
     no popup o mesmo elemento vive dentro de um `<summary>`. O chip do topo fala
     só do provedor do modelo ativo; são os `.kstate` que dizem o estado das duas
     chaves de uma vez.
+  - **O endereço do console do provedor é um LINK (`.pc-obter`), no `.pc-head`, e
+    fica visível SEMPRE.** Enquanto ele era texto dentro da `.hint` ("Crie em
+    console.anthropic.com"), a tela que pede uma chave não tinha como levar até
+    ela: dava para selecionar e copiar, e só. Pior, `pintarMascara` esconde a
+    `.hint` inteira quando há chave salva — exatamente quando se volta ao console
+    para conferir saldo, limite ou chave revogada. Por isso ele mora ao lado do
+    "Trocar" (`.pc-acts`), não na dica. URLs: `console.anthropic.com/settings/keys`,
+    `aistudio.google.com/apikey`, `platform.openai.com/api-keys` — os mesmos do
+    `help.html`, que continua sendo o passo a passo.
+  - **A `.save-row` tem margem PRÓPRIA** (`--sp-5`). `.save-acts .btn` zera o
+    `margin-top` que o `.btn` carregava de quando nascia sozinho na coluna, e sem
+    a margem da linha "Testar chave"/"Salvar configuração" encostava nos chips de
+    persona — some a fronteira entre "ainda estou preenchendo" e "agora eu ajo".
+    Consequência no popup: o `.save-status` (overlay `position:absolute; inset:0`
+    sobre o botão) **não pode repetir esses 14px** — repetindo, o "Salvo!" saía
+    deslocado para baixo do botão que ele deveria cobrir.
 - Modelos da API: manter os IDs do `popup.html`/`options.html` alinhados aos aliases
   atuais da Anthropic (`claude-haiku-4-5` — rápido e barato, mas com janela de 200 mil
   tokens/100 págs.; o Sonnet 5 de 1M é a opção para autos volumosos) e do Google

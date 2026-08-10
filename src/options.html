@@ -72,40 +72,52 @@
           <div class="pc-sec" id="keyA" data-prov="anthropic">
             <div class="pc-head">
               <label for="apiKey">Chave da API — Anthropic (Claude)</label>
-              <button type="button" class="pc-trocar" data-alvo="apiKey" hidden>Trocar</button>
+              <!-- Link DIRETO para a página de chaves do provedor, sempre visível
+                   (a dica abaixo some quando a chave está salva). Sem ele o
+                   endereço era texto para copiar à mão. -->
+              <span class="pc-acts">
+                <a class="pc-obter" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">Obter chave ↗</a>
+                <button type="button" class="pc-trocar" data-alvo="apiKey" hidden>Trocar</button>
+              </span>
             </div>
             <div class="keymask" hidden><span class="km-v"></span><span class="km-t">local</span></div>
             <div class="pw-row">
               <input id="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off" aria-label="Chave da API da Anthropic" />
               <button class="toggle-pw" id="togglePw" type="button">mostrar</button>
             </div>
-            <span class="hint">Crie em console.anthropic.com — <a href="help.html" target="_blank">veja o passo a passo →</a></span>
+            <span class="hint">Em console.anthropic.com — precisa de crédito na conta. <a href="help.html" target="_blank">Passo a passo →</a></span>
           </div>
 
           <div class="pc-sec" id="keyG" data-prov="gemini" hidden>
             <div class="pc-head">
               <label for="geminiApiKey">Chave da API — Google (Gemini)</label>
-              <button type="button" class="pc-trocar" data-alvo="geminiApiKey" hidden>Trocar</button>
+              <span class="pc-acts">
+                <a class="pc-obter" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Obter chave ↗</a>
+                <button type="button" class="pc-trocar" data-alvo="geminiApiKey" hidden>Trocar</button>
+              </span>
             </div>
             <div class="keymask" hidden><span class="km-v"></span><span class="km-t">local</span></div>
             <div class="pw-row">
               <input id="geminiApiKey" type="password" placeholder="AIza..." autocomplete="off" aria-label="Chave da API do Google" />
               <button class="toggle-pw" id="togglePwG" type="button">mostrar</button>
             </div>
-            <span class="hint">Crie em aistudio.google.com — <a href="help.html#gemini" target="_blank">passo a passo →</a></span>
+            <span class="hint">Em aistudio.google.com — o provedor do modelo padrão. <a href="help.html#gemini" target="_blank">Passo a passo →</a></span>
           </div>
 
           <div class="pc-sec" id="keyO" data-prov="openai" hidden>
             <div class="pc-head">
               <label for="openaiApiKey">Chave da API — OpenAI (GPT)</label>
-              <button type="button" class="pc-trocar" data-alvo="openaiApiKey" hidden>Trocar</button>
+              <span class="pc-acts">
+                <a class="pc-obter" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">Obter chave ↗</a>
+                <button type="button" class="pc-trocar" data-alvo="openaiApiKey" hidden>Trocar</button>
+              </span>
             </div>
             <div class="keymask" hidden><span class="km-v"></span><span class="km-t">local</span></div>
             <div class="pw-row">
               <input id="openaiApiKey" type="password" placeholder="sk-..." autocomplete="off" aria-label="Chave da API da OpenAI" />
               <button class="toggle-pw" id="togglePwO" type="button">mostrar</button>
             </div>
-            <span class="hint">Crie em platform.openai.com — <a href="help.html#openai" target="_blank">passo a passo →</a></span>
+            <span class="hint">Em platform.openai.com — precisa de crédito na conta. <a href="help.html#openai" target="_blank">Passo a passo →</a></span>
           </div>
 
           <label class="field" for="model">Modelo</label>
