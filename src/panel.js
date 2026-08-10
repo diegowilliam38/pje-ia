@@ -4677,10 +4677,14 @@ var PjePanel = (function () {
               novos.push(id);
             }
           } else {
+            // row ainda lazy: guarda em selPendente e conta como mudança para
+            // o syncSelection rodar — assim a memória (selecaoParaMemoria inclui
+            // selPendente) persiste a peça já, simétrico ao desmarcarPecas.
             if (!selPendente) selPendente = new Set();
             if (!selPendente.has(id)) {
               selPendente.add(id);
               novos.push(id);
+              mexeu = true;
             }
           }
         }

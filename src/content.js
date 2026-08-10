@@ -1465,14 +1465,21 @@
     return true;
   }
 
-  // Dá para anexar esta peça ao request AGORA, do jeito que ela está?
+  // Dá para anexar esta peça (ou ANEXO do input) ao request AGORA, do jeito que
+  // ela está?
+  //
+  // Lê por `entradaDoc`, NÃO por `docsCache` direto: `montarBlocos` chama isto
+  // também para os anexos do input, que vivem só na Map `anexos`. Ler o
+  // `docsCache` cru fazia todo anexo cair em `semConteudo` ("o envio anterior
+  // expirou") e nunca chegar ao modelo. Para uma peça de verdade `entradaDoc`
+  // devolve a MESMA entrada do `docsCache`, então o comportamento não muda.
   //
   // A resposta depende de COMO cada tipo viaja, e por isso os ramos são
   // explícitos: só o PDF tem a rota por referência (Files API). A IMAGEM vai
   // sempre em base64 inline nos três provedores — um fileId não a dispensa de
   // nada, e tratá-la junto do PDF faria uma peça sem bytes parecer pronta.
   function podeAnexar(id) {
-    const d = docsCache.get(id);
+    const d = entradaDoc(id);
     if (!d) return false;
     if (d.kind === "text") return !!d.text;
     if (d.kind === "img") return !!d.b64;
@@ -1838,7 +1845,7 @@
   function pecasTruncadas(ids) {
     const out = [];
     for (const id of ids) {
-      const d = docsCache.get(id);
+      const d = entradaDoc(id); // peça (docsCache) ou anexo (.md/.txt longo)
       if (d && d.kind === "text" && d.text && d.text.length > MAX_CHARS_TEXTO) {
         out.push({
           id,
@@ -2897,9 +2904,9 @@
           dica: "Envie a mensagem de novo — elas serão baixadas e reenviadas.",
         });
       }
-      // Peças que entraram CORTADAS. Só as deste turno: as dos turnos
-      // anteriores já foram reportadas quando entraram.
-      const cortadas = pecasTruncadas(anexadas);
+      // Peças (e anexos de texto) que entraram CORTADAS. Só os deste turno: os
+      // dos turnos anteriores já foram reportados quando entraram.
+      const cortadas = pecasTruncadas([...anexadas, ...anexosNovos]);
       if (cortadas.length) {
         panel.mostrarFalhasPecas(cortadas, avisoTrunc(cortadas.length));
       }
