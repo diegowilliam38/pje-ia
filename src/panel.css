@@ -1541,6 +1541,41 @@ button > svg { flex: none; }
 }
 .pchip:hover .pchip-tip { display: block; }
 
+/* Faixa dos anexos do input (📎), emendada no topo da .inrow como a .promptbar.
+   Diferente dela, pode ter VÁRIOS chips e por isso quebra em linhas. */
+.anexosbar {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  background: var(--hover-2); border: 1px solid var(--line); border-bottom: none;
+  border-radius: 12px 12px 0 0; padding: 6px 9px; margin-bottom: -1px;
+  animation: chip-in 0.18s ease-out;
+}
+.inrow.com-anexo { border-top-left-radius: 0; border-top-right-radius: 0; }
+.achip {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  background: #fff; border: 1px solid var(--line); color: var(--text-3);
+  border-radius: var(--r-pill); padding: 3px 4px 3px 8px; font-size: var(--fs-micro);
+}
+.achip-i { display: inline-flex; color: var(--pje); flex: none; }
+.achip-t {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  min-width: 0; overflow: hidden;
+}
+.achip-t b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+.achip-s { color: var(--muted); flex: none; }
+.achip.enviado { border-color: var(--pje-soft); background: var(--hover); }
+.achip.enviado .achip-i { color: var(--pje-2); }
+
+/* Botão de anexar dentro da .inrow: ícone discreto à esquerda do textarea. */
+.attach {
+  flex: none; width: 32px; height: 32px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; border-radius: var(--r-ctrl);
+  color: var(--muted-3); cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+.attach:hover { background: var(--hover); color: var(--pje); }
+.attach:disabled { opacity: 0.5; cursor: default; }
+
 .inrow {
   display: flex; gap: 8px; align-items: flex-end;
   border: 1px solid var(--line); border-radius: 12px; padding: 6px 6px 6px 10px;
@@ -1918,6 +1953,35 @@ button > svg { flex: none; }
   border-style: solid; border-color: var(--pje); color: var(--pje-2);
   background: transparent; filter: none;
 }
+
+/* Peças que a resposta apontou como faltantes → botões de "adicionar ao
+   contexto". Fica FORA do .body (irmã dele) para sobreviver ao updateAssistant,
+   como o .editor-act. */
+.pecas-sug { margin-top: 8px; }
+.pecas-sug-lab { font-size: var(--fs-micro); color: var(--muted); margin-bottom: 5px; }
+.pecas-sug-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pecas-sug-add {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%;
+  border: 1px dashed var(--line); background: transparent; color: var(--text-3);
+  border-radius: var(--r-pill); padding: 4px 10px 4px 8px; font-size: var(--fs-micro);
+  cursor: pointer; transition: all 0.15s;
+}
+.pecas-sug-add:hover { border-style: solid; border-color: var(--pje); color: var(--pje-2); }
+.pecas-sug-add svg { flex: none; color: var(--pje); }
+.pecas-sug-add .ps-id { font-weight: 600; font-variant-numeric: tabular-nums; }
+.pecas-sug-add .ps-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; color: var(--muted); }
+.pecas-sug-add.feito {
+  border-style: solid; border-color: var(--ok-line); color: var(--ok-ink);
+  background: var(--ok-bg); cursor: default;
+}
+.pecas-sug-add.feito svg { color: var(--ok); }
+.pecas-sug-all {
+  border: none; background: transparent; color: var(--pje-2);
+  font-size: var(--fs-micro); font-weight: 600; cursor: pointer; padding: 4px 8px;
+  border-radius: var(--r-pill);
+}
+.pecas-sug-all:hover:not(:disabled) { background: var(--hover); }
+.pecas-sug-all:disabled { opacity: 0.5; cursor: default; }
 
 /* ---------- Gerenciador de prompts salvos (modal no Shadow DOM) ---------- */
 .plib {

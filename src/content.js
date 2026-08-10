@@ -359,6 +359,29 @@
   }
 
   const docsCache = new Map(); // id -> {kind:"pdf",b64,size,pages,fileId?} | {kind:"text",text}
+
+  // ANEXOS DO INPUT — arquivos que o usuário anexa na própria caixa de mensagem
+  // (PDF, TXT, MD), para conversar sobre eles junto das peças do processo, ou
+  // sozinhos. Vivem SÓ na sessão, de propósito: ao contrário das peças, não têm
+  // origem no PJe para re-baixar, e gravar bytes de arquivo do usuário no disco
+  // é justamente o que a extensão evita (a mesma regra do b64 das peças). Cada
+  // anexo ganha um id sintético "anexo:<n>" e uma entrada no mesmo FORMATO do
+  // `docsCache` ({kind, fmt, b64|text, pages…}) — é o que deixa `montarBlocos` e
+  // as contas de página/token tratarem anexo e peça pelo mesmo caminho, via
+  // `entradaDoc`. NUNCA entram no `docsCache` nem na fila de gravação
+  // (`pecasSujas`): o que os distingue de uma peça é só esta Map.
+  const anexos = new Map(); // "anexo:<n>" -> {id, nome, kind, fmt, b64|text, size, pages?, mime?, w?, h?, fileId?, fileProvider?, fileExp?, chaveHash?}
+  let anexoSeq = 0; // gera os ids sintéticos (Date.now/Math.random são proibidos aqui — ver CLAUDE.md)
+  // Anexos ainda NÃO enviados (delta deste turno). Ordenados pela ordem em que o
+  // usuário os soltou; viram parte do histórico ao serem enviados, como as peças.
+  const anexosPendentes = [];
+
+  // A entrada de conteúdo de um id, seja peça (docsCache) ou anexo. Ponto único
+  // para `montarBlocos`, `paginasDe` e afins não precisarem saber a origem.
+  function entradaDoc(id) {
+    return docsCache.get(id) || anexos.get(id);
+  }
+
   let conversation = []; // [{role, content}]
   let custoConversaUsd = 0; // soma dos custos estimados dos turnos (US$)
 
@@ -1206,6 +1229,8 @@
   refresh();
 
   function metaDe(id) {
+    const a = anexos.get(id);
+    if (a) return { id, titulo: a.titulo || a.nome || ("Anexo " + id) };
     return docsIndex.get(id) || { id, titulo: "Peça " + id };
   }
 
@@ -1650,6 +1675,52 @@
     await Promise.all([w(), w()]);
   }
 
+  // Sobe à Files API os ANEXOS PDF do input ainda sem file_id do provedor atual.
+  // Gêmeo enxuto de `subirPecas`, separado de propósito: os anexos não são peças
+  // do PJe, então ficam FORA da fila de gravação da memória de caso (`pecasSujas`
+  // / `agendarSalvar`) — nada de arquivo do usuário vai ao disco. Falha de upload
+  // não interrompe: o anexo cai no fallback base64 de `montarBlocos` (teto de
+  // b64 compartilhado com as peças). Imagem e texto vão sempre inline; só PDF
+  // sobe.
+  async function subirAnexos(ids) {
+    const provAtual = (modelCaps && modelCaps.provider) || "anthropic";
+    const pend = ids.filter((id) => {
+      const d = anexos.get(id);
+      return (
+        d && d.kind === "pdf" && d.b64 &&
+        (!d.fileId || (d.fileProvider || "anthropic") !== provAtual)
+      );
+    });
+    if (!pend.length) return;
+    const idProc = PJE.getIdProcesso() || "proc";
+    const queue = pend.slice();
+    async function w() {
+      while (queue.length) {
+        const id = queue.shift();
+        const d = anexos.get(id);
+        if (!d || !d.b64) continue;
+        try {
+          const r = await rpc({
+            type: "upload",
+            payload: {
+              filename: d.nome || "anexo-" + id + ".pdf",
+              b64: d.b64,
+              mime: "application/pdf",
+              cacheKey: idProc + ":" + id + ":" + (d.size || 0),
+            },
+          });
+          d.fileId = r.fileId;
+          d.fileProvider = r.provider || "anthropic";
+          if (r.exp) d.fileExp = r.exp;
+          if (r.chaveHash) d.chaveHash = r.chaveHash;
+        } catch (e) {
+          console.debug("[PJe IA] upload do anexo", id, "falhou; usando base64:", e && e.message);
+        }
+      }
+    }
+    await Promise.all([w(), w()]);
+  }
+
   // Tokens de um anexo em imagem: a fórmula da Anthropic é largura × altura / 750 (o Gemini cobra por
   // ladrilhos e a OpenAI por tiles — a mesma ordem de grandeza, e o count_tokens
   // do pré-voo corrige de graça). `pje.js` já entrega a imagem reduzida a 1568px
@@ -1669,7 +1740,7 @@
   function paginasDe(ids) {
     let total = 0;
     for (const id of ids) {
-      const d = docsCache.get(id);
+      const d = entradaDoc(id);
       if (d && d.kind === "pdf") total += d.pages || 1;
     }
     return total;
@@ -1881,7 +1952,7 @@
     // File API do Google num request Anthropic (ou o inverso) daria 400
     const provAtual = (modelCaps && modelCaps.provider) || "anthropic";
     for (const id of ids) {
-      const d = docsCache.get(id);
+      const d = entradaDoc(id);
       // Peça sem conteúdo no cache (download falhou) é PULADA, nunca uma
       // exceção: os chamadores já filtram, mas um TypeError aqui derrubaria o
       // turno inteiro por causa de uma peça — exatamente o que a tolerância a
@@ -2044,6 +2115,33 @@
       k === alvo ? Object.assign({}, b, { text: b.text + txt }) : b
     );
     return msgs.slice(0, i).concat([{ role: "user", content }]);
+  }
+
+  // Peças que a RESPOSTA citou como faltantes: ids que o modelo escreveu no
+  // texto (tipicamente num aviso "o comprovante está na peça 214661494, que não
+  // foi anexada") mas que NÃO estão no contexto. Viram botões de "adicionar"
+  // abaixo da bolha — o modelo já apontou a peça, o clique poupa procurá-la.
+  //
+  // Só entram ids que são peça REAL desta timeline (`docsIndex`): comparar
+  // contra ela é o que elimina os falsos positivos (um valor, uma data, um
+  // número de lei que por acaso tenha 6+ dígitos quase nunca casa um id real).
+  // Já-no-contexto (marcadas ou no histórico) ficam de fora. Teto de sanidade.
+  function pecasCitadasFaltantes(texto) {
+    if (!texto) return [];
+    const jaTem = new Set([...selecaoEfetiva(), ...pecasNaConversa]);
+    const vistos = new Set();
+    const out = [];
+    const re = /\d{6,}/g;
+    let m;
+    while ((m = re.exec(texto))) {
+      const id = m[0];
+      if (vistos.has(id)) continue;
+      vistos.add(id);
+      if (!docsIndex.has(id) || jaTem.has(id)) continue;
+      out.push({ id, titulo: metaDe(id).titulo });
+      if (out.length >= 12) break;
+    }
+    return out;
   }
 
   // Abre um canal com o worker e resolve quando o turno termina.
@@ -2337,7 +2435,7 @@
     const tokensPagina =
       (modelCaps && modelCaps.tokensPagina) || TOKENS_POR_PAGINA_PDF;
     for (const id of ids) {
-      const d = docsCache.get(id);
+      const d = entradaDoc(id); // peça (docsCache) ou anexo do input
       // peça ainda não baixada: entra na conta quando o download chegar.
       // Contá-la como 0 seria pior — o gauge afirmaria um tamanho que não é o
       // do envio (por isso o gauge também mostra quantas ficaram sem medir).
@@ -2423,8 +2521,9 @@
       maxPaginas: modelCaps.maxPages,
       pecas: ids.length,
       // peças ainda sem download não têm medida — o gauge avisa em vez de
-      // fingir precisão
-      pendentes: ids.filter((id) => !docsCache.has(id)).length,
+      // fingir precisão. Anexos do input já vêm com o conteúdo em mãos, então
+      // nunca contam como "sem medir".
+      pendentes: ids.filter((id) => !docsCache.has(id) && !anexos.has(id)).length,
     });
   }
 
@@ -2608,13 +2707,16 @@
     const selectedIds = selecaoEfetiva().length
       ? selecaoEfetiva()
       : selectedIdsDoPainel;
-    // A guarda só vale para conversa NOVA. Com peças já no histórico, perguntar
-    // sem marcar nada é legítimo — e numa conversa RETOMADA cujas rows ainda
-    // não carregaram era o caso comum: o usuário via a conversa de volta,
+    // Anexos do input que ainda não foram enviados (delta deste turno).
+    const anexosNovos = anexosPendentes.slice();
+    // A guarda só vale para conversa NOVA e SEM anexo. Com peças já no histórico,
+    // perguntar sem marcar nada é legítimo — e numa conversa RETOMADA cujas rows
+    // ainda não carregaram era o caso comum: o usuário via a conversa de volta,
     // digitava e levava um "marque ao menos uma peça" sobre um processo que ele
-    // acabara de ver analisado.
-    if (selectedIds.length === 0 && !pecasNaConversa.size) {
-      panel.setStatus("Marque ao menos uma peça — na lista acima ou digitando @ no campo.");
+    // acabara de ver analisado. Um anexo no input também basta: dá para trabalhar
+    // só com os arquivos anexados, sem marcar peça nenhuma.
+    if (selectedIds.length === 0 && !pecasNaConversa.size && !anexosNovos.length) {
+      panel.setStatus("Marque uma peça, anexe um arquivo (📎) ou digite @ para citar uma peça.");
       return;
     }
     // Troca de provedor no meio da conversa: bloqueia ANTES de qualquer
@@ -2631,17 +2733,19 @@
     clearTimeout(estTimer);
     estSeq++; // o envio faz a estimativa oficial — mata estimativas em voo
 
-    // Anexo INCREMENTAL: só as peças que ainda não estão no histórico entram
-    // neste turno. As já enviadas continuam valendo (fazem parte do prefixo
-    // cacheado da conversa) — reanexá-las duplicaria páginas e tokens.
+    // Anexo INCREMENTAL: só as peças (e anexos) que ainda não estão no histórico
+    // entram neste turno. Os já enviados continuam valendo (fazem parte do
+    // prefixo cacheado da conversa) — reanexá-los duplicaria páginas e tokens.
     const novas = selectedIds.filter((id) => !pecasNaConversa.has(id));
-    const attach = novas.length > 0;
-    // mostra na mensagem quais peças ENTRAM no contexto neste turno
-    panel.addMessage(
-      "user",
-      text,
-      attach ? novas.map((id) => metaDe(id).titulo) : null
-    );
+    const attach = novas.length > 0 || anexosNovos.length > 0;
+    // mostra na mensagem o que ENTRA no contexto neste turno — peças e anexos
+    const atts = attach
+      ? [
+          ...novas.map((id) => metaDe(id).titulo),
+          ...anexosNovos.map((id) => "📎 " + metaDe(id).titulo),
+        ]
+      : null;
+    panel.addMessage("user", text, atts);
     panel.lockInput(true);
     panel.setStatus("");
 
@@ -2666,27 +2770,41 @@
       await revalidarPecasDoHistorico(new Set(selecaoEfetiva()));
       let userContent;
       let paginas = 0;
-      if (attach) {
+      if (attach && novas.length) {
         const r = await baixarSelecionadas(novas);
         anexadas = r.ok;
         falhasDownload = r.falhas;
-        // Todas falharam: aí não há análise possível. Uma OU OUTRA falhando não
-        // pode derrubar o turno — o usuário perde a pergunta que já digitou e
-        // tem de adivinhar qual peça remover.
-        if (!anexadas.length) {
-          throw new Error(
-            falhasDownload.length === 1
-              ? 'não foi possível baixar "' + falhasDownload[0].titulo + '" — ' + falhasDownload[0].erro
-              : "nenhuma das " + falhasDownload.length + " peças novas pôde ser baixada"
-          );
-        }
-        // a guarda conta o que VAI no request: só as peças ativas (marcadas)
-        paginas = guardaPaginas(selectedIds);
-        await subirPecas(anexadas);
-        stripOldCacheControl();
-        userContent = [...montarBlocos(anexadas), { type: "text", text }];
       } else {
-        paginas = guardaPaginas(selectedIds);
+        anexadas = [];
+      }
+      // Peça que falha no download NÃO pode travar o próximo turno: ela é tirada
+      // da seleção mais abaixo (`desmarcarPecas`), então aqui só decidimos se há
+      // algo a analisar. "Nada baixou" só derruba o turno quando não há mais nada
+      // — nem histórico, nem anexo —; do contrário seguimos com o que existe e as
+      // falhas viram relatório (o usuário não perde a pergunta que já digitou).
+      const idsNovosParaBlocos = [...anexadas, ...anexosNovos];
+      if (!idsNovosParaBlocos.length && !pecasNaConversa.size) {
+        throw new Error(
+          falhasDownload.length === 1
+            ? 'não foi possível baixar "' + falhasDownload[0].titulo + '" — ' + falhasDownload[0].erro
+            : falhasDownload.length
+              ? "nenhuma das " + falhasDownload.length + " peças novas pôde ser baixada"
+              : "não há peça marcada nem arquivo anexado para analisar"
+        );
+      }
+      if (idsNovosParaBlocos.length) {
+        // a guarda conta TUDO que vai no request: peças ativas + todos os anexos
+        // do contexto (não só os novos deste turno — os já enviados seguem no
+        // request pelo histórico).
+        paginas = guardaPaginas([...selectedIds, ...anexos.keys()]);
+        await subirPecas(anexadas);
+        await subirAnexos(anexosNovos);
+        stripOldCacheControl();
+        userContent = [...montarBlocos(idsNovosParaBlocos), { type: "text", text }];
+      } else {
+        // Acompanhamento sem peça/anexo novo (ou todas as novas falharam, mas há
+        // histórico): segue com o contexto já anexado.
+        paginas = guardaPaginas([...selectedIds, ...anexos.keys()]);
         userContent = text;
       }
 
@@ -2707,7 +2825,13 @@
       // um processo vazio, e nada na tela diria isso. As pendentes entram
       // porque o usuário não as desmarcou; desmarcar de verdade continua
       // liberando contexto, porque o id sai do `selPendente` ao ser aplicado.
-      const ativos = new Set(selecaoEfetiva());
+      // Os anexos do input entram SEMPRE em `ativos`: seus blocos carregam
+      // `__pecaId` (o id sintético) para o chip poder liberá-los do contexto
+      // como uma peça desmarcada, mas enquanto estão anexados eles não são
+      // "peça desmarcada" — sem isto `prepararEnvio` os filtraria do histórico já
+      // no segundo turno. Removê-los é ação explícita do usuário (o ✕ do chip
+      // tira o id de `anexos`, e aí este filtro passa a valer para eles também).
+      const ativos = new Set([...selecaoEfetiva(), ...anexos.keys()]);
       // O inventário entra AQUI, na cópia que vai à API — antes do count_tokens,
       // para o pré-voo medir exatamente o request que será enviado.
       const msgsEnvio = comInventario(
@@ -2730,19 +2854,39 @@
       // guarda de 90% e o tratamento de model_context_window_exceeded seguem
       // como rede se a conta estiver errada.
       let est = null;
-      const pulouPreVoo = podePularPreVoo(selectedIds);
+      // Anexo novo é conteúdo que a medição exata anterior não viu: nunca pular o
+      // pré-voo quando há um (o que não foi medido não pode ser dispensado).
+      const pulouPreVoo = !anexosNovos.length && podePularPreVoo(selectedIds);
       if (pulouPreVoo) {
         console.debug("[PJe IA] pré-voo pulado: folga larga sobre a medição exata anterior");
       } else {
         panel.setStatus("Estimando o tamanho do contexto…", true);
         est = await estimarContexto(msgsEnvio, opts);
       }
-      if (attach) panel.endPrep(); // confirma "peças anexadas" após validar limites
+      if (novas.length) panel.endPrep(); // confirma "peças anexadas" após validar limites
       // Relatório do que ficou de fora. Fica NO CHAT (não no .status, que é
       // transitório): o usuário precisa poder ler com calma, ver o motivo de
       // cada peça e tentar de novo depois — sem que a análise que ele pediu
       // tenha sido perdida no caminho.
-      if (falhasDownload.length) panel.mostrarFalhasPecas(falhasDownload);
+      //
+      // E a peça que falhou é TIRADA DA SELEÇÃO (desmarcada): é o que impede o
+      // bug de ela travar o próximo turno. Como ela nunca entrou no histórico,
+      // seguir marcada só a faria ser re-tentada a cada envio — e quando fosse a
+      // única peça "nova", o turno seguinte abortava inteiro, obrigando o usuário
+      // a caçar e desmarcar a peça à mão. Desmarcá-la aqui é fazer por ele o que
+      // ele teria de fazer; o aviso diz que ela saiu e como reanexar (marcar de
+      // novo = nova tentativa de download).
+      if (falhasDownload.length) {
+        panel.mostrarFalhasPecas(falhasDownload, {
+          dica:
+            "Para não travar a conversa, " +
+            (falhasDownload.length === 1 ? "a peça foi retirada" : "as peças foram retiradas") +
+            " da seleção — a análise seguiu com o restante. Para tentar de novo, " +
+            (falhasDownload.length === 1 ? "marque-a" : "marque-as") +
+            " outra vez na lista; se persistir, abra a peça uma vez na linha do tempo do PJe antes.",
+        });
+        panel.desmarcarPecas(falhasDownload.map((f) => f.id));
+      }
       // Peças que a memória retomou mas cujo upload não existe mais no
       // provedor, e que não foram rebaixadas a tempo. Grupo próprio porque a
       // causa e a saída são outras: não é "o PJe não entregou", é "o arquivo
@@ -2768,7 +2912,7 @@
           ctxTokens: est.ctxTokens,
           paginas,
           maxPaginas: modelCaps ? modelCaps.maxPages : 0,
-          pecas: selectedIds.length,
+          pecas: selectedIds.length + anexos.size,
         });
       } else {
         // Dois caminhos chegam aqui: o pré-voo foi PULADO (folga larga) ou ele
@@ -2911,7 +3055,17 @@
         });
         // turno gravado com tools declaradas \u2192 mant\u00EA-las at\u00E9 "Nova conversa"
         if (opts.tools) buscaNaConversa = true;
-        atualizarGaugePosTurno(fim, selectedIds);
+        // Anexos deste turno passaram a fazer parte do hist\u00F3rico: saem da fila de
+        // pendentes (n\u00E3o se reanexam no pr\u00F3ximo envio) e seguem no chip como "no
+        // contexto", igual \u00E0s pe\u00E7as enviadas.
+        if (anexosNovos.length) {
+          for (const id of anexosNovos) {
+            const i = anexosPendentes.indexOf(id);
+            if (i >= 0) anexosPendentes.splice(i, 1);
+          }
+          atualizarChipsAnexos();
+        }
+        atualizarGaugePosTurno(fim, [...selectedIds, ...anexos.keys()]);
         let st = "";
         if (truncated)
           st = "A resposta atingiu o tamanho máximo — peça para continuar, se necessário.";
@@ -2952,6 +3106,27 @@
                 );
               } finally {
                 if (btn) btn.disabled = false;
+              }
+            },
+          });
+        }
+
+        // Peças que a resposta apontou como faltantes viram botões de "adicionar"
+        // — o modelo já identifica "o comprovante está na peça 214661494, não
+        // anexada"; aqui esse id vira um clique que marca a peça para o próximo
+        // envio, sem o usuário ter de procurá-la na lista.
+        const faltantes = pecasCitadasFaltantes(mdResposta);
+        if (faltantes.length) {
+          panel.sugerirPecas(assistantEl, {
+            pecas: faltantes,
+            onAdd: (ids) => {
+              const novos = panel.marcarPecas(ids);
+              if (novos && novos.length) {
+                panel.setStatus(
+                  novos.length === 1
+                    ? "Peça adicionada à seleção — ela entra no próximo envio."
+                    : novos.length + " peças adicionadas à seleção — entram no próximo envio."
+                );
               }
             },
           });
@@ -3013,6 +3188,107 @@
       salvarCasoAgora();
     }
   });
+
+  // ---------------------------------------------------------------------------
+  // ANEXOS DO INPUT — o usuário solta PDF/TXT/MD na caixa de mensagem para
+  // conversar sobre eles junto das peças, ou sozinhos. A UI (botão 📎, campo de
+  // arquivo e os chips) vive no painel; aqui está a leitura, o estado e o que
+  // vai ao modelo. Regras: leitura pelo MESMO extrator das peças
+  // (`PJE.lerAnexo` → `lerCorpo`), nada ao disco (sessão só), e cada anexo entra
+  // no request pelo mesmo `montarBlocos` das peças (id sintético + `entradaDoc`).
+  // ---------------------------------------------------------------------------
+
+  // Rótulo curto para o chip: tipo + tamanho/páginas.
+  function anexoSubLabel(d) {
+    if (!d) return "";
+    if (d.kind === "pdf") return "PDF · " + (d.pages || 1) + (d.pages === 1 ? " pág." : " págs.");
+    if (d.kind === "img") return (d.fmt || "imagem").toUpperCase();
+    const kb = Math.max(1, Math.round((d.size || (d.text ? d.text.length : 0)) / 1024));
+    return (d.fmt === "html" ? "HTML" : "Texto") + " · " + kb + " KB";
+  }
+
+  // Reprojeta os anexos no painel (chips). O painel é só reflexo — a fonte de
+  // verdade é a Map `anexos` daqui.
+  function atualizarChipsAnexos() {
+    if (!panel.setAnexos) return;
+    panel.setAnexos(
+      [...anexos.values()].map((d) => ({
+        id: d.id,
+        nome: d.titulo || d.nome,
+        sub: anexoSubLabel(d),
+        enviado: !anexosPendentes.includes(d.id),
+      }))
+    );
+  }
+
+  // Feedback imediato no medidor ao anexar/remover, incluindo os anexos.
+  function reestimarComAnexos() {
+    if (busy || !modelCaps) return;
+    mostrarEstimativaLocal([...selecaoEfetiva(), ...anexos.keys()]);
+  }
+
+  // Teto de sanidade por anexo (antes do teto de b64 compartilhado que
+  // `montarBlocos` aplica no conjunto todo). PDFs grandes vão à Files API, mas
+  // acima disto o base64 na memória e o pré-voo já ficam pesados demais para uma
+  // caixa de mensagem — o usuário anexa a peça pelo próprio PJe nesse caso.
+  const ANEXO_BYTES_MAX = 32 * 1024 * 1024; // 32 MB por arquivo
+  const ANEXO_MAX_QTD = 10; // por sessão — a caixa de mensagem não é gerenciador de arquivos
+
+  if (panel.onAnexar) {
+    panel.onAnexar(async (files) => {
+      const lista = [...(files || [])];
+      if (!lista.length) return;
+      const falhas = [];
+      let entrou = 0;
+      for (const file of lista) {
+        if (anexos.size >= ANEXO_MAX_QTD) {
+          falhas.push({ titulo: file.name || "arquivo", erro: "limite de " + ANEXO_MAX_QTD + " anexos por conversa atingido" });
+          continue;
+        }
+        if (file.size > ANEXO_BYTES_MAX) {
+          falhas.push({
+            titulo: file.name || "arquivo",
+            erro: "arquivo grande demais (" + Math.round(file.size / 1e6) + " MB) para anexar aqui",
+          });
+          continue;
+        }
+        try {
+          const corpo = await PJE.lerAnexo(file);
+          const id = "anexo:" + ++anexoSeq;
+          const nomeCurto = (file.name || "arquivo").replace(/\.[^.]+$/, "");
+          anexos.set(id, Object.assign({}, corpo, { id, nome: file.name, titulo: "Anexo — " + nomeCurto }));
+          anexosPendentes.push(id);
+          entrou++;
+        } catch (e) {
+          falhas.push({ titulo: file.name || "arquivo", erro: (e && e.message) || String(e) });
+        }
+      }
+      if (entrou) {
+        atualizarChipsAnexos();
+        reestimarComAnexos();
+      }
+      if (falhas.length) {
+        panel.mostrarFalhasPecas(falhas, {
+          titulo: falhas.length === 1 ? "1 arquivo não pôde ser anexado" : falhas.length + " arquivos não puderam ser anexados",
+          dica: "A extensão anexa PDF, TXT e Markdown (.md). Verifique o formato e o tamanho e tente de novo.",
+        });
+      }
+    });
+  }
+
+  if (panel.onRemoverAnexo) {
+    panel.onRemoverAnexo((id) => {
+      if (!anexos.has(id)) return;
+      // Sai da Map (é o que faz `prepararEnvio` filtrar os blocos dele do
+      // histórico no próximo envio, liberando o contexto — simétrico ao
+      // desmarcar de uma peça) e da fila de pendentes.
+      anexos.delete(id);
+      const i = anexosPendentes.indexOf(id);
+      if (i >= 0) anexosPendentes.splice(i, 1);
+      atualizarChipsAnexos();
+      reestimarComAnexos();
+    });
+  }
 
   // ---------------------------------------------------------------------------
   // ESCOLHER COM IA — a camada 2 da seleção de peças.
@@ -3939,6 +4215,10 @@
   function zerarEstadoDaConversa() {
     conversation = [];
     pecasNaConversa.clear();
+    // Anexos são da CONVERSA, não do processo: "Nova conversa" os solta (ao
+    // contrário das peças, que servem a todas as conversas do processo).
+    anexos.clear();
+    anexosPendentes.length = 0;
     custoConversaUsd = 0;
     conversaProvider = null;
     buscaNaConversa = false;
@@ -3949,6 +4229,7 @@
     panel.setContexto(null);
     panel.setAlerta(null);
     panel.setPecasEnviadas([]);
+    if (panel.setAnexos) panel.setAnexos([]);
   }
 
   panel.onTrocarConversa((convId) => {
@@ -4020,6 +4301,21 @@
     // API, e `conversation = undefined` derrubaria o próximo `.length` — que é
     // lido em quase todo caminho do envio.
     conversation = Array.isArray(caso.conversation) ? caso.conversation : [];
+    // Anexos do input são de SESSÃO: seus bytes não vão ao disco, então numa
+    // conversa retomada os blocos deles apontariam para uploads que não voltam
+    // (e o base64, se fosse o caso, nem foi guardado). Tira-os do histórico aqui
+    // — senão o `file_id` morto daria 400 no primeiro envio — e avisa, para o
+    // usuário saber que pode reanexá-los. Peças do PJe continuam intactas: elas
+    // se re-baixam e `revalidarPecasDoHistorico` cuida dos uploads vencidos.
+    let anexosRetomados = 0;
+    for (const turno of conversation) {
+      if (!Array.isArray(turno.content)) continue;
+      const antes = turno.content.length;
+      turno.content = turno.content.filter(
+        (b) => !(b && typeof b.__pecaId === "string" && b.__pecaId.indexOf("anexo:") === 0)
+      );
+      anexosRetomados += antes - turno.content.length;
+    }
     pecasNaConversa = new Set(caso.pecasNaConversa || []);
     custoConversaUsd = caso.custoConversaUsd || 0;
     conversaProvider = caso.conversaProvider || null;
@@ -4038,6 +4334,12 @@
       // Só o acumulado da conversa: não houve turno nesta sessão, e mostrar um
       // "nesta resposta" seria afirmar um custo que não aconteceu agora.
       panel.setCusto({ conversaUsd: custoConversaUsd });
+    }
+    if (anexosRetomados) {
+      panel.setStatus(
+        "Os arquivos anexados nesta conversa não são guardados entre sessões — " +
+          "anexe-os de novo (📎) se precisar retomá-los."
+      );
     }
     // ABRIU. Sem este `true` a conversa aparece na tela mas o chamador não
     // assume a identidade dela — e a gravação seguinte cria uma DUPLICATA em

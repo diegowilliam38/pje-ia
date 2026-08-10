@@ -702,6 +702,22 @@ var PJE = (function () {
     return { kind: "text", fmt: ct.includes("html") ? "html" : "texto", text };
   }
 
+  // Lê um arquivo LOCAL que o usuário anexou no input (PDF, TXT, MD — e de
+  // quebra imagem, que `lerCorpo` já sabe tratar). REUSA `lerCorpo`, o mesmo
+  // leitor das peças do PJe, construindo uma Response a partir do File: assim
+  // não há um segundo detector de tipo nem um segundo extrator de texto que
+  // pudessem divergir deste — a mesma barreira de binário/imagem/PDF vale.
+  // A Response herda o content-type do próprio File (`file.type`); quando ele
+  // vem vazio (comum em `.md`), a detecção por assinatura de `lerCorpo` assume.
+  // Devolve o MESMO formato de `lerCorpo` ({kind, fmt, b64|text, ...}) e LANÇA,
+  // com mensagem amigável, quando o arquivo é vazio ou de um tipo não lido.
+  async function lerAnexo(file) {
+    const nome = (file && file.name) || "arquivo";
+    const corpo = await lerCorpo(new Response(file), nome);
+    if (!corpo) throw new Error('o arquivo "' + nome + '" está vazio ou não pôde ser lido.');
+    return corpo;
+  }
+
   // Rola a timeline do PJe até a peça e a destaca com um flash temporário.
   // NÃO clica no link (zero efeito A4J/JSF, não entra na activationChain) —
   // é só navegação visual. Retorna false quando a peça não está na timeline
@@ -1171,6 +1187,7 @@ var PJE = (function () {
     scrollAte,
     carregarTimelineCompleta,
     listarPelaGrid,
+    lerAnexo,
     // expostos para teste fora do navegador
     _acharGrid: acharGrid,
     _mapaColunas: mapaColunas,
