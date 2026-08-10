@@ -756,8 +756,8 @@ var PjePanel = (function () {
               <div class="promptbar" hidden></div>
               <div class="anexosbar" hidden></div>
               <div class="inrow">
-                <button class="attach" title="Anexar arquivos (PDF, Word .docx, TXT ou Markdown) para analisar junto das peças — ou sozinhos" aria-label="Anexar arquivos">${SVG.clip}</button>
-                <input type="file" class="attach-input" accept=".pdf,.docx,.txt,.md,.markdown,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple hidden aria-hidden="true">
+                <button class="attach" title="Anexar arquivos (PDF, Word .docx, RTF, TXT ou Markdown) para analisar junto das peças — ou sozinhos" aria-label="Anexar arquivos">${SVG.clip}</button>
+                <input type="file" class="attach-input" accept=".pdf,.docx,.rtf,.txt,.md,.markdown,text/plain,text/markdown,text/rtf,application/rtf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple hidden aria-hidden="true">
                 <textarea class="in" rows="1" placeholder="Pergunte sobre as peças… (@ cita uma peça · 📎 anexa arquivo)"></textarea>
                 <button class="send"><span class="lbl">Enviar</span>${SVG.enviar}</button>
               </div>
@@ -789,7 +789,7 @@ var PjePanel = (function () {
           <div class="mlib-card plib-card" role="dialog" aria-modal="true" aria-label="Modelos de peças" tabindex="-1">
             <div class="plib-hd">
               <span class="t">${SVG.modelos} Modelos de peças</span>
-              <button class="mlib-imp-btn plib-new" title="Importar peças-modelo de arquivos .docx — pode escolher vários de uma vez, e você confere tudo antes de cadastrar">${SVG.importar}<span class="lbl">Importar</span></button>
+              <button class="mlib-imp-btn plib-new" title="Importar peças-modelo de arquivos .docx ou .rtf — pode escolher vários de uma vez, e você confere tudo antes de cadastrar">${SVG.importar}<span class="lbl">Importar</span></button>
               <button class="mlib-new plib-new">${SVG.novo}<span class="lbl">Novo</span></button>
               <button class="mlib-close plib-close" title="Fechar (Esc)" aria-label="Fechar o gerenciador de modelos">${SVG.close}</button>
             </div>
@@ -808,9 +808,9 @@ var PjePanel = (function () {
             </div>
             <div class="mlib-imp" hidden>
               <div class="imp-rolo">
-                <div class="imp-drop" role="button" tabindex="0" aria-label="Escolher arquivos .docx — ou arraste os arquivos até aqui">
+                <div class="imp-drop" role="button" tabindex="0" aria-label="Escolher arquivos .docx ou .rtf — ou arraste os arquivos até aqui">
                   ${SVG.importarG}
-                  <span class="imp-drop-t">Arraste seus arquivos <b>.docx</b> até aqui</span>
+                  <span class="imp-drop-t">Arraste seus arquivos <b>.docx</b> ou <b>.rtf</b> até aqui</span>
                   <span class="imp-drop-s">ou clique para escolher — pode mandar vários de uma vez</span>
                 </div>
                 <div class="imp-prog" hidden>
@@ -831,7 +831,7 @@ var PjePanel = (function () {
               <div class="imp-acts imp-acts-fim" hidden>
                 <button class="imp-fechar plib-save">Voltar aos modelos</button>
               </div>
-              <input type="file" class="imp-file" accept=".docx" multiple hidden>
+              <input type="file" class="imp-file" accept=".docx,.rtf" multiple hidden>
             </div>
           </div>
         </div>
@@ -3475,7 +3475,7 @@ var PjePanel = (function () {
         mlibListEl.innerHTML =
           '<div class="plib-empty">Nenhum modelo cadastrado ainda.<br>' +
           (temDocx
-            ? "Use <b>Importar</b> para trazer vários arquivos <b>.docx</b> de uma vez, ou <b>Novo</b> para colar o texto"
+            ? "Use <b>Importar</b> para trazer vários arquivos <b>.docx</b> ou <b>.rtf</b> de uma vez, ou <b>Novo</b> para colar o texto"
             : "Clique em <b>Novo</b> para cadastrar sua primeira peça-modelo") +
           " — depois, ao gerar uma minuta, escolha a categoria em <b>Seguir modelos</b>.</div>";
         return;
@@ -3626,7 +3626,7 @@ var PjePanel = (function () {
       impDrop.classList.toggle("compacta", conferindo);
       impDrop.querySelector(".imp-drop-t").innerHTML = conferindo
         ? "Arraste ou clique para <b>adicionar mais</b>"
-        : "Arraste seus arquivos <b>.docx</b> até aqui";
+        : "Arraste seus arquivos <b>.docx</b> ou <b>.rtf</b> até aqui";
       impProg.hidden = qual !== "lendo";
       impFichasEl.hidden = qual === "resultado";
       // O rodapé aparece também no VAZIO, com só o "Voltar": sem ele, quem abriu

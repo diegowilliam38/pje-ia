@@ -113,16 +113,101 @@ const DocxImport = (() => {
       .trim();
   }
 
+  // -------------------------------------------------------------------------
+  // Extrator de RTF (editor antigo do PJe, comum em processos migrados). É uma
+  // CÓPIA da lógica de `rtfParaTexto` do `pje.js`: a importação de modelos roda
+  // também na página `src/modelos.html`, um contexto de extensão que NÃO enxerga
+  // o global `PJE` (content script) — a mesma razão de o `mapa.js` duplicar
+  // `escapeHtml`/`inlineMd`. RTF é ASCII com grupos entre chaves e control words
+  // (`\par`, `\'e7`…); extraímos só o TEXTO. `file.text()` decodifica em UTF-8,
+  // o que basta: o RTF bem-formado escapa os bytes altos como `\'XX`.
+  const CP1252_ALTO = {
+    128: "€", 130: "‚", 131: "ƒ", 132: "„", 133: "…", 134: "†", 135: "‡",
+    136: "ˆ", 137: "‰", 138: "Š", 139: "‹", 140: "Œ", 142: "Ž", 145: "‘",
+    146: "’", 147: "“", 148: "”", 149: "•", 150: "–", 151: "—", 152: "˜",
+    153: "™", 154: "š", 155: "›", 156: "œ", 158: "ž", 159: "Ÿ",
+  };
+  const RTF_GRUPOS_MORTOS =
+    /^\\(?:\*|(?:fonttbl|colortbl|stylesheet|info|pntext|listtable|listoverridetable|rsidtbl|generator|themedata|datastore|xmlnstbl|latentstyles)\b)/;
+
+  function rtfParaTexto(rtf) {
+    const s = String(rtf || "");
+    let out = "";
+    let i = 0;
+    let pularUnicode = 0; // \ucN — quantos caracteres de fallback ignorar
+    while (i < s.length) {
+      const c = s[i];
+      if (c === "{") {
+        const resto = s.slice(i + 1, i + 40);
+        if (RTF_GRUPOS_MORTOS.test(resto)) {
+          let nivel = 0;
+          while (i < s.length) {
+            if (s[i] === "\\" && (s[i + 1] === "{" || s[i + 1] === "}")) { i += 2; continue; }
+            if (s[i] === "{") nivel++;
+            else if (s[i] === "}") {
+              nivel--;
+              if (nivel === 0) { i++; break; }
+            }
+            i++;
+          }
+          continue;
+        }
+        i++;
+        continue;
+      }
+      if (c === "}") { i++; continue; }
+      if (c === "\\") {
+        const n = s[i + 1];
+        if (n === "\\" || n === "{" || n === "}") { out += n; i += 2; continue; }
+        if (n === "\n" || n === "\r") { out += "\n"; i += 2; continue; }
+        if (n === "'") {
+          const code = parseInt(s.substr(i + 2, 2), 16);
+          if (!isNaN(code)) {
+            if (pularUnicode > 0) pularUnicode--;
+            else out += CP1252_ALTO[code] || String.fromCharCode(code);
+          }
+          i += 4;
+          continue;
+        }
+        const m = /^\\([a-zA-Z]+)(-?\d+)?[ ]?/.exec(s.slice(i));
+        if (!m) { i += 2; continue; }
+        const palavra = m[1];
+        const arg = m[2] != null ? parseInt(m[2], 10) : null;
+        if (palavra === "par" || palavra === "line" || palavra === "sect") out += "\n";
+        else if (palavra === "tab") out += "\t";
+        else if (palavra === "uc") pularUnicode = 0;
+        else if (palavra === "u" && arg != null) {
+          out += String.fromCharCode(arg < 0 ? arg + 65536 : arg);
+          pularUnicode = 1;
+        }
+        i += m[0].length;
+        continue;
+      }
+      if (c === "\r" || c === "\n") { i++; continue; }
+      if (pularUnicode > 0) { pularUnicode--; i++; continue; }
+      out += c;
+      i++;
+    }
+    return out.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  }
+
   // API: recebe um File (do <input type="file">) e devolve o texto.
   async function lerArquivo(file) {
     if (!file) throw new Error("nenhum arquivo escolhido");
     const nome = String(file.name || "").toLowerCase();
+    // RTF: editor antigo, comum em processos migrados. Lido pelo extrator próprio
+    // acima — nada de ZIP/DecompressionStream (RTF não é compactado).
+    if (nome.endsWith(".rtf")) {
+      const texto = rtfParaTexto(await file.text());
+      if (!texto) throw new Error("o documento .rtf está vazio ou não tem texto legível");
+      return texto;
+    }
     if (nome.endsWith(".doc") && !nome.endsWith(".docx")) {
       throw new Error(
-        "o formato .doc (Word 97-2003) não pode ser lido aqui — abra no Word e salve como .docx"
+        "o formato .doc (Word 97-2003) não pode ser lido aqui — abra no Word e salve como .docx ou .rtf"
       );
     }
-    if (!nome.endsWith(".docx")) throw new Error("escolha um arquivo .docx");
+    if (!nome.endsWith(".docx")) throw new Error("escolha um arquivo .docx ou .rtf");
     if (typeof DecompressionStream === "undefined") {
       throw new Error("este navegador não sabe descompactar .docx — atualize o Chrome");
     }
@@ -139,7 +224,7 @@ const DocxImport = (() => {
   // Título sugerido a partir do nome do arquivo (sem extensão, com espaços).
   function tituloDe(file) {
     return String((file && file.name) || "")
-      .replace(/\.docx$/i, "")
+      .replace(/\.(docx|rtf)$/i, "")
       .replace(/[_-]+/g, " ")
       .replace(/\s+/g, " ")
       .trim()
@@ -192,5 +277,5 @@ const DocxImport = (() => {
     return saida;
   }
 
-  return { lerArquivo, lerLote, tituloDe, _textoDoXml: textoDoXml };
+  return { lerArquivo, lerLote, tituloDe, _textoDoXml: textoDoXml, _rtfParaTexto: rtfParaTexto };
 })();

@@ -3251,7 +3251,8 @@
     if (d.kind === "pdf") return "PDF · " + (d.pages || 1) + (d.pages === 1 ? " pág." : " págs.");
     if (d.kind === "img") return (d.fmt || "imagem").toUpperCase();
     const kb = Math.max(1, Math.round((d.size || (d.text ? d.text.length : 0)) / 1024));
-    const rot = d.fmt === "html" ? "HTML" : d.fmt === "docx" ? "Word" : "Texto";
+    const rot =
+      d.fmt === "html" ? "HTML" : d.fmt === "docx" ? "Word" : d.fmt === "rtf" ? "RTF" : "Texto";
     return rot + " · " + kb + " KB";
   }
 
