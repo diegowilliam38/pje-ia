@@ -756,8 +756,8 @@ var PjePanel = (function () {
               <div class="promptbar" hidden></div>
               <div class="anexosbar" hidden></div>
               <div class="inrow">
-                <button class="attach" title="Anexar arquivos (PDF, TXT ou Markdown) para analisar junto das peças — ou sozinhos" aria-label="Anexar arquivos">${SVG.clip}</button>
-                <input type="file" class="attach-input" accept=".pdf,.txt,.md,.markdown,text/plain,text/markdown,application/pdf" multiple hidden aria-hidden="true">
+                <button class="attach" title="Anexar arquivos (PDF, Word .docx, TXT ou Markdown) para analisar junto das peças — ou sozinhos" aria-label="Anexar arquivos">${SVG.clip}</button>
+                <input type="file" class="attach-input" accept=".pdf,.docx,.txt,.md,.markdown,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple hidden aria-hidden="true">
                 <textarea class="in" rows="1" placeholder="Pergunte sobre as peças… (@ cita uma peça · 📎 anexa arquivo)"></textarea>
                 <button class="send"><span class="lbl">Enviar</span>${SVG.enviar}</button>
               </div>

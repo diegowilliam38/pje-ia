@@ -3211,7 +3211,26 @@
     if (d.kind === "pdf") return "PDF · " + (d.pages || 1) + (d.pages === 1 ? " pág." : " págs.");
     if (d.kind === "img") return (d.fmt || "imagem").toUpperCase();
     const kb = Math.max(1, Math.round((d.size || (d.text ? d.text.length : 0)) / 1024));
-    return (d.fmt === "html" ? "HTML" : "Texto") + " · " + kb + " KB";
+    const rot = d.fmt === "html" ? "HTML" : d.fmt === "docx" ? "Word" : "Texto";
+    return rot + " · " + kb + " KB";
+  }
+
+  // Lê o arquivo anexado. PDF/TXT/MD (e imagem) passam pelo MESMO extrator das
+  // peças (`PJE.lerAnexo` → `lerCorpo`); o .docx é caso à parte porque NENHUM
+  // dos três provedores o lê nativamente como documento (só PDF tem a rota de
+  // visão/análise de documento) — então extraímos o TEXTO no cliente com o
+  // `DocxImport` que a extensão já usa para importar peças-modelo, e ele entra
+  // como bloco de texto igual a um .txt/.md. `DocxImport` é opcional (mesma
+  // guarda do painel): sem ele, o .docx cai no `lerAnexo`, que o recusa com
+  // motivo (é um ZIP → binário).
+  async function lerArquivoAnexo(file) {
+    const nome = String((file && file.name) || "").toLowerCase();
+    if ((nome.endsWith(".docx") || nome.endsWith(".doc")) && typeof DocxImport !== "undefined") {
+      // lerArquivo já lança mensagem clara para .doc (Word 97-2003) e vazio.
+      const texto = await DocxImport.lerArquivo(file);
+      return { kind: "text", fmt: "docx", text: texto, size: (file && file.size) || texto.length };
+    }
+    return PJE.lerAnexo(file);
   }
 
   // Reprojeta os anexos no painel (chips). O painel é só reflexo — a fonte de
@@ -3260,7 +3279,7 @@
           continue;
         }
         try {
-          const corpo = await PJE.lerAnexo(file);
+          const corpo = await lerArquivoAnexo(file);
           const id = "anexo:" + ++anexoSeq;
           const nomeCurto = (file.name || "arquivo").replace(/\.[^.]+$/, "");
           anexos.set(id, Object.assign({}, corpo, { id, nome: file.name, titulo: "Anexo — " + nomeCurto }));
@@ -3277,7 +3296,7 @@
       if (falhas.length) {
         panel.mostrarFalhasPecas(falhas, {
           titulo: falhas.length === 1 ? "1 arquivo não pôde ser anexado" : falhas.length + " arquivos não puderam ser anexados",
-          dica: "A extensão anexa PDF, TXT e Markdown (.md). Verifique o formato e o tamanho e tente de novo.",
+          dica: "A extensão anexa PDF, Word (.docx), TXT e Markdown (.md). Verifique o formato e o tamanho e tente de novo.",
         });
       }
     });
