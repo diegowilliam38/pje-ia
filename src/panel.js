@@ -5321,6 +5321,7 @@ var PjePanel = (function () {
         btnMinuta.disabled = b;
         btnMapa.disabled = b;
         btnPlib.disabled = b;
+        if (attachBtn) attachBtn.disabled = b;
         const px = promptbar.querySelector(".pchip-x");
         if (px) px.disabled = b;
       },

@@ -4307,13 +4307,16 @@
     // — senão o `file_id` morto daria 400 no primeiro envio — e avisa, para o
     // usuário saber que pode reanexá-los. Peças do PJe continuam intactas: elas
     // se re-baixam e `revalidarPecasDoHistorico` cuida dos uploads vencidos.
+    const ehBlocoAnexo = (b) =>
+      b && typeof b.__pecaId === "string" && b.__pecaId.indexOf("anexo:") === 0;
     let anexosRetomados = 0;
     for (const turno of conversation) {
       if (!Array.isArray(turno.content)) continue;
+      // só reescreve o content quando há mesmo um bloco de anexo — uma conversa
+      // normal (o caso comum) não é tocada.
+      if (!turno.content.some(ehBlocoAnexo)) continue;
       const antes = turno.content.length;
-      turno.content = turno.content.filter(
-        (b) => !(b && typeof b.__pecaId === "string" && b.__pecaId.indexOf("anexo:") === 0)
-      );
+      turno.content = turno.content.filter((b) => !ehBlocoAnexo(b));
       anexosRetomados += antes - turno.content.length;
     }
     pecasNaConversa = new Set(caso.pecasNaConversa || []);
