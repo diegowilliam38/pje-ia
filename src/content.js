@@ -382,6 +382,34 @@
     return docsCache.get(id) || anexos.get(id);
   }
 
+  // Um bloco do histórico é de anexo do input quando o `__pecaId` sintético
+  // começa por "anexo:". Usado para (a) removê-los na retomada — os bytes são de
+  // sessão e o `file_id` já venceu — e (b) NÃO gravar os bytes no disco.
+  function ehBlocoAnexo(b) {
+    return b && typeof b.__pecaId === "string" && b.__pecaId.indexOf("anexo:") === 0;
+  }
+
+  // Cópia do `conversation` pronta para o disco: os blocos de anexo do input
+  // carregam o base64 do PDF ou o TEXTO extraído do arquivo do usuário, e gravar
+  // isso é justamente o que a extensão evita (a mesma regra do b64 das peças —
+  // ver casodb.js e `salvarPecas`). Como `aplicarConversa` já os REMOVE na
+  // retomada, persistir os bytes seria guardar o que nunca será reusado; e como
+  // a memória de caso não os re-hidrata, o `file_id` deles estaria morto de todo
+  // jeito. Trocamos cada bloco de anexo por um STUB sem bytes que preserva só o
+  // `__pecaId` — assim a retomada ainda os detecta (para avisar "reanexe os
+  // arquivos"), mas nenhum byte do arquivo do usuário toca o disco. O
+  // `conversation` VIVO (que vai à API neste sessão) fica intocado.
+  function conversaParaDisco() {
+    return conversation.map((turno) => {
+      if (!Array.isArray(turno.content) || !turno.content.some(ehBlocoAnexo)) return turno;
+      return Object.assign({}, turno, {
+        content: turno.content.map((b) =>
+          ehBlocoAnexo(b) ? { __pecaId: b.__pecaId, _anexoStub: true } : b
+        ),
+      });
+    });
+  }
+
   let conversation = []; // [{role, content}]
   let custoConversaUsd = 0; // soma dos custos estimados dos turnos (US$)
 
@@ -577,7 +605,8 @@
   // o caso inteiro junto seria trabalho à toa.
   function snapshotConversa() {
     return {
-      conversation,
+      // sem os bytes dos anexos do input (ver `conversaParaDisco`)
+      conversation: conversaParaDisco(),
       pecasNaConversa: [...pecasNaConversa],
       transcript: panel.lerTranscript ? panel.lerTranscript() : [],
       // `selecaoEfetiva` e não `getSelected`: inclui as peças restauradas que
@@ -2791,6 +2820,15 @@
       // falhas viram relatório (o usuário não perde a pergunta que já digitou).
       const idsNovosParaBlocos = [...anexadas, ...anexosNovos];
       if (!idsNovosParaBlocos.length && !pecasNaConversa.size) {
+        // Caso degenerado: tudo falhou, sem histórico e sem anexo. O turno cai
+        // aqui e o relatório detalhado abaixo (com o desmarcar) NÃO chega a
+        // rodar — o throw vai direto ao catch. Ainda assim a peça que falhou
+        // PRECISA sair da seleção: senão o próximo envio repete a MESMA falha,
+        // que é exatamente o "peça trava o chat" que este fluxo existe para
+        // impedir. O erro abaixo já diz o motivo; remarcar a peça é nova
+        // tentativa. (desmarcar durante `busy` é seguro — `onSelectionChange`
+        // retorna cedo, como no desmarcar do caminho normal.)
+        if (falhasDownload.length) panel.desmarcarPecas(falhasDownload.map((f) => f.id));
         throw new Error(
           falhasDownload.length === 1
             ? 'não foi possível baixar "' + falhasDownload[0].titulo + '" — ' + falhasDownload[0].erro
@@ -2926,8 +2964,10 @@
         // FALHOU (ex.: 429 após muitos uploads). Nos dois, re-pinta com a
         // estimativa local — o cache agora tem todas as peças baixadas, então o
         // número é decente. Sem isto o medidor ficaria CONGELADO no retrato de
-        // quando a seleção foi feita ("N peça(s) sem medir", 0%).
-        mostrarEstimativaLocal(selectedIds);
+        // quando a seleção foi feita ("N peça(s) sem medir", 0%). Inclui os
+        // anexos do input (como todo outro ponto de medição), senão o gauge
+        // subcontaria os já enviados nos turnos de acompanhamento.
+        mostrarEstimativaLocal([...selectedIds, ...anexos.keys()]);
         // Pular só acontece com folga larga sobre a janela — o que significa
         // que qualquer alerta de contexto cheio anterior está resolvido. Falha
         // do count_tokens não diz nada sobre isso, então ali o alerta fica.
@@ -4327,14 +4367,13 @@
     // API, e `conversation = undefined` derrubaria o próximo `.length` — que é
     // lido em quase todo caminho do envio.
     conversation = Array.isArray(caso.conversation) ? caso.conversation : [];
-    // Anexos do input são de SESSÃO: seus bytes não vão ao disco, então numa
-    // conversa retomada os blocos deles apontariam para uploads que não voltam
-    // (e o base64, se fosse o caso, nem foi guardado). Tira-os do histórico aqui
-    // — senão o `file_id` morto daria 400 no primeiro envio — e avisa, para o
-    // usuário saber que pode reanexá-los. Peças do PJe continuam intactas: elas
-    // se re-baixam e `revalidarPecasDoHistorico` cuida dos uploads vencidos.
-    const ehBlocoAnexo = (b) =>
-      b && typeof b.__pecaId === "string" && b.__pecaId.indexOf("anexo:") === 0;
+    // Anexos do input são de SESSÃO: seus bytes não vão ao disco (o snapshot já
+    // os salva como stub sem bytes — ver `conversaParaDisco`), então numa
+    // conversa retomada os blocos deles apontariam para uploads que não voltam.
+    // Tira-os do histórico aqui — senão o stub/`file_id` morto sujaria o request
+    // — e avisa, para o usuário saber que pode reanexá-los. Peças do PJe
+    // continuam intactas: elas se re-baixam e `revalidarPecasDoHistorico` cuida
+    // dos uploads vencidos. (`ehBlocoAnexo` é o mesmo predicado do snapshot.)
     let anexosRetomados = 0;
     for (const turno of conversation) {
       if (!Array.isArray(turno.content)) continue;
