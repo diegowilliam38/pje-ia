@@ -2097,6 +2097,21 @@ expandido.
   (`.hint-key`) aparecem com o campo em foco ou enquanto a conversa está vazia
   (classe `.novato` no `.ft`, posta por `showEmptyHint`), com revelação
   `grid-template-rows: 0fr→1fr` (anima sem reservar espaço morto).
+- **Quem revela o `.hint-key` é a classe `.hint-on` (foco do TEXTAREA), NUNCA um
+  `.inrow:focus-within` no CSS** — e a diferença custou o 📎 e o Enviar. Como
+  `.msgs` é `flex:1`, expandir essa faixa faz o rodapé crescer e a `.inrow`
+  **subir 20px** (medido no Chrome, contra um 📎 de 32px); o `pointerdown` num
+  botão da linha é justamente o que lhe dá foco, então o botão saía de baixo do
+  cursor durante a transição de 180 ms, o `mouseup` caía noutro elemento e o
+  navegador disparava o `click` no **ancestral comum** — o seletor de arquivos
+  não abria e o envio não acontecia, sem erro nenhum no console. Sintoma
+  relatado: "clico, o painel se mexe, e só na terceira vez abre"; com a conversa
+  VAZIA funcionava, porque ali o `.novato` já deixa a faixa aberta. O `focusout`
+  **preserva** o estado quando o foco continua dentro da `.inrow`: colapsar ao
+  clicar no 📎 no meio da digitação é o mesmo defeito ao contrário. O `.attach`
+  ainda faz `preventDefault` no `mousedown` para não roubar o foco do campo.
+  Regra geral: **faixa que muda de altura não pode ser disparada pelo foco de
+  uma linha que contém botões.**
 - **Popup × página de opções** (`popup.html`, `options.html`, ambos servidos pelo
   MESMO `popup.js`): o popup é o console rápido (largura **460px** — o Chrome
   aceita até 800×600, e com 340 o nome do modelo era cortado no meio) e a página

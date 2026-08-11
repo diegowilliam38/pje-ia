@@ -3082,6 +3082,35 @@ var PjePanel = (function () {
       promptbar.appendChild(hint);
     }
 
+    // ----- Atalhos de teclado (.hint-key): revelar sem mover a .inrow -----
+    // A faixa de atalhos era revelada por `.inrow:focus-within + .hint-key` no
+    // CSS, e o efeito colateral derrubava os botões da própria linha. Com a
+    // conversa em andamento (sem `.novato`) ela está colapsada; o pointerdown
+    // num botão da .inrow lhe dá foco, `:focus-within` casa, a faixa expande e
+    // — como `.msgs` é flex:1 — o rodapé cresce e a .inrow SOBE 20px (medido no
+    // Chrome, contra um 📎 de 32px de altura). O botão sai de baixo do cursor
+    // no meio da transição de 180ms; o mouseup cai noutro elemento e o
+    // navegador dispara o `click` no ancestral comum, não no botão. O seletor
+    // de arquivos não abria, o usuário via o painel "se mexer" e só acertava
+    // quando o foco já estava dentro da linha — o "clico três vezes e aí abre".
+    //
+    // A regra passa a ser: quem revela/esconde é o TEXTAREA. Foco em botão da
+    // .inrow não move nada — nem ao ENTRAR (clicar no 📎 com o campo frio), nem
+    // ao SAIR (clicar no 📎 no meio da digitação, que colapsaria a faixa e
+    // moveria o botão para baixo — o mesmo defeito ao contrário).
+    if (inEl && inrowEl && ft) {
+      // Sincroniza o estado inicial: `open()` foca o campo, e se isso acontecer
+      // antes deste registro o evento `focus` já passou — clicar num campo que
+      // JÁ está focado não dispara outro, e a faixa ficaria presa colapsada.
+      if (inEl.matches(":focus")) ft.classList.add("hint-on");
+      inEl.addEventListener("focus", () => ft.classList.add("hint-on"));
+      inrowEl.addEventListener("focusout", (e) => {
+        // Foco que continua dentro da linha (um botão dela) preserva o estado.
+        if (e.relatedTarget && inrowEl.contains(e.relatedTarget)) return;
+        ft.classList.remove("hint-on");
+      });
+    }
+
     // ----- Anexos do input (📎): botão, campo de arquivo e chips -----
     // A UI é reflexo: o content script é dono da lista (Map `anexos`) e a manda
     // pronta em `setAnexos`. Aqui só disparamos a escolha, entregamos os File ao
@@ -3093,6 +3122,11 @@ var PjePanel = (function () {
     let removerAnexoCb = null;
     let anexosAtuais = [];
     if (attachBtn && attachInput) {
+      // O 📎 não rouba o foco do campo (mesma técnica dos popups @ e /): quem
+      // anexa está no meio de uma mensagem e volta a digitar em seguida — e um
+      // botão que não recebe foco também não pode disparar mudança de layout
+      // sob o próprio cursor. O `click` segue normal, inclusive por teclado.
+      attachBtn.addEventListener("mousedown", (e) => e.preventDefault());
       attachBtn.addEventListener("click", () => attachInput.click());
       attachInput.addEventListener("change", () => {
         const files = [...(attachInput.files || [])];

@@ -1647,7 +1647,17 @@ button > svg { flex: none; }
 /* Atalhos de teclado: informação que se aprende UMA vez. Ficam visíveis com o
    campo em foco (é quando servem) e enquanto a conversa está vazia (classe
    .novato, para quem chega agora). A revelação é 0fr→1fr num grid — anima a
-   altura sem salto e sem reservar espaço morto o tempo todo. */
+   altura sem salto e sem reservar espaço morto o tempo todo.
+
+   QUEM revela é a classe .hint-on, posta pelo panel.js a partir do foco do
+   TEXTAREA — não um `.inrow:focus-within` no CSS. A regra por :focus-within
+   parecia idêntica e quebrava os botões da linha: como .msgs é flex:1, expandir
+   esta faixa faz o rodapé crescer e a .inrow SUBIR 20px (medido), e o
+   pointerdown num botão é justamente o que dispara o foco. O botão saía de
+   baixo do cursor no meio da transição de 180ms, o mouseup caía noutro
+   elemento e o navegador disparava o `click` no ancestral comum — o 📎 não
+   abria o seletor de arquivos e o Enviar não enviava, sem erro nenhum. Ver o
+   bloco "Atalhos de teclado" em panel.js. */
 .hint-key {
   display: grid; grid-template-rows: 0fr;
   font-size: var(--fs-micro); color: var(--muted);
@@ -1656,7 +1666,7 @@ button > svg { flex: none; }
 }
 .hk-in { overflow: hidden; min-height: 0; }
 .ft.novato .hint-key,
-.inrow:focus-within + .hint-key { grid-template-rows: 1fr; margin-top: var(--sp-2); }
+.ft.hint-on .hint-key { grid-template-rows: 1fr; margin-top: var(--sp-2); }
 
 /* Nota do modo de citações (modelos Gemini: páginas citadas no próprio texto).
    Era um parágrafo fixo de duas linhas no rodapé; virou um ⓘ colado ao selo do
