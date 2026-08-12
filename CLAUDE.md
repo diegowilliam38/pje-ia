@@ -1285,6 +1285,97 @@ o que não sabe que existe. **Sete dos treze passos são sobre marcar peças**, 
   `aplicarModo`, scroll da lista e Esc também fecham — o Esc do preview faz
   `stopPropagation` para não cancelar o modo minuta junto).
 
+## Pacote de carta precatória (`precatoria.js` + exportar.js + panel.js)
+
+Segunda saída do botão de download: para cada carta precatória **expedida**, uma
+pasta com a carta, a peça de **origem** da ação e a **decisão que a fundamenta** —
+pronta para virar um envio de malote digital. É um conjunto definido por norma
+(CPC art. 260, II; CPP art. 354), não por julgamento: por isso é REGRA, e não um
+pedido ao modelo.
+
+- **O MOVIMENTO processual é o sinal, não o título da peça** — e essa é a decisão
+  central. A timeline não traz só `id - título`: cada `.media.interno` tem o
+  movimento em `.texto-movimento` e as peças em `.anexos a`, com a data num
+  `.media.data` IRMÃO que vale até o próximo. `PJE.lerEventos()` lê isso;
+  `listarDocumentos` passa a anexar `mov`/`dataMov` a cada doc (best-effort — num
+  tribunal com outra estrutura os campos somem e tudo segue como antes).
+  Medido no 0200984-48.2025.8.06.0303 (103 eventos, 113 peças):
+
+  | critério | cartas achadas | precisão |
+  |---|---|---|
+  | título (`/carta precatória/`) | 6 | 50% |
+  | movimento (`EXPEDIÇÃO DE CARTA PRECATÓRIA`) | 3 | 100% |
+
+  As três falsas eram a precatória **devolvida**, juntada de volta sob o
+  movimento `DOCUMENTO` e partida em `Cartas Precatórias / 1`, `/ 2`, `/ 3`. Pelo
+  título são indistinguíveis da expedida. O movimento é vocabulário **CNJ**,
+  controlado; o título costuma ser o nome do arquivo que alguém subiu.
+- **A rota é a TIMELINE, nunca a grid** (`carregarTimelineCompleta`, não
+  `listarPelaGrid`): a grid traz tipo oficial e total de páginas, mas **não traz
+  movimento**. Preferir a grid aqui — como faz o `⟳ Carregar tudo` — tornaria o
+  pacote menos confiável exatamente no ponto que mais importa.
+- **A rotina de carregar a timeline é chamada SOZINHA**, e não por comodidade:
+  das três peças, duas são inalcançáveis numa lista parcial. A peça de origem é a
+  **mais antiga** do processo (no caso real, posição 103 de 103 — e a timeline
+  abre com 47), e uma carta expedida meses atrás fica fora do trecho rolado. Sem
+  isso o pacote sairia faltando peça, em silêncio, num zip que só se confere
+  depois de aberto. É também a melhor resposta ao "ninguém clica em Carregar
+  tudo": no fluxo em que o clique é obrigatório, ele deixa de existir.
+- **Não se classifica o rito para escolher UMA regra de origem.** `ORIGENS` é uma
+  lista de candidatos (denúncia → queixa-crime → petição inicial) tentada
+  INTEIRA; o rito só reordena. O processo real 3000436-28.2026.8.06.0203 é uma
+  **queixa-crime cuja peça inicial se chama "Petição Inicial"** — uma
+  classificação binária mandaria procurar "Denúncia" e não acharia nada. Assim o
+  acerto não depende de a ficha do processo existir.
+- **Dois falsos positivos GRAVES que só os autos reais revelaram** (a peça errada
+  iria no malote sem ninguém notar):
+  - `\binicial\b` solto: em processo migrado do SAJ, TODO título carrega o sufixo
+    `| Pág. Inicial SAJ 177`. A regra casaria a lista inteira. Só
+    `\bpeticao inicial\b` — e o veto **não pode** conter `pag. inicial`, porque a
+    própria denúncia se chama `Denúncia (Outras) (Denúncia | Pág. Inicial SAJ 1)`.
+  - `\bqueixa\b` solto: existe a peça `Petição (queixa carlos eduardo para
+    protocolar )` — um rascunho — que venceria a verdadeira inicial. Só
+    `queixa-crime` fechado.
+- **`RE_DECISAO` precisa cobrir `interlocutoria`**: em processo migrado do SAJ a
+  decisão se chama `Interlocutória (Decisões Interlocutórias | …)`. Uma regra com
+  apenas `decisao|despacho|sentenca` não acha decisão NENHUMA nesses processos —
+  que são justamente os mais antigos e mais precatoriados. O veto exclui
+  `conclus`/`intimac`/`publicad` (`CONCLUSOS PARA DESPACHO` vem imediatamente
+  antes do despacho e casaria `despacho`), e exigir que a decisão TENHA peça
+  barra o resto.
+- **A decisão é a anterior À CARTA, não a última do processo.** Quando a
+  precatória não é o último ato, as duas divergem — e a última instruiria a carta
+  com decisão posterior a ela. "Anterior" é índice MAIOR: a timeline entrega do
+  mais recente ao mais antigo. Validado nos autos: intervalos de 2 e 4 dias entre
+  a decisão e a expedição.
+- **Movimento e peça nem sempre no MESMO evento**: no PJe nativo aparece o par
+  "evento com movimento e sem peça" seguido de "evento com peça e sem movimento"
+  (4 ocorrências no 3000436-28.2026). `lerEventos` faz o movimento órfão ser
+  HERDADO pelo evento seguinte; sem isso, uma carta nesse formato sumiria calada.
+- **MARCA para conferência, nunca baixa direto** (`panel.mostrarPrecatorias`): a
+  escolha é por regra sobre metadados e o resultado vai por MALOTE — um erro só
+  apareceria no juízo deprecado, semanas depois, e um `.zip` só se confere
+  abrindo. O usuário vê as peças de cada pasta com o motivo e decide.
+- **UM zip com pastas, não N zips**: `baixarBlob` entrega UM arquivo, e N
+  downloads exigiriam a permissão `downloads` — que o projeto evita para não
+  mudar o aviso de instalação da Store (mesma razão do iframe da grid).
+- **A peça de origem se REPETE em cada pasta**, de propósito: cada pasta é um
+  envio independente e precisa sair completa do zip. O download é feito uma vez
+  só (cache `vistos`), então a repetição não custa rede.
+- **Baixa TUDO antes de gravar qualquer coisa.** Se a própria CARTA não vier, a
+  pasta não deve existir — gravando à medida que baixa, o zip ficava com uma
+  pasta contendo só a denúncia, que no destino parece um pacote e não é. Como a
+  entrada já estaria escrita, não haveria como desfazer. A pasta que não saiu vai
+  NOMEADA no `LEIA-ME.md` e no `resumo.semCarta`: sumiço silencioso, nunca.
+- **`instanceof Date` não serve** em `precData`/`diaIso`: é falso entre realms
+  (Date de outro contexto) e para a mesma data em texto ISO — e o nome da pasta
+  depende disso. Duck typing (`getTime`), com degradação para `null`.
+- Testado fora do navegador com **fixtures REAIS** dos dois processos (31
+  asserções da heurística + 33 da UI em jsdom + o zip validado pelo `zipfile` do
+  Python). O visual foi conferido em Chrome headless nos modos expandido e
+  estreito — foi assim que apareceram o rótulo quebrando em duas linhas, o aviso
+  repetido no estado vazio e o rodapé sem separação.
+
 ## Exportação das peças em `.zip` (zip.js + exportar.js + content.js)
 
 Botão **⬇ Baixar .zip** na faixa `.docs-tip`, irmão de "⟳ Carregar todas as peças"

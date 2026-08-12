@@ -149,17 +149,100 @@ var PJE = (function () {
     }
   }
 
-  // Varre a timeline (#divTimeLine) e devolve [{id, titulo}] sem duplicatas.
+  // EVENTOS DA TIMELINE — movimento processual + data + peças daquele ato.
+  //
+  // A timeline não traz só `id - título`: cada evento é um `.media.interno` com
+  // o MOVIMENTO em `.texto-movimento` e as peças em `.anexos a`; a data vive num
+  // `.media.data` IRMÃO, que vale para os eventos seguintes até o próximo.
+  //
+  // Ler o movimento importa porque ele é o vocabulário CNJ — controlado e muito
+  // mais discriminante que o título, que no PJe costuma ser o nome do arquivo.
+  // Medido em processo real (0200984-48.2025, 103 eventos): buscar carta
+  // precatória pelo TÍTULO devolve 6 peças, das quais 3 são a precatória
+  // devolvida, juntada sob o movimento "DOCUMENTO"; buscar pelo MOVIMENTO
+  // ("EXPEDIÇÃO DE CARTA PRECATÓRIA") devolve exatamente as 3 expedidas.
+  //
+  // ARMADILHA: movimento e peça nem sempre estão no MESMO evento. No PJe nativo
+  // aparece o par "evento com movimento e sem peça" seguido de "evento com peça
+  // e sem movimento" (4 ocorrências no 3000436-28.2026). Por isso o movimento
+  // órfão é HERDADO pelo evento seguinte quando este não tem movimento próprio
+  // — sem essa herança, uma precatória nesse formato sumiria em silêncio.
+  const MES_PT = { jan: 0, fev: 1, mar: 2, abr: 3, mai: 4, jun: 5, jul: 6, ago: 7, set: 8, out: 9, nov: 10, dez: 11 };
+  function lerEventos() {
+    const raiz = document.querySelector("#divTimeLine");
+    if (!raiz) return [];
+    const eventos = [];
+    let dataAtual = null;
+    (function varrer(no) {
+      for (const el of no.children) {
+        const cls = " " + (el.className || "").toString() + " ";
+        if (/ media /.test(cls) && / data /.test(cls)) {
+          const m = (el.textContent || "").trim().match(/(\d{1,2})\s+(\w{3})\w*\s+(\d{4})/);
+          if (m && MES_PT[m[2].toLowerCase()] != null) {
+            dataAtual = new Date(+m[3], MES_PT[m[2].toLowerCase()], +m[1]);
+          }
+          continue;
+        }
+        if (/ media /.test(cls) && / interno /.test(cls)) {
+          const mv = el.querySelector(".texto-movimento");
+          const pecas = [];
+          for (const a of el.querySelectorAll(".anexos a")) {
+            const m = (a.textContent || "").trim().replace(/\s+/g, " ").match(/^(\d{6,})\s*-\s*(.+)$/);
+            if (m) pecas.push({ id: m[1], titulo: m[0].slice(0, 140) });
+          }
+          eventos.push({
+            data: dataAtual ? new Date(dataAtual.getTime()) : null,
+            mov: mv ? (mv.textContent || "").trim().replace(/\s+/g, " ") : "",
+            pecas,
+          });
+          continue;
+        }
+        if (el.children && el.children.length) varrer(el);
+      }
+    })(raiz);
+    // herança do movimento órfão (ver ARMADILHA acima)
+    for (let i = 1; i < eventos.length; i++) {
+      const ant = eventos[i - 1];
+      if (!eventos[i].mov && eventos[i].pecas.length && ant.mov && !ant.pecas.length) {
+        eventos[i].mov = ant.mov;
+        eventos[i].movHerdado = true;
+      }
+    }
+    return eventos;
+  }
+
+  // Varre a timeline (#divTimeLine) e devolve [{id, titulo, mov?, dataMov?}] sem
+  // duplicatas. O movimento e a data vêm de `lerEventos` e são best-effort: num
+  // layout de tribunal em que a estrutura de eventos não case, os campos ficam
+  // ausentes e tudo que já existia continua igual (a lista sai dos links, como
+  // sempre saiu).
   function listarDocumentos() {
     const links = [...document.querySelectorAll("#divTimeLine a")];
     const seen = new Set();
     const out = [];
+    let meta = new Map();
+    try {
+      for (const ev of lerEventos()) {
+        for (const p of ev.pecas) {
+          if (!meta.has(p.id)) meta.set(p.id, { mov: ev.mov || null, dataMov: ev.data || null });
+        }
+      }
+    } catch (e) {
+      console.debug("[PJe IA] eventos da timeline:", e && e.message);
+      meta = new Map();
+    }
     for (const a of links) {
       const t = (a.textContent || "").trim().replace(/\s+/g, " ");
       const m = t.match(/^(\d{6,})\s*-\s*(.+)$/);
       if (m && !seen.has(m[1])) {
         seen.add(m[1]);
-        out.push({ id: m[1], titulo: t.slice(0, 140) });
+        const d = { id: m[1], titulo: t.slice(0, 140) };
+        const x = meta.get(m[1]);
+        if (x) {
+          if (x.mov) d.mov = x.mov;
+          if (x.dataMov) d.dataMov = x.dataMov;
+        }
+        out.push(d);
       }
     }
     return out;
@@ -1183,6 +1266,7 @@ var PJE = (function () {
     chaveDoCaso,
     lerCabecalhoProcesso,
     listarDocumentos,
+    lerEventos,
     baixar,
     scrollAte,
     carregarTimelineCompleta,

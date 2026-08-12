@@ -1246,6 +1246,132 @@
     }
   });
 
+  // ---------------------------------------------------------------------------
+  // PACOTE DE CARTA PRECATÓRIA
+  //
+  // Duas coisas separam este fluxo do "Baixar .zip" comum:
+  //
+  // (1) Ele PRECISA da timeline completa, e não por comodidade. Das três peças
+  //     do pacote, duas são inalcançáveis numa lista parcial: a peça de origem é
+  //     a MAIS ANTIGA do processo (no 0200984-48.2025 ela estava na posição 103
+  //     de 103, e a timeline abre com 47), e uma carta expedida meses atrás fica
+  //     fora do trecho já rolado. Sem carregar, o pacote sairia faltando peça —
+  //     em silêncio, num zip que só se confere depois de aberto. Por isso a
+  //     rotina é chamada AQUI, e o usuário não precisa lembrar de clicar.
+  //
+  // (2) A rota é a TIMELINE (scroll), nunca a grid da tela "Documentos". A grid
+  //     traz o tipo oficial e o total de páginas, mas NÃO traz o movimento
+  //     processual — e é o movimento que distingue a carta expedida da carta
+  //     devolvida. Preferir a grid aqui, como faz o "⟳ Carregar tudo", tornaria
+  //     o pacote menos confiável justamente no ponto que mais importa.
+  // ---------------------------------------------------------------------------
+  panel.onPrecatorias(async () => {
+    if (typeof PjePrecatoria === "undefined" || typeof PjeExport === "undefined") {
+      panel.setStatus("Recurso indisponível: recarregue a página do processo.");
+      return;
+    }
+    if (exportando || carregandoTimeline) {
+      panel.setStatus("Aguarde a operação em andamento terminar.");
+      return;
+    }
+    if (busy) {
+      panel.setStatus("Aguarde a resposta atual terminar.");
+      return;
+    }
+    carregandoTimeline = true;
+    try {
+      panel.setTimelineTip({
+        texto: "Carregando a linha do tempo inteira para achar as cartas precatórias…",
+        carregando: true,
+      });
+      await PJE.carregarTimelineCompleta((n) =>
+        panel.setTimelineTip({
+          texto: "Carregando a linha do tempo… " + n + " peça(s).",
+          carregando: true,
+        })
+      );
+      panel.setTimelineTip(null);
+      atualizarListaPecas();
+      const eventos = PJE.lerEventos();
+      const dados = PjePrecatoria.montarPacotes(eventos, { ficha: PJE.lerCabecalhoProcesso() });
+      panel.mostrarPrecatorias(dados, (escolhidos) => baixarPrecatorias(escolhidos, dados));
+    } catch (e) {
+      console.warn("[PJe IA] precatórias:", e);
+      panel.setTimelineTip(null);
+      panel.setStatus("Não foi possível montar os pacotes: " + ((e && e.message) || e));
+    } finally {
+      carregandoTimeline = false;
+    }
+  });
+
+  async function baixarPrecatorias(pacotes, dados) {
+    if (exportando) return;
+    // Renumera na ordem em que serão gravados: se o usuário desmarcou a carta 2,
+    // as pastas do zip não podem sair 01 e 03 — o número aqui é a posição no
+    // PACOTE, e o rastro para os autos é o id, que vai no nome do arquivo.
+    const escolhidos = pacotes.map((p, i) => Object.assign({}, p, { n: i + 1 }));
+    const ids = [];
+    for (const p of escolhidos) for (const id of PjePrecatoria.idsDoPacote(p)) ids.push(id);
+    const unicos = [...new Set(ids)];
+    exportando = true;
+    const sinal = { cancelado: false };
+    panel.setZipOcupado(true);
+    // O card de progresso fala em PEÇAS, não em pastas: uma peça baixa uma vez
+    // só e serve a várias pastas (a peça de origem se repete em todas).
+    panel.startPrep(
+      unicos.map((id) => ({ id, titulo: metaDe(id).titulo })),
+      {
+        titulo:
+          escolhidos.length === 1
+            ? "Montando o pacote da carta precatória…"
+            : "Montando " + escolhidos.length + " pacotes de carta precatória…",
+        fim: (total, feitas) =>
+          feitas === total
+            ? "Pacote(s) prontos com " + total + " peça(s)"
+            : "Pacote(s) gerados — " + feitas + " de " + total + " peça(s)",
+        onCancelar: () => {
+          sinal.cancelado = true;
+        },
+      }
+    );
+    try {
+      const r = await PjeExport.montarZipPrecatorias({
+        pacotes: escolhidos,
+        cnj: PJE.getNumeroProcesso(),
+        ficha: PJE.lerCabecalhoProcesso(),
+        porMovimento: !(dados && dados.pacotes[0] && dados.pacotes[0].fonte === "titulo"),
+        sinal,
+        onEtapa: (id, estado) => panel.setPrepState(id, estado),
+        // `{bytes:true}` pelo mesmo motivo da exportação comum: o pacote leva o
+        // ARQUIVO ORIGINAL, e uma peça vinda da memória de caso tem `fileId` e
+        // zero bytes — sem a flag ela sairia vazia do zip.
+        obter: (id) => garantirBaixada(id, { bytes: true }),
+      });
+      panel.endPrep();
+      baixarBlob(r.nome, r.blob);
+      panel.setStatus(
+        "✅ " + r.nome + " — " + r.resumo.pacotes + " pasta(s), " +
+          r.resumo.arquivos + " arquivo(s), " + fmtMB(r.blob.size) +
+          (r.resumo.semCarta
+            ? ". " + r.resumo.semCarta +
+              " pasta(s) NÃO saíram: a carta não pôde ser baixada (tente de novo)."
+            : "") +
+          (r.resumo.falhas ? " " + r.resumo.falhas + " peça(s) falharam (a relação está no LEIA-ME)." : "")
+      );
+    } catch (e) {
+      const msg = (e && e.message) || String(e);
+      panel.endPrep(true);
+      panel.setStatus(
+        msg === "cancelado" ? "Montagem cancelada." : "Não foi possível montar o pacote: " + msg
+      );
+      if (msg !== "cancelado") console.warn("[PJe IA] zip precatórias:", e);
+    } finally {
+      exportando = false;
+      panel.setZipOcupado(false);
+      salvarCasoAgora();
+    }
+  }
+
   // De onde veio a lista que está sendo exportada — vai escrito no LEIA-ME e no
   // índice. "Pode estar incompleta" precisa ser dito COM o motivo; sem ele, a
   // ressalva vira ruído que ninguém lê.

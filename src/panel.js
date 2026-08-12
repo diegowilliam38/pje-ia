@@ -286,6 +286,10 @@ var PjePanel = (function () {
     importar: '<path d="M12 20V9"/><path d="M7 13l5-5 5 5"/><path d="M5 4h14"/>',
     // clipe de papel do botão de anexar arquivos no input
     clip: '<path d="M20 11l-8.5 8.5a4 4 0 0 1-5.7-5.7l8.5-8.5a2.5 2.5 0 0 1 3.5 3.5l-8 8a1 1 0 0 1-1.4-1.4l7.3-7.3"/>',
+    // malote: envelope com alça — o pacote de carta precatória é o que sai por ele
+    malote: '<path d="M3 8h18v12H3z"/><path d="M3 8l9 6 9-6"/><path d="M9 8V5a3 3 0 0 1 6 0v3"/>',
+    // caret para baixo — abre o menu do split button de download
+    caret: '<path d="M6 9l6 6 6-6"/>',
   };
   // px = lado do ícone; w = stroke-width (a escala do DESIGN.md §5).
   function ic(paths, px, w) {
@@ -353,6 +357,8 @@ var PjePanel = (function () {
     lista: ic(P.lista, 15, 1.9),
     reload: ic(P.reload, 13, 2),
     zip: ic(P.download, 13, 2),
+    malote: ic(P.malote, 14, 1.9),
+    caret: ic(P.caret, 11, 2.2),
     play: '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5l10 7-10 7z"/></svg>',
   };
 
@@ -817,7 +823,10 @@ var PjePanel = (function () {
               <span class="tip-txt"></span>
               <button type="button" class="tip-load" title="Rola a linha do tempo do processo automaticamente até o fim para carregar TODAS as peças do processo na lista">${SVG.reload}<span class="lbl">Carregar tudo</span></button>
               <button type="button" class="tip-ia" title="Envia à IA só a LISTA de peças (id, título, tipo e data — nenhum conteúdo) e pede que ela escolha as relevantes. Se houver texto no campo de pergunta, escolhe para AQUELA pergunta; vazio, escolhe as peças que descrevem o processo. Custa alguns centavos e leva poucos segundos.">${SVG.ia}<span class="lbl">Escolher com IA</span></button>
-              <button type="button" class="tip-zip" title="Baixa os arquivos ORIGINAIS das peças (PDF, HTML) num único .zip, numerados na ordem do processo e com um índice de tipo, data e autor da juntada. Exporta as peças MARCADAS; sem nenhuma marcada, exporta todas as da lista.">${SVG.zip}<span class="lbl">Baixar .zip</span></button>
+              <span class="zipwrap">
+                <button type="button" class="tip-zip" title="Baixa os arquivos ORIGINAIS das peças (PDF, HTML) num único .zip, numerados na ordem do processo e com um índice de tipo, data e autor da juntada. Exporta as peças MARCADAS; sem nenhuma marcada, exporta todas as da lista.">${SVG.zip}<span class="lbl">Baixar .zip</span></button>
+                <button type="button" class="tip-zip-mais" aria-haspopup="menu" aria-expanded="false" title="Outras formas de baixar — inclusive o pacote pronto de carta precatória" aria-label="Outras formas de baixar">${SVG.caret}</button>
+              </span>
             </div>
           </div>
           <div class="main">
@@ -959,6 +968,20 @@ var PjePanel = (function () {
                 <button class="imp-fechar plib-save">Voltar aos modelos</button>
               </div>
               <input type="file" class="imp-file" accept=".docx,.rtf" multiple hidden>
+            </div>
+          </div>
+        </div>
+        <div class="prec plib" hidden>
+          <div class="prec-card plib-card" role="dialog" aria-modal="true" aria-label="Pacotes de carta precatória" tabindex="-1">
+            <div class="plib-hd">
+              <span class="t">${SVG.malote} Cartas precatórias</span>
+              <button class="prec-close plib-close" title="Fechar (Esc)" aria-label="Fechar">${SVG.close}</button>
+            </div>
+            <div class="prec-intro"></div>
+            <div class="prec-list"></div>
+            <div class="plib-form-acts">
+              <button class="prec-cancel plib-cancel">Cancelar</button>
+              <button class="prec-ok plib-save">Baixar .zip</button>
             </div>
           </div>
         </div>
@@ -2230,10 +2253,241 @@ var PjePanel = (function () {
       }
       zipCb(alvo, { todas: !marcadas.length });
     });
+    // -------------------------------------------------------------------------
+    // PACOTE DE CARTA PRECATÓRIA — a segunda saída do botão de download.
+    //
+    // É um SPLIT button, e não um menu no clique principal: baixar as peças é o
+    // caso comum e não podia ganhar um clique a mais para acomodar o novo. O
+    // caret abre o menu; o corpo do botão segue fazendo o que sempre fez.
+    // -------------------------------------------------------------------------
+    const tipZipMais = $(".tip-zip-mais");
+    let precCb = null;
+    let zipmenu = null;
+    function fecharZipMenu() {
+      if (zipmenu) zipmenu.remove();
+      zipmenu = null;
+      tipZipMais.setAttribute("aria-expanded", "false");
+    }
+    tipZipMais.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (zipmenu) return fecharZipMenu();
+      if (tipZip.disabled) return;
+      // `position: fixed` e ancorado pelo rect do botão: o `.wrap` é um
+      // container de tamanho ZERO (quem tem dimensão é o `.panel`), então
+      // posicionar por dentro dele jogaria o menu para fora da tela — a mesma
+      // regra do `.selmenu` e da `.confirmbox`.
+      const r = tipZipMais.getBoundingClientRect();
+      zipmenu = document.createElement("div");
+      zipmenu.className = "selmenu zipmenu";
+      zipmenu.setAttribute("role", "menu");
+      const marcadas = getSelectedDocs();
+      const bPecas = document.createElement("button");
+      bPecas.type = "button";
+      bPecas.setAttribute("role", "menuitem");
+      bPecas.textContent = marcadas.length
+        ? "Peças marcadas (" + marcadas.length + ")"
+        : "Todas as peças da lista";
+      bPecas.addEventListener("click", () => {
+        fecharZipMenu();
+        tipZip.click();
+      });
+      const bPrec = document.createElement("button");
+      bPrec.type = "button";
+      bPrec.className = "sep";
+      bPrec.setAttribute("role", "menuitem");
+      bPrec.textContent = "Pacote de carta precatória…";
+      bPrec.title =
+        "Monta, para cada carta precatória expedida, uma pasta com a carta, a peça " +
+        "de origem da ação e a decisão que a fundamenta — pronta para o malote digital.";
+      bPrec.addEventListener("click", () => {
+        fecharZipMenu();
+        if (precCb) precCb();
+      });
+      zipmenu.appendChild(bPecas);
+      zipmenu.appendChild(bPrec);
+      wrap.appendChild(zipmenu);
+      const larg = zipmenu.offsetWidth || 210;
+      zipmenu.style.left = Math.max(6, Math.min(r.right - larg, innerWidth - larg - 6)) + "px";
+      zipmenu.style.top = Math.max(6, r.top - zipmenu.offsetHeight - 6) + "px";
+      tipZipMais.setAttribute("aria-expanded", "true");
+      bPecas.focus();
+    });
+    document.addEventListener("click", fecharZipMenu);
+    wrap.addEventListener("click", (e) => {
+      if (zipmenu && !zipmenu.contains(e.target) && e.target !== tipZipMais) fecharZipMenu();
+    });
+
+    // -------------------------------------------------------------------------
+    // Conferência dos pacotes antes de baixar.
+    //
+    // MARCA, não baixa direto: a seleção é feita por regra sobre os metadados do
+    // PJe e o resultado vai por MALOTE — um erro aqui só apareceria no juízo
+    // deprecado, semanas depois, e um `.zip` só se confere abrindo. O usuário vê
+    // as três peças de cada pasta, com o motivo de cada uma, e decide.
+    // -------------------------------------------------------------------------
+    const precBox = $(".prec");
+    const precCard = $(".prec-card");
+    const precList = $(".prec-list");
+    const precIntro = $(".prec-intro");
+    const precOk = $(".prec-ok");
+    let precDados = null;
+    let precConfirmar = null;
+
+    // "carta", e não "carta precatória": o rótulo é uma coluna de largura fixa,
+    // e o nome longo quebrava em duas linhas, desalinhando a lista inteira. No
+    // modal chamado "Cartas precatórias", com cada bloco começando por "Carta
+    // N — expedida em …", o "precatória" já foi dito duas vezes.
+    const PAPEL_ROTULO = { carta: "carta", origem: "origem da ação", decisao: "decisão" };
+    function precLinhaPeca(papel, doc, extra) {
+      const li = document.createElement("div");
+      li.className = "prec-p prec-p-" + papel;
+      const tag = document.createElement("span");
+      tag.className = "prec-tag";
+      tag.textContent = PAPEL_ROTULO[papel];
+      const id = document.createElement("span");
+      id.className = "prec-id";
+      id.textContent = doc.id;
+      const t = document.createElement("span");
+      t.className = "prec-t";
+      // título vem dos autos: textContent, nunca innerHTML
+      t.textContent = tituloCurto(doc.titulo);
+      // O nome é cortado com ellipsis (a coluna é estreita e o título do PJe é
+      // longo). O `title` devolve o texto inteiro no hover — sem ele, decidir se
+      // a peça certa foi escolhida dependeria de adivinhar o que o "…" esconde.
+      t.title = doc.titulo;
+      li.appendChild(tag);
+      li.appendChild(id);
+      li.appendChild(t);
+      if (extra) {
+        const e = document.createElement("span");
+        e.className = "prec-extra";
+        e.textContent = extra;
+        li.appendChild(e);
+      }
+      return li;
+    }
+    // `instanceof Date` NÃO serve aqui: ele é falso entre realms (um Date criado
+    // noutro contexto — harness de teste, worker, valor reidratado — não é
+    // "instância" deste `Date`), e falso também para a mesma data em texto ISO.
+    // Duck typing cobre os três casos e degrada para `null` sem quebrar.
+    function precData(d) {
+      if (!d) return null;
+      const dt = typeof d === "string" ? new Date(d) : d;
+      if (!dt || typeof dt.getTime !== "function" || isNaN(dt.getTime())) return null;
+      return dt.toLocaleDateString("pt-BR");
+    }
+    function pintarPrec() {
+      precList.textContent = "";
+      precIntro.textContent = "";
+      const pacotes = (precDados && precDados.pacotes) || [];
+      // Sem pacote, o aviso "nenhuma carta encontrada" diria em faixa laranja
+      // exatamente o que o estado vazio já diz logo abaixo, com mais palavras e
+      // sem a saída. Dizer duas vezes a mesma coisa não reforça, dilui.
+      const avisos = ((precDados && precDados.avisos) || []).filter(
+        (a) => pacotes.length || !/nenhuma carta/i.test(a)
+      );
+      for (const a of avisos) {
+        const w = document.createElement("div");
+        w.className = "prec-aviso";
+        w.textContent = a;
+        precIntro.appendChild(w);
+      }
+      if (!pacotes.length) {
+        // Estado VAZIO se explica, não desaparece — mesma regra da `.sel-nota`
+        // nos degraus de seleção e da linha de modelos da minuta.
+        const v = document.createElement("div");
+        v.className = "prec-vazio";
+        v.textContent =
+          "Nenhuma carta precatória expedida foi encontrada nesta lista. Se o processo " +
+          "tem cartas, clique em “⟳ Carregar tudo” para trazer a lista completa da " +
+          "linha do tempo e tente de novo.";
+        precList.appendChild(v);
+        precOk.disabled = true;
+        return;
+      }
+      const nota = document.createElement("div");
+      nota.className = "prec-nota";
+      nota.textContent =
+        "Cada pasta do .zip vira um envio de malote. Confira as peças antes de baixar — " +
+        "a escolha é automática e não lê o conteúdo dos documentos.";
+      precIntro.appendChild(nota);
+      for (const p of pacotes) {
+        const box = document.createElement("label");
+        box.className = "prec-item";
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = p.__on !== false;
+        cb.addEventListener("change", () => {
+          p.__on = cb.checked;
+          precOk.disabled = !pacotes.some((x) => x.__on !== false);
+        });
+        const corpo = document.createElement("div");
+        corpo.className = "prec-corpo";
+        const hd = document.createElement("div");
+        hd.className = "prec-hd";
+        const d = precData(p.data);
+        hd.textContent = "Carta " + p.n + (d ? " — expedida em " + d : "");
+        corpo.appendChild(hd);
+        for (const c of p.carta) corpo.appendChild(precLinhaPeca("carta", c, null));
+        if (p.origem) corpo.appendChild(precLinhaPeca("origem", p.origem, p.origemRotulo));
+        if (p.decisao) {
+          const dd = precData(p.decisaoData);
+          corpo.appendChild(
+            precLinhaPeca("decisao", p.decisao, dd ? "de " + dd + ", anterior à carta" : null)
+          );
+        }
+        if (p.faltas && p.faltas.length) {
+          const f = document.createElement("div");
+          f.className = "prec-falta";
+          f.textContent = "Não localizado: " + p.faltas.join("; ");
+          corpo.appendChild(f);
+        }
+        box.appendChild(cb);
+        box.appendChild(corpo);
+        precList.appendChild(box);
+      }
+      precOk.disabled = false;
+    }
+    function abrirPrec(dados, onConfirmar) {
+      precDados = dados;
+      precConfirmar = onConfirmar;
+      pintarPrec();
+      precBox.hidden = false;
+      precCard.focus();
+    }
+    function fecharPrec() {
+      precBox.hidden = true;
+      precDados = null;
+      precConfirmar = null;
+    }
+    $(".prec-close").addEventListener("click", fecharPrec);
+    $(".prec-cancel").addEventListener("click", fecharPrec);
+    precBox.addEventListener("click", (e) => {
+      if (e.target === precBox) fecharPrec();
+    });
+    // stopPropagation como no `.plib-card`: sem ele o Esc do modal cancelaria
+    // junto o modo minuta/mapa que estivesse ligado atrás.
+    precCard.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        fecharPrec();
+      }
+    });
+    precOk.addEventListener("click", () => {
+      if (!precDados || !precConfirmar) return;
+      const escolhidos = precDados.pacotes.filter((p) => p.__on !== false);
+      if (!escolhidos.length) return;
+      const cb = precConfirmar;
+      fecharPrec();
+      cb(escolhidos);
+    });
+
     // Trava o botão enquanto a exportação corre (o download do PJe é
     // serializado: dois lotes ao mesmo tempo brigariam pela sessão JSF).
     function setZipOcupado(on) {
       tipZip.disabled = !!on;
+      tipZipMais.disabled = !!on;
+      if (on) fecharZipMenu();
       // rotulo(), nunca textContent: o botão é <svg> + <span class="lbl">, e
       // escrever no botão inteiro apagaria o ícone no primeiro clique. Era o
       // que acontecia aqui — e ainda com um rótulo ("⬇ Documentos") que nem
@@ -4634,6 +4888,16 @@ var PjePanel = (function () {
       onExportarZip(cb) {
         zipCb = cb;
       },
+      // Pedido de pacote de carta precatória (item do menu do botão de download).
+      // O content.js responde chamando `mostrarPrecatorias` com o resultado da
+      // heurística — o painel não conhece `PjePrecatoria` nem a timeline.
+      onPrecatorias(cb) {
+        precCb = cb;
+      },
+      // Abre a conferência. `onConfirmar(pacotesEscolhidos)` só é chamado se o
+      // usuário confirmar — a UI nunca dispara download sozinha.
+      mostrarPrecatorias: abrirPrec,
+      fecharPrecatorias: fecharPrec,
       // Trava/destrava o botão durante a exportação.
       setZipOcupado,
       // Peças que já estão no contexto da conversa. Chamado ao fim de cada

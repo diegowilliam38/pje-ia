@@ -90,7 +90,7 @@
     <div class="page">
       <h1 class="serif">O que mudou na extensão</h1>
       <p class="lead">
-        Da primeira versão (19 de julho de 2026) até hoje foram <strong>62 versões</strong>. Esta
+        Da primeira versão (19 de julho de 2026) até hoje foram <strong>63 versões</strong>. Esta
         página agrupa o que foi feito <strong>por recurso</strong> — é assim que se usa a
         extensão, não versão a versão. O
         <a class="link" href="#historico">histórico completo</a>, com data e uma linha por
@@ -99,7 +99,51 @@
 
       <div class="card destaque">
         <p class="eyebrow" style="color: rgba(255,255,255,0.7)">A novidade mais recente</p>
-        <h2><span class="v novo">v0.34.0</span> Documentos de texto longos entram inteiros — o limite passou a acompanhar o modelo</h2>
+        <h2><span class="v novo">v0.35.0</span> Carta precatória: o pacote do malote se monta sozinho</h2>
+        <p>
+          Para mandar uma carta precatória pelo <strong>malote digital</strong>, você
+          precisa juntar sempre as mesmas peças: a <strong>carta</strong>, a peça que deu
+          origem à ação (<strong>denúncia</strong>, queixa ou <strong>petição
+          inicial</strong>) e a <strong>decisão que fundamentou</strong> a expedição. Achar
+          essas três no meio de duzentas, uma por uma, e repetir para cada carta do
+          processo, é trabalho de garimpo.
+        </p>
+        <p>
+          Agora o botão <strong>⬇ Baixar .zip</strong> ganhou uma seta ao lado, e nela a
+          opção <strong>“Pacote de carta precatória”</strong>. A extensão lê a linha do
+          tempo inteira, encontra <strong>todas as cartas expedidas</strong> e monta
+          <strong>uma pasta para cada uma</strong>, já com as três peças dentro — cada
+          pasta pronta para virar um envio.
+        </p>
+        <p>
+          O que faz isso funcionar é a extensão passar a ler o <strong>movimento
+          processual</strong> lançado no PJe (“Expedição de carta precatória”), e não o
+          nome do arquivo. A diferença é grande: num processo real com três cartas, buscar
+          pelo <strong>nome</strong> devolvia <strong>seis</strong> peças — as outras três
+          eram a mesma carta <strong>devolvida</strong>, que volta aos autos com título
+          idêntico. Pelo movimento, as três certas, e só elas. A <strong>decisão</strong> de
+          cada pasta é a <strong>anterior àquela carta</strong> — e não a última do
+          processo, que pode ser posterior e nada ter a ver com o ato deprecado.
+        </p>
+        <p>
+          <strong>Nada é baixado sem você conferir.</strong> Antes do download aparece a
+          lista das cartas encontradas, com as três peças de cada uma e a data de
+          expedição; você desmarca as que não quer. Quando alguma peça não é localizada, a
+          tela <strong>diz qual falta</strong> em vez de entregar um pacote incompleto em
+          silêncio — e se a própria carta não puder ser baixada, aquela pasta
+          <strong>não é criada</strong>, com o motivo escrito no LEIA-ME.
+        </p>
+        <p>
+          A extensão também <strong>carrega a lista completa sozinha</strong> antes de
+          procurar. Isso não é conforto: a peça de origem é a <strong>mais antiga</strong>
+          do processo e quase nunca está no trecho que o PJe carrega de início — sem isso,
+          o pacote sairia faltando justamente a peça que instrui o ato.
+        </p>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">Antes disso</p>
+        <h2><span class="v">v0.34.0</span> Documentos de texto longos entram inteiros — o limite passou a acompanhar o modelo</h2>
         <p>
           Quem anexava um arquivo de <strong>texto</strong> grande — um <code>.md</code> ou
           <code>.txt</code> com os autos já extraídos, por exemplo — recebia o aviso de que
@@ -147,7 +191,6 @@
       </div>
 
       <div class="card">
-        <p class="eyebrow">Antes disso</p>
         <h2><span class="v">v0.33.0</span> Uma peça que falha não trava mais a conversa — e dá para anexar seus próprios arquivos</h2>
         <p>
           Quando o PJe não entregava uma peça, a análise seguia com as demais — mas a peça
@@ -936,7 +979,7 @@
 
       <h1 class="serif" id="historico">Histórico completo</h1>
       <p class="lead">
-        As 62 versões, da mais recente à primeira. As marcadas com
+        As 63 versões, da mais recente à primeira. As marcadas com
         <span class="dot-marco"></span> mudaram o produto de forma visível.
       </p>
 
@@ -946,6 +989,7 @@
             <tr><th>Versão</th><th>Data</th><th>O que mudou</th></tr>
           </thead>
           <tbody>
+            <tr class="marco"><td><span class="v">0.35.0</span></td><td>12/08/2026</td><td><span class="dot-marco"></span><strong>Pacote de carta precatória pronto para o malote digital</strong>: a seta ao lado de <strong>⬇ Baixar .zip</strong> monta, para cada carta expedida no processo, uma pasta com a <strong>carta</strong>, a peça de <strong>origem da ação</strong> (denúncia, queixa ou petição inicial) e a <strong>decisão anterior à expedição</strong> — cada pasta pronta para virar um envio. Para isso a extensão passou a ler o <strong>movimento processual</strong> do PJe, e não o nome do arquivo: num processo real com 3 cartas, o nome devolvia 6 peças (as outras 3 eram a mesma carta <strong>devolvida</strong>, de título idêntico), e o movimento devolveu exatamente as 3 expedidas. A lista completa é carregada <strong>automaticamente</strong> antes da busca, porque a peça de origem é a mais antiga do processo e quase nunca está no trecho já aberto. <strong>Nada baixa sem conferência</strong>: você vê as peças de cada pasta, desmarca o que não quer, e o que faltar aparece nomeado — pasta cuja carta não pôde ser baixada não é criada, com o motivo no LEIA-ME</td></tr>
             <tr class="marco"><td><span class="v">0.34.0</span></td><td>12/08/2026</td><td><span class="dot-marco"></span><strong>O limite de texto passou a acompanhar a janela do modelo</strong>, em vez de ser um número fixo de 60 mil caracteres (~30 páginas) herdado de quando a extensão só lidava com peças do editor do PJe. Um arquivo de texto de 1,5 milhão de caracteres entrava a <strong>3,8%</strong> mesmo num modelo de 1 milhão de tokens — e o medidor marcava 2%, porque o envio era mesmo minúsculo. O corte era ainda <strong>desigual por formato</strong>: o mesmo conteúdo em PDF passava inteiro. Agora o limite é dividido entre os documentos de texto do envio: um anexo sozinho cabe com ~2 milhões de caracteres num modelo de 1M, e vinte peças de texto continuam entrando (cortadas, com aviso) em vez de o envio ser recusado. O aviso passou a dizer <strong>“anexo”</strong> quando o cortado é um arquivo seu, informa o limite realmente aplicado e aponta a saída. Duas falhas do medidor corrigidas junto: o cálculo exato <strong>ignorava anexos ainda não enviados</strong> (a trava de contexto ficava cega), e o adiantamento de download repintava o medidor sem eles</td></tr>
             <tr><td><span class="v">0.33.1</span></td><td>11/08/2026</td><td>O <strong>clipe 📎</strong> voltou a abrir no primeiro clique. Depois da primeira resposta, o botão não reagia e o painel “pulava”: a faixa de atalhos do teclado aparecia ao clicar e <strong>empurrava a linha de mensagem 20 pixels para cima</strong>, tirando o botão de baixo do cursor antes de você soltar o mouse — o clique se perdia. O mesmo defeito atingia o <strong>Enviar</strong> depois de mexer na lista de peças. Anexar também deixou de tirar o cursor de onde você estava escrevendo</td></tr>
             <tr class="marco"><td><span class="v">0.33.0</span></td><td>10/08/2026</td><td><span class="dot-marco"></span><strong>Peça que falha no download sai da seleção sozinha</strong> — antes ela seguia marcada, era tentada a cada envio e derrubava o turno inteiro quando era a única peça nova, fazendo você perder a pergunta já escrita. O campo de mensagem ganhou o <strong>clipe 📎</strong>: anexe <strong>PDF, Word (.docx), RTF, TXT e Markdown</strong> e converse sobre eles junto das peças ou sozinhos — o PDF vai ao modelo com texto e imagem das páginas, o Word tem o texto extraído no próprio navegador, e nada disso fica gravado no computador (vale só para a sessão). Peça que a resposta aponta como <strong>faltante vira um botão</strong> de adicionar ao contexto. O <strong>Gemini</strong> passou a explicar o que fazer quando barra a análise no filtro de conteúdo dele, e pede ao Google o filtro mais permissivo aceito; a biblioteca de <strong>Modelos</strong> importa <code>.rtf</code> além de <code>.docx</code></td></tr>

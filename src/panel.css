@@ -771,7 +771,7 @@ button > svg { flex: none; }
 /* "Carregar tudo", "Escolher com IA" e "Baixar .zip" são ações IRMÃS sobre a
    lista inteira — compartilham a regra de propósito, para não divergirem com o
    tempo. */
-.tip-load, .tip-zip, .tip-ia {
+.tip-load, .tip-zip, .tip-ia, .tip-zip-mais {
   display: inline-flex; align-items: center; gap: var(--sp-2);
   height: 30px; padding: 0 var(--sp-3b);
   border: 1px solid var(--line-strong); background: #fff; color: var(--pje);
@@ -780,13 +780,34 @@ button > svg { flex: none; }
   cursor: pointer; transition: border-color 0.14s ease, background 0.14s ease;
   font-family: inherit;
 }
-.tip-load svg, .tip-zip svg, .tip-ia svg { flex: none; }
-.tip-load:hover, .tip-zip:hover, .tip-ia:hover {
+.tip-load svg, .tip-zip svg, .tip-ia svg, .tip-zip-mais svg { flex: none; }
+.tip-load:hover, .tip-zip:hover, .tip-ia:hover, .tip-zip-mais:hover {
   border-color: var(--line-focus); background: var(--hover-2);
 }
-.tip-load:disabled, .tip-zip:disabled, .tip-ia:disabled {
+.tip-load:disabled, .tip-zip:disabled, .tip-ia:disabled, .tip-zip-mais:disabled {
   opacity: 0.6; cursor: default;
 }
+
+/* ----- Split button do download -----
+   O corpo do botão mantém o clique direto (baixar peças é o caso comum e não
+   podia ganhar um clique a mais); o caret abre o menu com a segunda saída. Os
+   dois se colam num controle só: raios internos zerados e uma borda
+   compartilhada, para lerem-se como UM botão com duas zonas, e não como dois
+   botões que por acaso estão juntos. */
+.zipwrap { display: inline-flex; flex: none; }
+.zipwrap .tip-zip { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.tip-zip-mais {
+  border-top-left-radius: 0; border-bottom-left-radius: 0;
+  border-left: none; padding: 0 var(--sp-2);
+}
+/* A borda que separa as duas zonas é interna e discreta: com a borda cheia do
+   `--line-strong` o par parecia dois controles distintos. */
+.tip-zip-mais::before {
+  content: ""; width: 1px; height: 16px; background: var(--line-2);
+  margin-right: var(--sp-2);
+}
+.zipwrap:hover .tip-zip, .zipwrap:hover .tip-zip-mais { border-color: var(--line-focus); }
+.zipmenu { min-width: 218px; }
 /* ----- A faixa é SEMPRE de uma fileira -----
    A fileira nunca quebra por falta de espaço: quem cede é o rótulo de
    "Carregar tudo" (ellipsis), não a linha. Isto é incondicional de propósito —
@@ -854,6 +875,77 @@ button > svg { flex: none; }
 .wrap:is(.estreito, .expanded, .livre-wide) :is(.tip-ia, .tip-zip) {
   padding: 0 var(--sp-2b);
 }
+
+/* ----- Conferência dos pacotes de carta precatória -----
+   Herda todo o visual do `.plib` (o modal padrão do painel) carregando as duas
+   classes; aqui ficam só as diferenças de conteúdo. */
+.prec-intro { padding: 0 var(--sp-4) var(--sp-2b); }
+.prec-nota { font-size: var(--fs-meta); color: var(--muted); line-height: 1.45; }
+.prec-aviso {
+  font-size: var(--fs-meta); color: var(--warn); line-height: 1.45;
+  background: var(--warn-bg); border: 1px solid var(--warn-line);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--r-sm); padding: var(--sp-2) var(--sp-3);
+  margin-bottom: var(--sp-2b);
+}
+.prec-list { overflow: auto; padding: 0 var(--sp-4) var(--sp-3); flex: 1; min-height: 0; }
+/* Botão desabilitado precisa PARECER desabilitado: em cheio ele mantinha o
+   azul da ação principal e convidava ao clique justamente na tela em que não há
+   nada para baixar. */
+.prec-ok:disabled { opacity: 0.45; cursor: default; }
+/* O rodapé de ações do `.plib` vive DENTRO do `.plib-form`, que tem padding
+   próprio; aqui ele é filho direto do card e precisa do seu. Sem a borda e o
+   fundo, a última carta encostava nos botões e a lista parecia passar por baixo
+   deles — no painel estreito, onde a lista rola, isso lia-se como sobreposição. */
+.prec-card .plib-form-acts {
+  flex: none; padding: var(--sp-3) var(--sp-4);
+  border-top: 1px solid var(--line); background: var(--surface);
+}
+/* Conjunto vazio se EXPLICA, não desaparece — mesma regra da `.sel-nota`. */
+.prec-vazio {
+  font-size: var(--fs-meta); color: var(--muted); line-height: 1.5;
+  background: var(--surface-2); border: 1px dashed var(--line-strong);
+  border-radius: var(--r-md); padding: var(--sp-4);
+}
+.prec-item {
+  display: flex; gap: var(--sp-3); align-items: flex-start;
+  padding: var(--sp-3); margin-bottom: var(--sp-2b);
+  border: 1px solid var(--line); border-radius: var(--r-md);
+  background: var(--surface); cursor: pointer;
+}
+.prec-item:hover { border-color: var(--line-focus); background: var(--hover-2); }
+.prec-item > input { margin-top: 2px; width: 15px; height: 15px; flex: none; accent-color: var(--pje); }
+.prec-corpo { min-width: 0; flex: 1; }
+.prec-hd {
+  font-family: var(--ff-serif); font-size: var(--fs-ui); font-weight: 500;
+  color: var(--ink); margin-bottom: var(--sp-2);
+}
+.prec-p {
+  display: flex; align-items: baseline; gap: var(--sp-2);
+  font-size: var(--fs-meta); color: var(--text-2);
+  padding: 3px 0; min-width: 0;
+}
+/* A etiqueta do PAPEL vem antes do nome porque é ela que responde à pergunta
+   do usuário aqui ("qual destas é a carta?"), e não o título do arquivo. */
+.prec-tag {
+  flex: none; font-size: var(--fs-nano); font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--muted-2); width: 104px;
+  /* a coluna é fixa e os três rótulos precisam caber em UMA linha: quebrando,
+     a linha da peça cresce e a lista inteira desalinha */
+  white-space: nowrap;
+}
+.prec-p-carta .prec-tag { color: var(--pje); }
+.prec-id { flex: none; font-family: var(--ff-mono); font-size: var(--fs-nano); color: var(--muted-3); }
+.prec-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prec-extra { flex: none; font-size: var(--fs-nano); color: var(--muted-3); }
+.prec-falta {
+  margin-top: var(--sp-2); font-size: var(--fs-nano); color: var(--warn);
+}
+/* No painel estreito o rótulo vai para cima do nome: 92px de etiqueta mais o
+   título não cabem em 420px sem cortar o nome da peça, que é o que se lê. */
+.wrap.estreito .prec-p { flex-wrap: wrap; }
+.wrap.estreito .prec-tag { width: auto; }
 
 /* Menu de seleção em faixa (botão direito numa peça). Resolve o caso em que o
    outro extremo do intervalo está fora da tela — arrastar exigiria rolar com o

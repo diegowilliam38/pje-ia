@@ -503,8 +503,277 @@
     };
   }
 
+  // ---------------------------------------------------------------------------
+  // PACOTES DE CARTA PRECATÓRIA
+  //
+  // Um `.zip` com UMA PASTA POR CARTA, cada uma contendo a carta, a peça de
+  // origem da ação e a decisão que a fundamenta. A peça de origem se repete em
+  // todas as pastas de propósito: cada pasta vira um envio de malote digital
+  // independente e precisa sair completa do arquivo.
+  //
+  // É um zip só, e não um por carta, porque `baixarBlob` entrega UM arquivo — N
+  // downloads exigiriam a permissão `downloads`, que este projeto evita para não
+  // mudar o aviso de instalação da Web Store (mesma razão do iframe da grid).
+  // ---------------------------------------------------------------------------
+  const PAPEL = { carta: "1-carta-precatoria", origem: "2-origem", decisao: "3-decisao" };
+
+  // `instanceof Date` é falso entre realms (Date criado noutro contexto) e para
+  // a mesma data em texto ISO — e o nome da PASTA depende disso. Duck typing.
+  function diaIso(d) {
+    if (!d) return null;
+    const dt = typeof d === "string" ? new Date(d) : d;
+    if (!dt || typeof dt.getTime !== "function" || isNaN(dt.getTime())) return null;
+    return dt.toISOString().slice(0, 10);
+  }
+
+  function nomePastaPacote(p) {
+    const d = diaIso(p.data) || "sem-data";
+    const id = (p.carta && p.carta[0] && p.carta[0].id) || "sem-id";
+    return String(p.n).padStart(2, "0") + "_precatoria-" + id + "_" + d;
+  }
+
+  // Cada peça vira `<papel>_<Titulo-limpo>_<id>.<ext>`. O papel abre o nome (e
+  // não a posição, como no pacote de peças) porque aqui a pasta tem três
+  // arquivos com FUNÇÕES distintas — quem abre no juízo deprecado precisa saber
+  // qual é a carta e qual é a instrução, não em que ordem foram juntadas.
+  function nomeArquivoPacote(papel, doc, fmt, sufixo) {
+    const desc = nomeLimpo(doc.titulo);
+    return (
+      PAPEL[papel] + (sufixo || "") + "_" + (desc ? desc + "_" : "") + doc.id + (EXTENSAO[fmt] || ".txt")
+    );
+  }
+
+  function montarLeiaMePacotes(info) {
+    const L = [];
+    if (info.segredo) {
+      L.push("> ⚠️  PROCESSO EM SEGREDO DE JUSTIÇA — trate este material conforme as regras de sigilo.", "");
+    }
+    L.push("# Pacotes de carta precatória — processo " + (info.cnj || "(sem número)"), "");
+    L.push(
+      "Gerado em " + info.gerado + " pela extensão TecJustiça PJe, a partir das peças",
+      "da linha do tempo do processo. Cada pasta reúne o que instrui UMA carta",
+      "precatória e foi pensada para virar um envio de malote digital.",
+      ""
+    );
+    L.push("## O que há em cada pasta", "");
+    L.push(
+      "- `" + PAPEL.carta + "_…` — a carta precatória expedida;",
+      "- `" + PAPEL.origem + "_…` — a peça que deu origem à ação (denúncia, queixa ou petição inicial);",
+      "- `" + PAPEL.decisao + "_…` — a decisão/despacho **anterior à expedição** da carta, que a fundamenta.",
+      ""
+    );
+    L.push(
+      "A peça de origem se repete em todas as pastas de propósito: cada pasta é um",
+      "envio independente e precisa sair completa daqui.",
+      ""
+    );
+    L.push("## Como as peças foram escolhidas", "");
+    L.push(
+      info.porMovimento
+        ? "As cartas foram identificadas pelo **movimento processual** lançado no PJe " +
+            "(“Expedição de carta precatória”), que é vocabulário controlado — e não pelo " +
+            "título do arquivo. Isso evita confundir a carta EXPEDIDA com a carta DEVOLVIDA, " +
+            "que costuma ter título idêntico."
+        : "⚠️  Neste processo não havia movimento processual legível, então as cartas foram " +
+            "identificadas pelo **título** da peça. Confira se alguma delas é uma precatória " +
+            "devolvida, e não expedida.",
+      "",
+      "A decisão de cada pasta é a mais recente **anterior** à expedição daquela carta — ",
+      "e não a última decisão do processo, que pode ser posterior a ela.",
+      ""
+    );
+    L.push(
+      "**Confira antes de enviar.** A seleção é automática e feita por regra sobre os",
+      "metadados do PJe; ela não lê o conteúdo das peças.",
+      ""
+    );
+    if (info.ficha) {
+      L.push("## Processo", "", "```", ...blocoFicha(info.ficha), "```", "");
+    }
+    L.push("## Pastas", "");
+    for (const p of info.pacotes) {
+      if (p.semCarta) {
+        // Pasta NÃO criada. Aparece aqui porque some do zip: um pacote que
+        // desaparece sem explicação faria o servidor procurar o que não existe.
+        L.push("### (carta " + p.n + " — pasta NÃO gerada)");
+        L.push("");
+        L.push("⚠️  " + (p.faltas || []).join("; ") + ".");
+        L.push("");
+        L.push("Tente de novo: o download do PJe às vezes falha na primeira tentativa.");
+        L.push("");
+        continue;
+      }
+      L.push("### " + p.pasta);
+      L.push("");
+      for (const a of p.arquivos) L.push("- `" + a.arquivo + "` — " + a.titulo);
+      if (p.faltas && p.faltas.length) {
+        L.push("", "⚠️  Não foi possível localizar: " + p.faltas.join("; ") + ".");
+      }
+      L.push("");
+    }
+    if (info.falhas.length) {
+      L.push("## Peças que não puderam ser baixadas", "");
+      for (const f of info.falhas) L.push("- " + f.id + " — " + f.titulo + " (" + f.motivo + ")");
+      L.push("");
+    }
+    return L.join("\n");
+  }
+
+  // `pacotes` vem do `PjePrecatoria.montarPacotes`. `obter(id)` é o mesmo do
+  // `montarZip` — devolve `{kind, fmt, b64|text, pages}`.
+  async function montarZipPrecatorias(opts) {
+    const {
+      pacotes,
+      obter,
+      cnj,
+      ficha = null,
+      porMovimento = true,
+      onEtapa,
+      sinal,
+      agora = new Date(),
+    } = opts;
+    const Zip = opts.zip || (typeof window !== "undefined" && window.ZipW);
+    if (!Zip) throw new Error("escritor de ZIP indisponível");
+    if (!pacotes || !pacotes.length) throw new Error("nenhuma carta precatória para exportar");
+
+    const raiz = "precatorias-" + (String(cnj || "").replace(/[^\d.-]+/g, "") || "sem-numero");
+    const zip = Zip.criar({ data: agora });
+    const falhas = [];
+    const vistos = new Map(); // id -> conteúdo já baixado (a origem se repete)
+    let bytesTotais = 0;
+    const info = [];
+
+    for (const p of pacotes) {
+      if (sinal && sinal.cancelado) throw new Error("cancelado");
+      const pasta = nomePastaPacote(p);
+      const arquivos = [];
+      // A carta pode vir partida em vários arquivos (o PJe divide documentos
+      // grandes): todas as partes entram, numeradas.
+      const alvos = [];
+      p.carta.forEach((d, k) =>
+        alvos.push({ papel: "carta", doc: d, sufixo: p.carta.length > 1 ? "-parte" + (k + 1) : "" })
+      );
+      if (p.origem) alvos.push({ papel: "origem", doc: p.origem, sufixo: "" });
+      if (p.decisao) alvos.push({ papel: "decisao", doc: p.decisao, sufixo: "" });
+
+      // BAIXA TUDO ANTES DE GRAVAR QUALQUER COISA. Não é preciosismo de ordem:
+      // se a própria CARTA não vier, a pasta não deve existir. Gravando à medida
+      // que baixa, o download falho da carta deixava no zip uma pasta com a
+      // denúncia sozinha — que no destino parece um pacote e não é um, e o
+      // servidor só descobre depois de abrir. Como a entrada já estaria escrita,
+      // não haveria como desfazer.
+      const baixados = [];
+      for (const alvo of alvos) {
+        if (sinal && sinal.cancelado) throw new Error("cancelado");
+        const id = alvo.doc.id;
+        let c = vistos.get(id);
+        if (c === undefined) {
+          if (onEtapa) onEtapa(id, "loading");
+          try {
+            c = await obter(id);
+            if (!c) throw new Error("peça vazia");
+            vistos.set(id, c);
+          } catch (e) {
+            vistos.set(id, null);
+            falhas.push({
+              id,
+              titulo: semIdInicial(alvo.doc.titulo) || String(id),
+              motivo: (e && e.message) || String(e),
+            });
+            if (onEtapa) onEtapa(id, "erro");
+            continue;
+          }
+          if (onEtapa) onEtapa(id, "done");
+        }
+        if (!c) continue; // já falhou numa pasta anterior
+        baixados.push({ alvo, c });
+      }
+      if (!baixados.some((b) => b.alvo.papel === "carta")) {
+        // Sem a carta não há pacote. Some da lista de pastas e vira uma linha
+        // NOMEADA no LEIA-ME — nunca um sumiço silencioso.
+        info.push({
+          pasta: pasta,
+          n: p.n,
+          data: diaIso(p.data),
+          arquivos: [],
+          faltas: (p.faltas || []).concat("a própria carta precatória não pôde ser baixada"),
+          semCarta: true,
+        });
+        continue;
+      }
+      for (const { alvo, c } of baixados) {
+        if (sinal && sinal.cancelado) throw new Error("cancelado");
+        const id = alvo.doc.id;
+        const fmt = c.fmt || (c.kind === "pdf" ? "pdf" : "texto");
+        const ehBin = c.kind === "pdf" || c.kind === "img";
+        const dados = ehBin ? b64ParaBytes(c.b64) : c.text;
+        const bytes = ehBin ? dados.length : new TextEncoder().encode(c.text).length;
+        bytesTotais += bytes;
+        if (bytesTotais > TETO_BYTES) {
+          throw new Error(
+            "os pacotes somam mais de " +
+              Math.round(TETO_BYTES / 1048576) +
+              " MB e não cabem num único arquivo aqui. Gere menos cartas por vez."
+          );
+        }
+        const arquivo = nomeArquivoPacote(alvo.papel, alvo.doc, fmt, alvo.sufixo);
+        await zip.add(raiz + "/" + pasta + "/" + arquivo, dados, { comprimir: !ehBin });
+        arquivos.push({
+          arquivo,
+          papel: alvo.papel,
+          id,
+          titulo: semIdInicial(alvo.doc.titulo) || alvo.doc.titulo || "",
+          formato: fmt,
+          paginas: c.kind === "pdf" ? c.pages || null : null,
+          bytes,
+        });
+      }
+      info.push({
+        pasta,
+        n: p.n,
+        data: diaIso(p.data),
+        arquivos,
+        faltas: p.faltas || [],
+      });
+    }
+
+    if (sinal && sinal.cancelado) throw new Error("cancelado");
+
+    const meta = {
+      cnj,
+      ficha,
+      segredo: sobSegredo(ficha),
+      porMovimento,
+      pacotes: info,
+      falhas,
+      gerado: agora.toLocaleString("pt-BR"),
+      geradoIso: agora.toISOString(),
+    };
+    await zip.add(raiz + "/LEIA-ME.md", montarLeiaMePacotes(meta));
+    await zip.add(raiz + "/pacotes.json", JSON.stringify(meta, null, 2));
+    return {
+      blob: zip.fechar(),
+      nome: raiz + ".zip",
+      resumo: {
+        // só as pastas que de fato existem no zip — contar as que ficaram de
+        // fora faria o status prometer um pacote que o usuário não vai achar
+        pacotes: info.filter((p) => !p.semCarta).length,
+        semCarta: info.filter((p) => p.semCarta).length,
+        arquivos: info.reduce((n, p) => n + p.arquivos.length, 0),
+        falhas: falhas.length,
+        bytes: bytesTotais,
+      },
+      pacotes: info,
+      falhasDetalhe: falhas,
+    };
+  }
+
   const api = {
     montarZip,
+    montarZipPrecatorias,
+    nomePastaPacote,
+    nomeArquivoPacote,
+    montarLeiaMePacotes,
     nomeArquivo,
     nomeLimpo,
     nomePasta,
