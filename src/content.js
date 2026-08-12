@@ -267,21 +267,71 @@
   // decodificados) fica com folga confortável sob o limite.
   const MAX_TOTAL_B64_CHARS_OPENAI = 40 * 1024 * 1024;
 
-  // Teto do bloco de TEXTO de uma peça (HTML do editor, RTF de processo
-  // migrado) — cerca de 30 páginas. Sentença com transcrição de depoimentos e
-  // relatório longo passam disso.
+  // Chars por token — heurística única do projeto, usada pela estimativa local
+  // e pelo teto de texto abaixo. Declarada AQUI, no topo, e não junto do
+  // medidor (que é onde ela era): `tetoTextoChars` a lê e é chamada por
+  // `montarBlocos`/`pecasTruncadas`/`estimativaLocalTokens`, e a armadilha da
+  // zona morta temporal deste arquivo (ver CLAUDE.md) torna qualquer `const`
+  // declarada depois de `refresh()` um risco para quem a lê de um callback.
+  const CHARS_POR_TOKEN = 3.5;
+
+  // Teto do bloco de TEXTO — peça HTML do editor, RTF de processo migrado, ou
+  // arquivo de texto que o usuário anexa no input (.md/.txt/.docx).
   //
+  // NÃO é constante, e a diferença importa: o teto existe para proteger a
+  // JANELA do modelo, e a janela vai de 200 mil (Haiku) a 1,05 milhão de
+  // tokens (GPT-5.6). Enquanto ele foi o número fixo de 60.000 — herdado de
+  // quando só existiam peças de texto do PJe, ~30 páginas —, um anexo de 1,5
+  // milhão de caracteres entrava a 3,8%: o usuário via "2% do contexto" com um
+  // modelo de 1M e a resposta dizia que a leitura parou na página 25. O mesmo
+  // conteúdo em PDF passaria INTEIRO (vai por file_id, sem corte), então o
+  // formato mais leve era o único penalizado.
+  //
+  // O orçamento é REPARTIDO entre os textos do conjunto, e isso não é
+  // preciosismo: com teto individual generoso, 20 peças de texto marcadas de
+  // uma vez estourariam a janela e o pré-voo BARRARIA o turno — trocando uma
+  // degradação graciosa (entram cortadas, com aviso) por um erro duro. Assim,
+  // um anexo sozinho fica com quase todo o orçamento e 20 peças o dividem.
+  //
+  // A fração é 0,55 e não 0,9 porque o resto da janela tem dono: o histórico
+  // da conversa, o system, o inventário de peças não marcadas e — o maior
+  // deles — os PDFs das peças marcadas. A guarda de 90% em `estimarContexto`
+  // segue sendo a rede real; este teto é a primeira linha, não a única.
+  const TETO_TEXTO_MIN = 60000; // piso: o teto histórico, para janelas pequenas
+  const FRACAO_JANELA_TEXTO = 0.55;
+  function tetoTextoChars(nTextos) {
+    const janela = (modelCaps && modelCaps.contextTokens) || 200000;
+    const orcamento = janela * FRACAO_JANELA_TEXTO * CHARS_POR_TOKEN;
+    return Math.max(TETO_TEXTO_MIN, Math.floor(orcamento / Math.max(1, nTextos)));
+  }
+  // O teto que vale para um CONJUNTO de ids. Ponto ÚNICO dos três consumidores
+  // (`montarBlocos` corta, `pecasTruncadas` reporta, `estimativaLocalTokens`
+  // mede): se cada um contasse os textos por conta própria, o gauge mediria um
+  // corte diferente do que o request faz e o relatório anunciaria peças que não
+  // foram cortadas — a mesma razão que já mantinha a constante compartilhada.
+  function tetoTextoDe(ids) {
+    let n = 0;
+    for (const id of ids) {
+      const d = entradaDoc(id);
+      if (d && d.kind === "text" && d.text) n++;
+    }
+    return tetoTextoChars(n);
+  }
   // O corte em si é aceitável; cortar EM SILÊNCIO não é. O modelo veria metade
   // da peça e responderia "não consta" sobre o que estava na outra metade — e
   // essa resposta é indistinguível de uma correta. Por isso o texto cortado
-  // leva um aviso explícito para o modelo (MARCA_TRUNCADO) e a peça é listada
-  // para o usuário no fim do turno.
-  const MAX_CHARS_TEXTO = 60000;
-  const MARCA_TRUNCADO =
-    "\n\n[ATENÇÃO: esta peça é longa e foi cortada aqui, no limite de " +
-    "60.000 caracteres. O restante do conteúdo dela NÃO está nesta análise — " +
-    "não conclua que algo 'não consta' desta peça; diga que ela entrou " +
-    "parcialmente e indique até onde você conseguiu ler.]";
+  // leva um aviso explícito para o modelo e o item é listado para o usuário no
+  // fim do turno. O número vai no aviso: "cortada no limite" sem dizer onde não
+  // ajuda o modelo a calibrar o que falta.
+  function marcaTruncado(teto) {
+    return (
+      "\n\n[ATENÇÃO: este documento é longo e foi cortado aqui, no limite de " +
+      Math.round(teto / 1000) +
+      " mil caracteres. O restante do conteúdo dele NÃO está nesta análise — " +
+      "não conclua que algo 'não consta' dele; diga que ele entrou " +
+      "parcialmente e indique até onde você conseguiu ler.]"
+    );
+  }
 
   // Betas enviadas em todos os requests de chat (documentos por file_id).
   const BETAS_CHAT = ["files-api-2025-04-14"];
@@ -395,11 +445,18 @@
     return anexos.size ? [...ids, ...anexos.keys()] : ids;
   }
 
+  // Um id é de anexo do input quando é o sintético "anexo:<n>". Extraído para
+  // ser fonte ÚNICA: além do histórico, o relatório de itens cortados precisa
+  // da distinção para não chamar de "peça" um arquivo que o usuário anexou —
+  // quem lê "1 peça é longa demais" vai procurar na lista dos autos.
+  function ehIdAnexo(id) {
+    return typeof id === "string" && id.indexOf("anexo:") === 0;
+  }
   // Um bloco do histórico é de anexo do input quando o `__pecaId` sintético
   // começa por "anexo:". Usado para (a) removê-los na retomada — os bytes são de
   // sessão e o `file_id` já venceu — e (b) NÃO gravar os bytes no disco.
   function ehBlocoAnexo(b) {
-    return b && typeof b.__pecaId === "string" && b.__pecaId.indexOf("anexo:") === 0;
+    return !!b && ehIdAnexo(b.__pecaId);
   }
 
   // Cópia do `conversation` pronta para o disco: os blocos de anexo do input
@@ -449,6 +506,18 @@
   // request (o histórico não pode ser editado) e estourava os limites já no
   // segundo envio. Peça desmarcada permanece no histórico até "Nova conversa".
   let pecasNaConversa = new Set();
+  // "Este id ainda NÃO tem blocos no histórico?" — a pergunta que decide o que
+  // entra no turno de rascunho da medição e no anexo incremental do envio.
+  //
+  // Peça e anexo respondem por listas DIFERENTES, e é fácil não notar: as peças
+  // já enviadas vivem em `pecasNaConversa`, mas os anexos NUNCA entram nesse
+  // Set — quem os rastreia é o complemento de `anexosPendentes`. Por isso
+  // `!pecasNaConversa.has(id)` responde "sim, é novo" para TODO anexo, inclusive
+  // os já enviados, e é o predicado errado para os dois lados quando aplicado
+  // sozinho a um conjunto misto.
+  function ehNovoNoTurno(id) {
+    return ehIdAnexo(id) ? anexosPendentes.includes(id) : !pecasNaConversa.has(id);
+  }
   // A busca web foi usada nesta conversa: o histórico contém blocos de
   // ferramenta, então as tools continuam declaradas nos turnos seguintes
   // (mesmo com o toggle desligado) — remover trocaria o conjunto de tools,
@@ -1904,41 +1973,75 @@
     }
   }
 
-  // Peças de texto que serão cortadas por MAX_CHARS_TEXTO — a MESMA constante
-  // que `montarBlocos` usa para cortar, para as duas leituras nunca divergirem.
-  // O formato do retorno é o de `mostrarFalhasPecas` ({id, titulo, erro}).
+  // Peças (e anexos) de texto que serão cortados — pela MESMA regra que
+  // `montarBlocos` usa para cortar, via `tetoTextoDe`, para as duas leituras
+  // nunca divergirem. O formato do retorno é o de `mostrarFalhasPecas`
+  // ({id, titulo, erro}).
   function pecasTruncadas(ids) {
     const out = [];
+    const teto = tetoTextoDe(ids);
     for (const id of ids) {
       const d = entradaDoc(id); // peça (docsCache) ou anexo (.md/.txt longo)
-      if (d && d.kind === "text" && d.text && d.text.length > MAX_CHARS_TEXTO) {
+      if (d && d.kind === "text" && d.text && d.text.length > teto) {
         out.push({
           id,
           titulo: metaDe(id).titulo,
           erro:
-            "peça longa (~" +
+            (ehIdAnexo(id) ? "anexo longo (~" : "peça longa (~") +
             Math.round(d.text.length / 1000) +
-            " mil caracteres): entrou só até os primeiros 60 mil",
+            " mil caracteres): entrou só até os primeiros " +
+            Math.round(teto / 1000) +
+            " mil",
         });
       }
     }
     return out;
   }
-  // Rótulos do relatório de peças cortadas. Não pode reusar o texto padrão do
+  // Rótulos do relatório de itens cortados. Não pode reusar o texto padrão do
   // relatório de download: lá as peças ficaram DE FORA, aqui elas entraram —
   // pela metade, que é uma perda de outra natureza e com outra saída.
-  function avisoTrunc(n) {
-    return {
-      titulo:
+  //
+  // Recebe a LISTA, não a contagem: anexo do input e peça dos autos são coisas
+  // diferentes para quem lê. "1 peça é longa demais" sobre um arquivo que o
+  // usuário acabou de soltar na caixa manda ele procurar na lista dos autos uma
+  // peça que não foi cortada — e a saída para cada um dos dois também é outra.
+  function avisoTrunc(cortadas) {
+    const n = cortadas.length;
+    const nAnexos = cortadas.filter((c) => ehIdAnexo(c.id)).length;
+    const soAnexos = nAnexos === n;
+    const soPecas = nAnexos === 0;
+    let titulo;
+    if (soAnexos) {
+      titulo =
+        n === 1
+          ? "1 anexo é longo demais e entrou cortado nesta análise"
+          : n + " anexos são longos demais e entraram cortados nesta análise";
+    } else if (soPecas) {
+      titulo =
         n === 1
           ? "1 peça é longa demais e entrou cortada nesta análise"
-          : n + " peças são longas demais e entraram cortadas nesta análise",
+          : n + " peças são longas demais e entraram cortadas nesta análise";
+    } else {
+      titulo = n + " documentos são longos demais e entraram cortados nesta análise";
+    }
+    // O teto acompanha a janela do modelo, então trocar de modelo é uma saída
+    // REAL e não óbvia — vale dizer antes das outras. O .zip só existe para as
+    // peças dos autos; para um anexo, quem divide o arquivo é o usuário.
+    const saida = soAnexos
+      ? "Para alcançar o restante, divida o arquivo em partes menores e anexe " +
+        "uma de cada vez, ou pergunte especificamente sobre o trecho final."
+      : "Para alcançar o restante, pergunte especificamente sobre a parte final " +
+        "ou use ⬇ Baixar .zip e trabalhe o documento inteiro fora da extensão.";
+    return {
+      titulo,
       dica:
-        "Elas entraram, mas só até o corte — o que vem depois não foi lido, e o " +
-        "modelo foi avisado para não afirmar que algo 'não consta' delas. Para " +
-        "alcançar o restante, pergunte especificamente sobre a parte final da " +
-        "peça ou use ⬇ Baixar .zip e trabalhe o documento inteiro fora da " +
-        "extensão.",
+        (soAnexos ? "Eles entraram" : "Elas entraram") +
+        ", mas só até o corte — o que vem depois não foi lido, e o modelo foi " +
+        "avisado para não afirmar que algo 'não consta'. O limite acompanha a " +
+        "janela do modelo e é dividido entre os documentos de texto do envio: " +
+        "marcar menos itens de texto de uma vez, ou usar um modelo de janela " +
+        "maior, aumenta o quanto de cada um entra. " +
+        saida,
     };
   }
 
@@ -2023,6 +2126,9 @@
     // fileId só vale se o upload foi feito para o provedor ATUAL — um URI da
     // File API do Google num request Anthropic (ou o inverso) daria 400
     const provAtual = (modelCaps && modelCaps.provider) || "anthropic";
+    // Calculado UMA vez, antes do laço: o teto depende de quantos textos há no
+    // conjunto, então precisa ser o mesmo para todos eles.
+    const tetoTexto = tetoTextoDe(ids);
     for (const id of ids) {
       const d = entradaDoc(id);
       // Peça sem conteúdo no cache (download falhou) é PULADA, nunca uma
@@ -2091,16 +2197,16 @@
         });
       } else {
         // peças HTML/RTF viram documento de texto puro — também citáveis.
-        // O corte em MAX_CHARS_TEXTO leva o aviso junto: sem ele o modelo lê
-        // uma peça pela metade sem saber disso e responde "não consta" sobre o
-        // que ficou de fora — erro que a UI não tem como distinguir de acerto.
-        const cortado = d.text.length > MAX_CHARS_TEXTO;
+        // O corte no teto leva o aviso junto: sem ele o modelo lê uma peça pela
+        // metade sem saber disso e responde "não consta" sobre o que ficou de
+        // fora — erro que a UI não tem como distinguir de acerto.
+        const cortado = d.text.length > tetoTexto;
         blocks.push({
           type: "document",
           source: {
             type: "text",
             media_type: "text/plain",
-            data: cortado ? d.text.slice(0, MAX_CHARS_TEXTO) + MARCA_TRUNCADO : d.text,
+            data: cortado ? d.text.slice(0, tetoTexto) + marcaTruncado(tetoTexto) : d.text,
           },
           title: metaDe(id).titulo,
           citations: { enabled: true },
@@ -2492,7 +2598,7 @@
   // Alerta de contexto cheio só pela medição precisa (a local é aproximada).
   // ---------------------------------------------------------------------------
   const TOKENS_POR_PAGINA_PDF = 2000; // ordem de grandeza da API p/ PDF citável
-  const CHARS_POR_TOKEN = 3.5;
+  // CHARS_POR_TOKEN vive no TOPO do arquivo, junto do teto de texto que a usa.
   // Acima deste nº de peças AINDA NÃO baixadas, a medição em segundo plano não
   // dispara downloads (ex.: "todas" marcadas — o PJe ativa peça a peça de forma
   // serializada, levaria minutos). Fica a estimativa local parcial; a medição
@@ -2502,6 +2608,19 @@
   function estimativaLocalTokens(ids) {
     // system prompt + instruções fixas + instruções personalizadas do usuário
     let t = 900 + Math.ceil(customPrompt.length / CHARS_POR_TOKEN);
+    // O MESMO teto que o envio vai aplicar — medir por outro faria o gauge
+    // anunciar um tamanho que o request não tem.
+    //
+    // IMPRECISÃO CONHECIDA, e ela nasceu com o teto repartido: aqui `ids` é a
+    // seleção INTEIRA (`comAnexos(sel)`), enquanto `montarBlocos` recebe só o
+    // DELTA do turno. Com teto constante os dois davam no mesmo; agora, uma
+    // peça de texto nova somada a muitas antigas é medida com o teto dividido
+    // por todas e entra com o teto do delta — a estimativa fica abaixo do real.
+    // Aceito: esta camada é declaradamente aproximada (o alerta de contexto
+    // cheio sai da medição precisa), e `count_tokens` mede o request de fato
+    // sempre que o total passa de 60% da janela. Modelar o corte real exigiria
+    // saber com que teto cada bloco do histórico foi cortado.
+    const tetoTexto = tetoTextoDe(ids);
     // custo por página varia por provedor: Anthropic ≈ 2000 (texto+imagem
     // citável); Gemini = 258 (documentação oficial) — vem do caps
     const tokensPagina =
@@ -2517,7 +2636,7 @@
       } else if (d.kind === "pdf") {
         t += (d.pages || 1) * tokensPagina;
       } else if (d.text) {
-        t += Math.ceil(Math.min(d.text.length, MAX_CHARS_TEXTO) / CHARS_POR_TOKEN);
+        t += Math.ceil(Math.min(d.text.length, tetoTexto) / CHARS_POR_TOKEN);
       }
       // Peça de texto sem `text` é a hidratada cujo conteúdo passou do teto de
       // sanidade do banco: só metadados voltaram. Some da conta como uma peça
@@ -2659,7 +2778,12 @@
         panel.setStatus("");
         return;
       }
-      mostrarEstimativaLocal(ids);
+      // `comAnexos` e não `ids`: esta função recebe o conjunto que BAIXA (só
+      // peças — um "anexo:1" na fila viraria uma ida ao PJe atrás de peça que
+      // não existe), mas quem MEDE precisa dos anexos. Sem isso o gauge era
+      // repintado sem eles a cada lote do prefetch: o número caía no meio da
+      // barra de progresso e voltava no fim, sem nada explicando o pulo.
+      mostrarEstimativaLocal(comAnexos(ids));
       panel.setStatus(
         fila.length
           ? "Adiantando o download das peças (" + feitas + "/" + total + ") — pode " +
@@ -2720,6 +2844,12 @@
       // por file_id (payload mínimo) e o envio reaproveita o upload
       await subirPecas(ids);
       if (seq !== estSeq || busy) return;
+      // E os anexos do input, pelo mesmo motivo: `subirAnexos` só age em PDF
+      // que ainda não tem `fileId` do provedor atual, então é idempotente e
+      // barato. Sem ele o anexo novo entraria no count_tokens como base64
+      // inline — megabytes num pré-voo que roda a cada mudança de seleção.
+      await subirAnexos(idsMedidos.filter(ehIdAnexo).filter(ehNovoNoTurno));
+      if (seq !== estSeq || busy) return;
       panel.setStatus("Calculando o tamanho exato do contexto…", true);
 
       // request PROSPECTIVO: histórico filtrado + um turno de rascunho com
@@ -2736,7 +2866,18 @@
       // entraria em `montarBlocos` logo abaixo, que a descartaria — e no
       // caminho antigo (b64 ausente) estouraria um TypeError DENTRO deste try,
       // matando a medição em silêncio e deixando o medidor congelado.
-      const novas = ids.filter((id) => !pecasNaConversa.has(id) && podeAnexar(id));
+      //
+      // `idsMedidos` e não `ids`, pela SEGUNDA vez nesta função e por um motivo
+      // diferente do `ativos` acima: aquele conserta o histórico; este, o turno
+      // de RASCUNHO. Com `ids` (só peças), um anexo AINDA NÃO ENVIADO não tem
+      // bloco no histórico nem entrava aqui — o count_tokens media um request
+      // sem ele. Era a mesma cegueira que o `ativos` corrigiu, sobrevivendo na
+      // outra metade do request, e ela passou despercebida enquanto o anexo de
+      // texto era cortado em 60 mil chars (~17 mil tokens, ruído). Com o teto
+      // acompanhando a janela, o mesmo anexo vale ~450 mil tokens: o gauge
+      // despencaria depois de subir e a guarda de 90% ficaria cega justamente
+      // no caso que ela existe para pegar.
+      const novas = idsMedidos.filter((id) => ehNovoNoTurno(id) && podeAnexar(id));
       const rascunho = [...conversation];
       if (novas.length) {
         rascunho.push({
@@ -2997,7 +3138,7 @@
       // dos turnos anteriores já foram reportados quando entraram.
       const cortadas = pecasTruncadas([...anexadas, ...anexosNovos]);
       if (cortadas.length) {
-        panel.mostrarFalhasPecas(cortadas, avisoTrunc(cortadas.length));
+        panel.mostrarFalhasPecas(cortadas, avisoTrunc(cortadas));
       }
       let infoCtx = "";
       if (est) {
@@ -3824,7 +3965,7 @@
       if (dl.falhas.length) panel.mostrarFalhasPecas(dl.falhas);
       const cortadasMinuta = pecasTruncadas(dl.ok);
       if (cortadasMinuta.length) {
-        panel.mostrarFalhasPecas(cortadasMinuta, avisoTrunc(cortadasMinuta.length));
+        panel.mostrarFalhasPecas(cortadasMinuta, avisoTrunc(cortadasMinuta));
       }
 
       panel.setStatus("Redigindo a minuta a partir das peças marcadas…", true);
@@ -4101,7 +4242,7 @@
       if (dl.falhas.length) panel.mostrarFalhasPecas(dl.falhas);
       const cortadasMapa = pecasTruncadas(dl.ok);
       if (cortadasMapa.length) {
-        panel.mostrarFalhasPecas(cortadasMapa, avisoTrunc(cortadasMapa.length));
+        panel.mostrarFalhasPecas(cortadasMapa, avisoTrunc(cortadasMapa));
       }
 
       panel.setStatus("Montando o mapa mental a partir das peças marcadas…", true);

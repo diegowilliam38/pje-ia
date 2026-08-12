@@ -53,9 +53,12 @@ export const MAX_DIAS = 14;
 export const MAX_CONVERSAS = 12;
 
 // Teto de sanidade do texto de UMA peça. Acima disso grava só os metadados e a
-// peça re-baixa quando for usada. NÃO cortar em MAX_CHARS_TEXTO (60.000): quem
-// reporta o truncamento ao usuário é `pecasTruncadas`, que mede o texto REAL —
-// gravar já cortado faria o aviso aparecer e sumir entre sessões.
+// peça re-baixa quando for usada. NÃO cortar aqui pelo teto de envio
+// (`tetoTextoChars` em content.js): quem reporta o truncamento ao usuário é
+// `pecasTruncadas`, que mede o texto REAL — gravar já cortado faria o aviso
+// aparecer e sumir entre sessões. E o teto de envio agora acompanha a JANELA do
+// modelo, então o mesmo texto gravado pode entrar inteiro depois de uma troca
+// de modelo: guardar o corte de hoje congelaria a decisão de ontem.
 const MAX_CHARS_PECA = 2_000_000;
 
 // A conexão é memoizada, mas o memo é DESCARTÁVEL: o worker MV3 é morto a

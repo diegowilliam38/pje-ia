@@ -90,7 +90,7 @@
     <div class="page">
       <h1 class="serif">O que mudou na extensão</h1>
       <p class="lead">
-        Da primeira versão (19 de julho de 2026) até hoje foram <strong>58 versões</strong>. Esta
+        Da primeira versão (19 de julho de 2026) até hoje foram <strong>62 versões</strong>. Esta
         página agrupa o que foi feito <strong>por recurso</strong> — é assim que se usa a
         extensão, não versão a versão. O
         <a class="link" href="#historico">histórico completo</a>, com data e uma linha por
@@ -99,7 +99,56 @@
 
       <div class="card destaque">
         <p class="eyebrow" style="color: rgba(255,255,255,0.7)">A novidade mais recente</p>
-        <h2><span class="v novo">v0.33.0</span> Uma peça que falha não trava mais a conversa — e dá para anexar seus próprios arquivos</h2>
+        <h2><span class="v novo">v0.34.0</span> Documentos de texto longos entram inteiros — o limite passou a acompanhar o modelo</h2>
+        <p>
+          Quem anexava um arquivo de <strong>texto</strong> grande — um <code>.md</code> ou
+          <code>.txt</code> com os autos já extraídos, por exemplo — recebia o aviso de que
+          ele era “longo demais” e tinha entrado cortado, <strong>mesmo usando um modelo de
+          1 milhão de tokens</strong>. E o medidor de contexto marcava algo como
+          <strong>2%</strong>, o que só aumentava a estranheza: se sobrava tanto espaço,
+          por que cortar?
+        </p>
+        <p>
+          O limite era um número <strong>fixo de 60 mil caracteres</strong> — cerca de 30
+          páginas —, calibrado numa época em que a extensão só lidava com peças de texto do
+          editor do PJe. Um arquivo de 1,5 milhão de caracteres entrava a
+          <strong>3,8%</strong>: a resposta avisava que a leitura tinha parado na página 25
+          e o resto simplesmente não estava lá. Pior, o corte era
+          <strong>desigual por formato</strong>: o mesmo conteúdo em <strong>PDF</strong>
+          passava inteiro, porque PDF vai por outro caminho. Só o texto puro — o formato
+          mais leve — era penalizado.
+        </p>
+        <p>
+          Agora o limite <strong>acompanha a janela do modelo escolhido</strong> e é
+          <strong>dividido entre os documentos de texto do envio</strong>. Num modelo de 1
+          milhão de tokens, um anexo sozinho passa a caber com cerca de <strong>2 milhões
+          de caracteres</strong> — o arquivo do exemplo entra <strong>inteiro</strong>. Se
+          você marcar vinte peças de texto de uma vez, elas dividem o espaço entre si e
+          continuam entrando (cortadas, com aviso) em vez de o envio ser recusado por falta
+          de contexto. Em modelos de janela menor, como o Haiku, o limite encolhe sozinho —
+          mas ainda seis vezes maior que o de antes.
+        </p>
+        <p>
+          O aviso também ficou honesto: quando o cortado é um <strong>arquivo que você
+          anexou</strong>, ele diz “anexo”, e não “peça” — antes mandava você procurar nos
+          autos uma peça que não tinha sido cortada. A dica agora informa o limite
+          realmente aplicado e lembra que <strong>usar um modelo de janela maior</strong>,
+          ou marcar menos textos de uma vez, aumenta o quanto de cada um entra.
+        </p>
+        <p>
+          Junto foram <strong>duas falhas do medidor</strong> encontradas na revisão: o
+          cálculo exato do contexto <strong>ignorava os arquivos anexados</strong> que
+          ainda não tinham sido enviados — com o limite antigo isso era ruído, mas com
+          arquivos grandes o medidor despencaria depois de subir e a trava de segurança
+          ficaria cega justamente no caso que ela existe para pegar; e, durante o
+          adiantamento do download de muitas peças, o medidor era repintado sem os anexos,
+          fazendo o número cair no meio da barra de progresso e voltar no fim.
+        </p>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">Antes disso</p>
+        <h2><span class="v">v0.33.0</span> Uma peça que falha não trava mais a conversa — e dá para anexar seus próprios arquivos</h2>
         <p>
           Quando o PJe não entregava uma peça, a análise seguia com as demais — mas a peça
           continuava <strong>marcada</strong>. No envio seguinte ela era tentada de novo, e
@@ -158,7 +207,6 @@
       </div>
 
       <div class="card">
-        <p class="eyebrow">Antes disso</p>
         <h2><span class="v">v0.32.0</span> A petição inicial deixa de ficar de fora</h2>
         <p>
           O botão <strong>chave</strong> marca a espinha dorsal do processo — inicial,
@@ -888,7 +936,7 @@
 
       <h1 class="serif" id="historico">Histórico completo</h1>
       <p class="lead">
-        As 59 versões, da mais recente à primeira. As marcadas com
+        As 62 versões, da mais recente à primeira. As marcadas com
         <span class="dot-marco"></span> mudaram o produto de forma visível.
       </p>
 
@@ -898,6 +946,7 @@
             <tr><th>Versão</th><th>Data</th><th>O que mudou</th></tr>
           </thead>
           <tbody>
+            <tr class="marco"><td><span class="v">0.34.0</span></td><td>12/08/2026</td><td><span class="dot-marco"></span><strong>O limite de texto passou a acompanhar a janela do modelo</strong>, em vez de ser um número fixo de 60 mil caracteres (~30 páginas) herdado de quando a extensão só lidava com peças do editor do PJe. Um arquivo de texto de 1,5 milhão de caracteres entrava a <strong>3,8%</strong> mesmo num modelo de 1 milhão de tokens — e o medidor marcava 2%, porque o envio era mesmo minúsculo. O corte era ainda <strong>desigual por formato</strong>: o mesmo conteúdo em PDF passava inteiro. Agora o limite é dividido entre os documentos de texto do envio: um anexo sozinho cabe com ~2 milhões de caracteres num modelo de 1M, e vinte peças de texto continuam entrando (cortadas, com aviso) em vez de o envio ser recusado. O aviso passou a dizer <strong>“anexo”</strong> quando o cortado é um arquivo seu, informa o limite realmente aplicado e aponta a saída. Duas falhas do medidor corrigidas junto: o cálculo exato <strong>ignorava anexos ainda não enviados</strong> (a trava de contexto ficava cega), e o adiantamento de download repintava o medidor sem eles</td></tr>
             <tr><td><span class="v">0.33.1</span></td><td>11/08/2026</td><td>O <strong>clipe 📎</strong> voltou a abrir no primeiro clique. Depois da primeira resposta, o botão não reagia e o painel “pulava”: a faixa de atalhos do teclado aparecia ao clicar e <strong>empurrava a linha de mensagem 20 pixels para cima</strong>, tirando o botão de baixo do cursor antes de você soltar o mouse — o clique se perdia. O mesmo defeito atingia o <strong>Enviar</strong> depois de mexer na lista de peças. Anexar também deixou de tirar o cursor de onde você estava escrevendo</td></tr>
             <tr class="marco"><td><span class="v">0.33.0</span></td><td>10/08/2026</td><td><span class="dot-marco"></span><strong>Peça que falha no download sai da seleção sozinha</strong> — antes ela seguia marcada, era tentada a cada envio e derrubava o turno inteiro quando era a única peça nova, fazendo você perder a pergunta já escrita. O campo de mensagem ganhou o <strong>clipe 📎</strong>: anexe <strong>PDF, Word (.docx), RTF, TXT e Markdown</strong> e converse sobre eles junto das peças ou sozinhos — o PDF vai ao modelo com texto e imagem das páginas, o Word tem o texto extraído no próprio navegador, e nada disso fica gravado no computador (vale só para a sessão). Peça que a resposta aponta como <strong>faltante vira um botão</strong> de adicionar ao contexto. O <strong>Gemini</strong> passou a explicar o que fazer quando barra a análise no filtro de conteúdo dele, e pede ao Google o filtro mais permissivo aceito; a biblioteca de <strong>Modelos</strong> importa <code>.rtf</code> além de <code>.docx</code></td></tr>
             <tr class="marco"><td><span class="v">0.32.0</span></td><td>07/08/2026</td><td><span class="dot-marco"></span><strong>O degrau “chave” passa a reconhecer a petição inicial pela POSIÇÃO</strong>, e não só pelo nome: no PJe o título costuma ser o do arquivo (“Petição”, “Documentos diversos”), e a peça mais importante do processo ficava fora da seleção em silêncio. Considera também <strong>quem juntou</strong> o documento, o que distingue uma manifestação do <strong>Ministério Público</strong> ou da <strong>Defensoria</strong> de uma juntada qualquer; a dica da peça agora mostra o autor e, quando ela entrou por um desses sinais, o motivo. Exige <strong>⟳ Carregar tudo</strong> — sem a lista completa não há como saber qual é a primeira peça. O botão <strong>Analisar com IA</strong> pulsa até o primeiro clique para quem nunca abriu o painel, e a configuração ganhou o link <strong>Obter chave ↗</strong> direto para o console do provedor</td></tr>

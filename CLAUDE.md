@@ -597,16 +597,55 @@ e até a v0.23 as dez fontes eram tratadas como equivalentes.
   tentativa limpa. `panel.setPecasEnviadas([...pecasNaConversa])` é chamado no
   **`finally`** do turno: são QUATRO caminhos que mexem em `pecasNaConversa` (sucesso,
   resposta vazia, erro e turno desfeito) e espalhar a chamada garantiria esquecer um.
-- **Peça de texto (HTML/RTF) é cortada em `MAX_CHARS_TEXTO` (60.000), e o corte NÃO
-  pode ser silencioso**: são ~30 páginas, e sentença com transcrição de depoimentos ou
-  RTF de processo migrado passam disso. O texto cortado leva `MARCA_TRUNCADO` — um
-  aviso explícito para o modelo não concluir que algo "não consta" do que ele não
-  leu — e a peça entra em `pecasTruncadas`, reportada ao usuário pelo canal do
-  `mostrarFalhasPecas` com rótulos próprios (`avisoTrunc`): ali as peças ENTRARAM,
-  pela metade, que é uma perda de outra natureza que a do download. `mostrarFalhasPecas`
-  ganhou `opts {titulo, dica}` para isso; sem opts o texto é byte a byte o de antes.
-  A mesma constante alimenta `estimativaLocalTokens`, para as duas leituras nunca
-  divergirem.
+- **O teto do bloco de TEXTO acompanha a JANELA do modelo e é REPARTIDO**
+  (`tetoTextoChars`/`tetoTextoDe`), e o corte NÃO pode ser silencioso. Vale para
+  peça de texto (HTML do editor, RTF migrado) e para anexo do input (`.md`,
+  `.txt`, `.docx`), que compartilham o caminho por `entradaDoc`.
+  - **Era a constante `MAX_CHARS_TEXTO` (60.000) e isso era um bug de escala**:
+    o número nasceu de "peça HTML ≈ 30 páginas", quando anexo do input não
+    existia. Um `.md` de 1,57 milhão de caracteres entrava a **3,8%** — o
+    usuário via "2% do contexto" com um modelo de 1M e a resposta avisava que a
+    leitura parou na página 25. Pior, era **assimétrico por formato**: o mesmo
+    conteúdo em PDF passa INTEIRO (vai por `file_id`, sem corte), então o
+    formato mais leve era o único penalizado.
+  - **A repartição não é preciosismo.** Com teto individual generoso, 20 peças
+    de texto marcadas de uma vez estourariam a janela e o pré-voo BARRARIA o
+    turno — trocando uma degradação graciosa (entram cortadas, com aviso) por um
+    erro duro. Um anexo sozinho fica com quase todo o orçamento; 20 peças o
+    dividem. Piso de 60.000 (o teto histórico) para janelas pequenas.
+  - **A fração é 0,55 porque o resto da janela tem dono**: histórico, system,
+    inventário e — o maior — os PDFs das peças. A guarda de 90% em
+    `estimarContexto` segue sendo a rede real; este teto é a primeira linha.
+  - O texto cortado leva `marcaTruncado(teto)` — aviso explícito, **com o
+    número**, para o modelo não concluir que algo "não consta" do que ele não
+    leu — e o item entra em `pecasTruncadas`, reportado pelo canal do
+    `mostrarFalhasPecas` com rótulos próprios (`avisoTrunc`): ali os documentos
+    ENTRARAM, pela metade, que é uma perda de outra natureza que a do download.
+  - **`avisoTrunc` recebe a LISTA, não a contagem**: anexo e peça são coisas
+    diferentes para quem lê. "1 peça é longa demais" sobre um arquivo recém-solto
+    na caixa manda o usuário procurar nos autos uma peça que não foi cortada, e
+    a saída de cada um é outra (o `.zip` só existe para as peças; um anexo, quem
+    divide é o usuário). `ehIdAnexo` é o predicado único, compartilhado com
+    `ehBlocoAnexo`.
+  - **`tetoTextoDe(ids)` é o ponto ÚNICO dos três consumidores** (`montarBlocos`
+    corta, `pecasTruncadas` reporta, `estimativaLocalTokens` mede) — se cada um
+    contasse os textos por conta própria, o gauge mediria um corte diferente do
+    que o request faz. Os conjuntos batem em todos os caminhos:
+    `[...anexadas, ...anexosNovos]` no chat, `dl.ok` na minuta e no mapa.
+  - **IMPRECISÃO ACEITA e documentada no código**: `estimativaLocalTokens` mede a
+    seleção INTEIRA e `montarBlocos` recebe só o DELTA, então uma peça de texto
+    nova somada a muitas antigas é medida com o teto dividido por todas e entra
+    com o teto do delta — a estimativa fica abaixo do real. Com teto constante os
+    dois davam no mesmo. A camada local é declaradamente aproximada e o
+    `count_tokens` mede o request de fato acima de 60% da janela.
+  - **`CHARS_POR_TOKEN` mudou para o TOPO do arquivo** por causa disso: `refresh()`
+    roda na linha ~1271 e a const vivia na ~2495, junto do medidor — a zona morta
+    temporal descrita em "Desenvolvimento e teste". Mover uma `const` para mais
+    cedo no mesmo escopo é seguro por construção.
+  - `casodb.js` NÃO corta pelo teto de envio ao gravar (`MAX_CHARS_PECA` = 2M é
+    outro limite, de sanidade do banco): o texto gravado pode entrar inteiro
+    depois de uma troca de modelo, e guardar o corte de hoje congelaria a decisão
+    de ontem.
 - **Keepalive do service worker (MV3)**: o Chrome mata o worker após ~30 s sem eventos
   de extensão — fatal em turnos longos que ficam muito tempo sem emitir SSE (raciocínio
   extenso, busca na web) com
@@ -1455,6 +1494,13 @@ em `content.js`.
   `estimativaLocalTokens` e `pecasTruncadas` tratarem anexo e peça pelo mesmo caminho,
   via **`entradaDoc(id)`** (`docsCache.get(id) || anexos.get(id)`). Ler `docsCache` cru
   num desses fazia todo anexo cair em `semConteudo` e nunca chegar ao modelo.
+  **O contra-exemplo dessa unificação — e o único até agora — foi o TETO de texto**:
+  o anexo herdou por tabela o corte de 60.000 chars pensado para peça HTML de ~30
+  páginas, e um `.md` de 1,57 milhão entrava a 3,8% num modelo de 1M. Compartilhar o
+  caminho é certo; compartilhar um NÚMERO calibrado para o outro caso não era. Hoje o
+  teto acompanha a janela do modelo (ver a invariante do teto de texto acima). Ao
+  unificar peça e anexo num caminho novo, conferir se as CONSTANTES daquele caminho
+  também valem para os dois.
 - **`comAnexos(ids)` é a fronteira, e ela tem nome de propósito**: tudo que **MEDE**
   (estimativa local, `paginasDe`, o `ativos` do pré-voo, o gauge) precisa dos anexos;
   tudo que **BAIXA** (`precisaBaixar`, `baixarQuieto`, `subirPecas`,
