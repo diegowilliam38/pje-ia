@@ -1359,6 +1359,33 @@ pedido ao modelo.
 - **UM zip com pastas, não N zips**: `baixarBlob` entrega UM arquivo, e N
   downloads exigiriam a permissão `downloads` — que o projeto evita para não
   mudar o aviso de instalação da Store (mesma razão do iframe da grid).
+- **O CAMINHO tem teto duro: 260 caracteres no Windows.** Este pacote é o mais
+  fundo que a extensão produz (uma pasta por carta) e estourava de verdade — o
+  Explorer recusava com "O caminho de destino é muito longo", e o PDF "não
+  abria" pelo MESMO motivo: abrir um arquivo de dentro do zip faz o Windows
+  copiá-lo para `%TEMP%` com o mesmo caminho comprido, e a cópia falha antes de
+  o arquivo existir. **O zip estava correto** (CRC e bytes conferidos com o
+  `zipfile` do Python); o defeito era só o comprimento. Três correções, e a
+  primeira é a que mais rende:
+  - **Nenhuma pasta raiz DENTRO do zip.** O Explorer já cria uma pasta com o
+    nome do arquivo ao "Extrair tudo", então uma raiz interna homônima
+    duplicava 37 caracteres. Vale para a exportação de peças também.
+  - `nomePastaPacote` perdeu o id da carta (`01_2026-08-01`): ele já está
+    inteiro no nome do arquivo da carta, dentro da mesma pasta.
+  - `PAPEL` encurtado (`1-carta`, não `1-carta-precatoria`) e o trecho
+    descritivo cortado em `DESC_MAX_PACOTE` (32, contra os 50 da exportação
+    comum) — o título do PJe é repetitivo justo no começo ("Carta Precatória
+    (Outras) (Carta Precatória | Pág…"), então o que se corta é o que menos
+    identifica.
+
+  Resultado medido: **156 → 70 caracteres** dentro do zip, e folga de 79 até no
+  destino mais fundo. O teste do `zipfile` exige **margem** (≥40), não só
+  "cabe": um pacote que passa raspando volta a quebrar na primeira pasta de
+  destino um pouco mais funda.
+- **`nomeReal.slice()` depende do prefixo REAL da entrada.** Ao tirar a raiz, o
+  `slice(pasta.length + 7)` do índice virou `ReferenceError` — o mesmo modo de
+  falha do `ehPdf` que já quebrou a exportação inteira. `node --check` não pega;
+  quem pegou foi o teste que gera o zip de verdade.
 - **A peça de origem se REPETE em cada pasta**, de propósito: cada pasta é um
   envio independente e precisa sair completa do zip. O download é feito uma vez
   só (cache `vistos`), então a repetição não custa rede.
@@ -1573,6 +1600,89 @@ Desmarcar durante `busy` é seguro: `onSelectionChange` retorna cedo.
 O caso degenerado (tudo falhou, sem histórico e sem anexo) ainda derruba o turno — e
 ali o `throw` pula o relatório, então o `desmarcarPecas` acontece ANTES dele, ou o
 próximo envio repetiria a mesma falha.
+
+## A sessão JSF é UMA fila só (a tela do PJe não pode morrer)
+
+Sintoma que originou a regra: em processo grande, ao clicar **Enviar**, a página
+dos autos virava a tela de erro do PJe. A sessão continua **viva** (reabrir o
+processo resolve sem novo login) — o que morre é a **view JSF daquela aba**: o
+servidor guarda o estado de cada tela numa lista por sessão, e cada POST de
+página inteira empurra a mais antiga para fora.
+
+**Quem gasta view em volume é a leitura da grid**: `listarPelaGrid` faz um POST
+de página inteira POR PÁGINA (armadilha 4 de `docs/pje-tela-documentos.md`).
+Medido no 0202410-91.2026.8.06.0293: **138 peças ≈ 9 páginas ≈ 10 a 12 telas
+novas**, contra um teto por sessão da ordem de 15. **Quem descobre o estrago é o
+`link.click()` da ativação**, o primeiro postback seguinte — daí o erro aparecer
+no Enviar, e não no ⟳ que o causou.
+
+- **`ocupadoJsf()` é a fila única** (content.js, ao lado de
+  `bloqueadoPelaExportacao`). Envio, minuta, mapa, preview, prefetch,
+  refinamento, exportação e leitura da grid cedem uns aos outros. A matriz
+  handler × flag **já divergiu uma vez** — só a exportação e as precatórias
+  tinham as três, e o par que o usuário cruza de verdade (marcar peças e enviar
+  enquanto o ⟳ roda, que leva até 120 s) não era guardado por ninguém. Coberto
+  por teste tabular que varre o fonte.
+- **A recusa diz motivo e progresso** (`progressoGrid`, "página 7 de 14"): negar
+  por dois minutos sem explicar é indistinguível de travamento.
+- **`salvarCasoAgora()` roda ANTES do `startPrep`**, dentro de
+  `baixarSelecionadas` — o funil dos três pares baixar→subir, mesma razão de a
+  bomba de upload morar ali. Se a tela morrer no meio das ativações, o usuário
+  reabre o processo e o que já baixou está no disco COM o `fileId`. Tem de ser
+  `salvarCasoAgora` e não `agendarSalvar`, que retorna cedo durante `busy`.
+- **`telaMorta` para o lote em vez de martelar**: depois que a view morre, cada
+  peça restante é só mais um POST que produz erro. As pendentes viram falhas com
+  motivo próprio. O aviso vai por `setStatus` e **nunca** por `setAlerta`, que
+  embute um botão "Nova conversa" — a ação errada, já que jogaria fora a conversa
+  recém-gravada.
+- **A concorrência de download CEDE à ativação** (`CONCORRENCIA_DOWNLOAD` = 3, e
+  os workers esperam enquanto `PJE.ativacaoEmVoo()`): três GETs mais os oito HEAD
+  do poll mais o POST A4J são quatro frentes na mesma sessão. Adaptativo em vez
+  de fixo em 1 porque o caso comum — peça que vem pela rota completa, sem tocar
+  no JSF — não perde velocidade nenhuma. Vale nos DOIS laços de download
+  (`baixarSelecionadas` e `baixarQuieto`).
+- **ARMADILHA da cedência: o `await` invalida o topo do laço.** Os dois workers
+  testavam `while (fila.length)` e faziam `shift()` sem nada no meio; a espera
+  pela ativação abriu uma janela entre os dois. Com 2 peças e 3 workers, dois
+  esperam o mesmo POST, acordam juntos, o primeiro leva a última peça e o
+  segundo recebe **`undefined`** — que vira um GET para uma URL com "undefined"
+  e uma falha fantasma no relatório do chat. Por isso `telaMorta` **e** o
+  `shift` são reconferidos DEPOIS da espera (`if (id === undefined) break`).
+  Regra geral: **estado conferido antes de um `await` precisa ser reconferido
+  depois dele.** Coberto por teste que reproduz a corrida com e sem a guarda.
+- **AVALIADO E DESCARTADO: devolver o iframe à tela dos autos antes do
+  `remove()`.** Parece prudente e é contraproducente — `iframe.src =
+  location.href` carrega `listAutosDigitais.seam` outra vez e **cria mais uma
+  view**, gastando justamente o recurso que se esgotou, além de até 8 s de
+  espera. O benefício suposto ("tela corrente em escopo de sessão") não é o
+  mecanismo que a mensagem do PJe indica: "Sua página expirou" é
+  ViewExpiredException, que é view state.
+- **A lista da grid é gravada na memória de caso** (`gravarGrid`/`hidratarGrid`):
+  o ⟳ passa a valer por PROCESSO, não por sessão. Ganho duplo — some a exposição
+  repetida e o **tipo oficial** já está na primeira pintura da lista (é dele que
+  sai o degrau `chave`, antes perdido até alguém reler a grid). `gravarGrid` é
+  chamada UMA vez por leitura e **nunca** entra em `snapshotCaso`: são ~25 KB num
+  processo de 138 peças, e o debounce dispara a cada peça que baixa.
+- **NÃO mexer no `ca` da URL do iframe.** Testado na sessão real:
+  `listAutosDigitais.seam?idProcesso=…` sem o `ca` responde "Sem permissão para
+  acessar a página" — ele é a **chave de acesso**, não a conversação. Quem
+  identifica a conversação Seam é o **`cid`** (`error.seam?cid=681717`). Removê-lo
+  mataria a rota da grid em SILÊNCIO: o `catch → null` cai no scroll, a lista
+  continua vindo e o defeito passa despercebido por semanas. Confirmação
+  independente: o PJe expõe
+  `GET …/rest/pje-legacy/painelUsuario/gerarChaveAcessoProcesso/{idProcesso}`,
+  que devolve exatamente esse token — o nome do endpoint encerra a questão.
+- **Instrumentação atrás de `DIAG`** (`dlog` em pje.js, `console.log` e nunca
+  `console.debug` — Verbose vem desligado): contador de ativações por turno (o
+  número que decide se vale mexer na serialização do submit A4J), páginas e
+  requisições da grid, e as três sentinelas — `pagehide` com o último gesto JSF
+  (o único registro do instante da morte, e só sobrevive com "Preserve log"),
+  `#divTimeLine` sumido (a variante sem navegação) e `PJE.ehTelaDeErro()` no
+  bootstrap, que é o único sinal que sobrevive à navegação.
+- **Partir a leitura da grid em levas com clique foi avaliado e DESCARTADO**: as
+  páginas já são lidas sequencialmente, então o teto não reduz concorrência
+  nenhuma — é o mesmo total de POSTs, com fricção no meio. O que reduz POSTs é
+  não repetir a leitura (cache) e, se a grid oferecer, mais linhas por página.
 
 ## Anexos do input (📎) — arquivos do usuário na conversa
 

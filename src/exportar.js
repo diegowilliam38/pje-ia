@@ -71,8 +71,10 @@
     return num + "_" + (desc ? desc + "_" : "") + doc.id + (EXTENSAO[fmt] || ".txt");
   }
 
-  // Nome da pasta raiz dentro do ZIP: tudo sai numa pasta só, para quem
-  // descompacta na pasta de Downloads não espalhar 300 arquivos por lá.
+  // Nome do ARQUIVO .zip (sem a extensão). Já foi também o nome de uma pasta
+  // raiz dentro do zip, e essa duplicação era o defeito: o Explorer cria uma
+  // pasta com o nome do arquivo ao extrair, então o nome do processo aparecia
+  // duas vezes no caminho — ver o comentário em `montarZipPrecatorias`.
   function nomePasta(cnj) {
     const limpo = String(cnj || "").replace(/[^\d.-]+/g, "");
     return "processo-" + (limpo || "sem-numero");
@@ -396,7 +398,12 @@
     if (!Zip) throw new Error("escritor de ZIP indisponível");
 
     const { docs: emOrdem, criterio } = ordenarCronologico(docs);
-    const pasta = nomePasta(cnj);
+    // O nome do ARQUIVO leva o processo; o conteúdo não repete (ver o comentário
+    // longo em `montarZipPrecatorias`: a raiz interna homônima duplicava o nome
+    // no caminho, e o Windows recusa acima de 260 caracteres). Aqui a estrutura é
+    // mais rasa e não estourava, mas o desperdício era o mesmo — e um título de
+    // peça longo somado a uma pasta de destino funda chegava perto.
+    const nomeZip = nomePasta(cnj);
     const zip = Zip.criar({ data: agora });
 
     const itens = [];
@@ -449,11 +456,11 @@
       }
 
       // PDF e imagem já são contêineres comprimidos: recomprimir custa CPU por ~1%.
-      const nomeReal = await zip.add(pasta + "/pecas/" + arquivo, dados, { comprimir: !ehBin });
+      const nomeReal = await zip.add("pecas/" + arquivo, dados, { comprimir: !ehBin });
 
       itens.push({
         ordem,
-        arquivo: nomeReal.slice(pasta.length + 7), // sem o "<pasta>/pecas/"
+        arquivo: nomeReal.slice("pecas/".length), // o índice cita só o nome
         id: d.id,
         titulo: semIdInicial(d.titulo) || d.titulo || "",
         tituloCompleto: d.titulo || "",
@@ -486,12 +493,12 @@
       geradoIso: agora.toISOString(),
     };
 
-    await zip.add(pasta + "/LEIA-ME.md", montarLeiaMe(info));
-    await zip.add(pasta + "/indice.txt", montarIndiceTxt(info));
-    await zip.add(pasta + "/indice.json", montarIndiceJson(info));
+    await zip.add("LEIA-ME.md", montarLeiaMe(info));
+    await zip.add("indice.txt", montarIndiceTxt(info));
+    await zip.add("indice.json", montarIndiceJson(info));
     return {
       blob: zip.fechar(),
-      nome: pasta + ".zip",
+      nome: nomeZip + ".zip",
       resumo: {
         ok: itens.length,
         falhas: falhas.length,
@@ -515,7 +522,19 @@
   // downloads exigiriam a permissão `downloads`, que este projeto evita para não
   // mudar o aviso de instalação da Web Store (mesma razão do iframe da grid).
   // ---------------------------------------------------------------------------
-  const PAPEL = { carta: "1-carta-precatoria", origem: "2-origem", decisao: "3-decisao" };
+  // Os rótulos são CURTOS porque o caminho inteiro tem um teto duro: o Windows
+  // recusa a extração acima de 260 caracteres, e este pacote é o mais fundo que
+  // a extensão produz (pasta por carta). "1-carta-precatoria" gastava 18 dos
+  // ~130 disponíveis e não dizia nada que "1-carta" não diga — o pacote inteiro
+  // já se chama "precatorias-<cnj>.zip".
+  const PAPEL = { carta: "1-carta", origem: "2-origem", decisao: "3-decisao" };
+
+  // Teto do trecho descritivo NO PACOTE de precatória (o da exportação comum
+  // continua 50). Aqui há dois níveis de pasta a mais, e o título do PJe é
+  // repetitivo justamente no começo — "Carta Precatória (Outras) (Carta
+  // Precatória | Pág. Inicial SAJ 1)" —, então os caracteres cortados são os
+  // que menos identificam a peça. O id continua inteiro no nome.
+  const DESC_MAX_PACOTE = 32;
 
   // `instanceof Date` é falso entre realms (Date criado noutro contexto) e para
   // a mesma data em texto ISO — e o nome da PASTA depende disso. Duck typing.
@@ -526,10 +545,12 @@
     return dt.toISOString().slice(0, 10);
   }
 
+  // `NN_AAAA-MM-DD`. O id da carta SAIU daqui de propósito: ele já está inteiro
+  // no nome do arquivo da carta, dentro desta mesma pasta, e repeti-lo custava
+  // 21 caracteres num caminho que o Windows corta em 260. A data é o que
+  // identifica a carta para quem monta o malote.
   function nomePastaPacote(p) {
-    const d = diaIso(p.data) || "sem-data";
-    const id = (p.carta && p.carta[0] && p.carta[0].id) || "sem-id";
-    return String(p.n).padStart(2, "0") + "_precatoria-" + id + "_" + d;
+    return String(p.n).padStart(2, "0") + "_" + (diaIso(p.data) || "sem-data");
   }
 
   // Cada peça vira `<papel>_<Titulo-limpo>_<id>.<ext>`. O papel abre o nome (e
@@ -537,7 +558,7 @@
   // arquivos com FUNÇÕES distintas — quem abre no juízo deprecado precisa saber
   // qual é a carta e qual é a instrução, não em que ordem foram juntadas.
   function nomeArquivoPacote(papel, doc, fmt, sufixo) {
-    const desc = nomeLimpo(doc.titulo);
+    const desc = nomeLimpo(doc.titulo).slice(0, DESC_MAX_PACOTE).replace(/-+$/, "");
     return (
       PAPEL[papel] + (sufixo || "") + "_" + (desc ? desc + "_" : "") + doc.id + (EXTENSAO[fmt] || ".txt")
     );
@@ -636,7 +657,19 @@
     if (!Zip) throw new Error("escritor de ZIP indisponível");
     if (!pacotes || !pacotes.length) throw new Error("nenhuma carta precatória para exportar");
 
-    const raiz = "precatorias-" + (String(cnj || "").replace(/[^\d.-]+/g, "") || "sem-numero");
+    // O NOME DO ARQUIVO leva o processo; o conteúdo do zip NÃO repete isso.
+    //
+    // Repetia, e era um bug de verdade no Windows: ao "Extrair tudo" o Explorer
+    // já cria uma pasta com o nome do .zip, então uma raiz interna homônima
+    // duplicava 37 caracteres no caminho. Com os dois níveis que este pacote tem
+    // (uma pasta por carta), o caminho passava de 260 — o teto do Windows — e a
+    // extração falhava com "O caminho de destino é muito longo". O PDF também
+    // "não abria" pelo mesmo motivo: abrir um arquivo de dentro do zip faz o
+    // Explorer copiá-lo para %TEMP% com o mesmo caminho comprido, e a cópia
+    // falha antes de existir. O zip em si estava correto (CRC e bytes conferidos
+    // com um leitor independente) — o defeito era só o comprimento.
+    const nomeZip =
+      "precatorias-" + (String(cnj || "").replace(/[^\d.-]+/g, "") || "sem-numero");
     const zip = Zip.criar({ data: agora });
     const falhas = [];
     const vistos = new Map(); // id -> conteúdo já baixado (a origem se repete)
@@ -717,7 +750,7 @@
           );
         }
         const arquivo = nomeArquivoPacote(alvo.papel, alvo.doc, fmt, alvo.sufixo);
-        await zip.add(raiz + "/" + pasta + "/" + arquivo, dados, { comprimir: !ehBin });
+        await zip.add(pasta + "/" + arquivo, dados, { comprimir: !ehBin });
         arquivos.push({
           arquivo,
           papel: alvo.papel,
@@ -749,11 +782,11 @@
       gerado: agora.toLocaleString("pt-BR"),
       geradoIso: agora.toISOString(),
     };
-    await zip.add(raiz + "/LEIA-ME.md", montarLeiaMePacotes(meta));
-    await zip.add(raiz + "/pacotes.json", JSON.stringify(meta, null, 2));
+    await zip.add("LEIA-ME.md", montarLeiaMePacotes(meta));
+    await zip.add("pacotes.json", JSON.stringify(meta, null, 2));
     return {
       blob: zip.fechar(),
-      nome: raiz + ".zip",
+      nome: nomeZip + ".zip",
       resumo: {
         // só as pastas que de fato existem no zip — contar as que ficaram de
         // fora faria o status prometer um pacote que o usuário não vai achar

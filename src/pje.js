@@ -1,6 +1,69 @@
 // Camada de acesso ao PJe. Roda no contexto (mundo isolado) da página dos autos.
 // Reutiliza os mecanismos validados ao vivo: timeline no DOM + endpoint REST de download.
 var PJE = (function () {
+  // ---------------------------------------------------------------------------
+  // DIAGNÓSTICO da queda da tela do PJe em processo grande.
+  //
+  // Sintoma: ao clicar Enviar, a página dos autos vira a tela de erro do PJe
+  // (`error.seam`). A sessão continua VIVA — reabrir o processo resolve sem novo
+  // login —, então o que morre é a VIEW JSF daquela aba: o servidor guarda o
+  // estado de cada tela numa lista por sessão, e cada POST de página inteira
+  // empurra a mais antiga para fora. Quem faz esses POSTs em volume é a leitura
+  // da grid (um por página, ~9 num processo de 138 peças); quem descobre o
+  // estrago é o `link.click()` da ativação, que é o primeiro postback seguinte.
+  //
+  // Nada aqui muda comportamento: são contadores e um registro do último gesto,
+  // para o console dizer QUAL gesto precedeu a morte. Remover = apagar `dlog`,
+  // as chamadas marcadas `// DIAG` e este bloco.
+  // ---------------------------------------------------------------------------
+  const DIAG = true;
+  function dlog() {
+    // `console.log` e NUNCA `console.debug`: o nível Verbose do DevTools vem
+    // desligado por padrão, e instrumentação que ninguém enxerga não serve.
+    if (DIAG) console.log.apply(console, ["[PJe IA]"].concat([].slice.call(arguments)));
+  }
+
+  // Último gesto que fez POSTBACK na view desta aba. A sentinela do content.js
+  // lê isto no `pagehide` — é o ÚNICO registro que existe do instante da morte,
+  // porque a navegação para a tela de erro destrói este contexto.
+  let ultimoGesto = null; // {tipo, id, em}
+  function marcarGesto(tipo, id) {
+    ultimoGesto = { tipo, id: id == null ? "" : String(id), em: Date.now() };
+  }
+  function gestoJsf() {
+    if (!ultimoGesto) return null;
+    return Object.assign({}, ultimoGesto, { haMs: Date.now() - ultimoGesto.em });
+  }
+
+  // Ativações A4J em voo. A concorrência de download cede a isto: três GETs
+  // simultâneos MAIS os HEADs do poll MAIS um POST A4J são quatro requisições
+  // disputando a mesma sessão, e é assim que o Seam derruba a conversação.
+  let ativandoAgora = 0;
+  let ativacoesFeitas = 0;
+  function ativacaoEmVoo() {
+    return ativandoAgora > 0;
+  }
+  function contadorAtivacoes(zerar) {
+    const n = ativacoesFeitas;
+    if (zerar) ativacoesFeitas = 0;
+    return n;
+  }
+
+  // A tela dos autos ainda está viva nesta aba? `#divTimeLine` é o marcador da
+  // página de autos (é a mesma condição que o boot do content.js usa). Quando o
+  // A4J responde com a tela de erro SEM navegar, a timeline some e o DOM fica —
+  // é a variante que o `pagehide` não pega.
+  function telaDosAutosViva() {
+    return !!document.querySelector("#divTimeLine");
+  }
+
+  // Esta página É a tela de erro do PJe? Critério exato, conferido na sessão
+  // real: o PJe manda para `/{base}/error.seam` (com um `cid` de conversação na
+  // query). Vale mais que qualquer regex sobre o texto, que muda por tribunal.
+  function ehTelaDeErro() {
+    return /\/error\.seam$/.test(location.pathname);
+  }
+
   // Base path do PJe (ex.: "pje1grau"). Deriva da URL para tolerar variações.
   function getBase() {
     return location.pathname.split("/")[1] || "pje1grau";
@@ -268,28 +331,60 @@ var PJE = (function () {
     const run = async () => {
       const link = acharLink(id);
       if (!link) throw new Error("peça " + id + " não está visível na linha do tempo");
-      link.click();
-      // Aguarda o servidor registrar a peça na sessão, sondando a MESMA rota que
-      // o download vai usar — a PRIMEIRA de `urlsDownload` (a completa, quando o
-      // host tem sigla e há idProcesso).
-      //
-      // Sondar a rota CURTA aqui era um defeito silencioso e caro: ela responde
-      // 200 com uma casca vazia para toda peça HTML (decisões, despachos,
-      // petições do editor), então `probe.ok` ficava verdadeiro no primeiro poll
-      // e a ativação DESISTIA em 700 ms, em vez de esperar os ~5,6 s. Em
-      // seguida `tentarRotas` rodava de novo, a peça ainda não estava liberada e
-      // o erro final era "a peça N retornou vazia" — exatamente a falha que esta
-      // função existe para resolver, e justamente nas peças que mais importam.
-      const url = urlsDownload(id)[0];
-      for (let i = 0; i < 8; i++) {
-        await sleep(700);
-        const probe = await fetch(url, { method: "HEAD", credentials: "include" });
-        if (probe.ok) return;
+      // DIAG — este `click()` é um POST A4J na view desta aba. É o gesto que
+      // encontra a view já descartada e devolve a tela de erro; registrá-lo é o
+      // que permite ao log dizer "morreu depois da ativação da peça X".
+      ativandoAgora++;
+      ativacoesFeitas++;
+      const tAtiv = Date.now();
+      marcarGesto("ativação", id);
+      dlog("ativação #" + ativacoesFeitas + " peça " + id + " — clique disparado");
+      try {
+        link.click();
+      } catch (e) {
+        ativandoAgora--;
+        throw e;
       }
-      throw new Error("o PJe não liberou a peça " + id + " a tempo — tente novamente");
+      try {
+        return await pollLiberacao(id, tAtiv);
+      } finally {
+        ativandoAgora--;
+        // DIAG — a tela pode ter virado a de erro SEM navegar (resposta A4J
+        // parcial). Quem navega é pego pelo `pagehide` no content.js.
+        if (!telaDosAutosViva()) {
+          dlog("SENTINELA: #divTimeLine sumiu depois da ativação da peça " + id);
+        }
+      }
     };
     activationChain = activationChain.then(run, run);
     return activationChain;
+  }
+
+  // O poll que espera o PJe LIBERAR a peça (separado só para o `finally` acima
+  // conseguir envolver o clique e a espera sem aninhar mais um try).
+  async function pollLiberacao(id, tAtiv) {
+    // Aguarda o servidor registrar a peça na sessão, sondando a MESMA rota que
+    // o download vai usar — a PRIMEIRA de `urlsDownload` (a completa, quando o
+    // host tem sigla e há idProcesso).
+    //
+    // Sondar a rota CURTA aqui era um defeito silencioso e caro: ela responde
+    // 200 com uma casca vazia para toda peça HTML (decisões, despachos,
+    // petições do editor), então `probe.ok` ficava verdadeiro no primeiro poll
+    // e a ativação DESISTIA em 700 ms, em vez de esperar os ~5,6 s. Em
+    // seguida `tentarRotas` rodava de novo, a peça ainda não estava liberada e
+    // o erro final era "a peça N retornou vazia" — exatamente a falha que esta
+    // função existe para resolver, e justamente nas peças que mais importam.
+    const url = urlsDownload(id)[0];
+    for (let i = 0; i < 8; i++) {
+      await sleep(700);
+      const probe = await fetch(url, { method: "HEAD", credentials: "include" });
+      if (probe.ok) {
+        dlog("ativação peça " + id + " — liberada em " + (Date.now() - tAtiv) + " ms");
+        return;
+      }
+    }
+    dlog("ativação peça " + id + " — DESISTIU após " + (Date.now() - tAtiv) + " ms");
+    throw new Error("o PJe não liberou a peça " + id + " a tempo — tente novamente");
   }
 
   // Sigla do tribunal a partir do host: o rótulo imediatamente antes de
@@ -1080,6 +1175,10 @@ var PJE = (function () {
     const inp = doc.querySelector("input.rich-inslider-field");
     if (!inp) return false;
     const W = doc.defaultView; // eventos precisam ser do realm do IFRAME
+    // DIAG — cada virada de página é um POST de PÁGINA INTEIRA (ver a armadilha
+    // 4 de docs/pje-tela-documentos.md). É o gesto que cria telas JSF em volume:
+    // ~9 num processo de 138 peças, contra um teto por sessão da ordem de 15.
+    marcarGesto("grid:página", n);
     carimbar(doc);
     inp.value = String(n);
     for (const ev of ["input", "change", "blur"]) {
@@ -1191,7 +1290,15 @@ var PJE = (function () {
     const inicio = Date.now();
     const TETO_MS = 120000;
     try {
-      iframe.src = location.href; // mesma URL: leva idProcesso, ca e a sessão
+      // MESMA URL, e o `ca` é OBRIGATÓRIO: ele é a CHAVE DE ACESSO ao processo,
+      // não o id de conversação. Conferido na sessão real —
+      // `listAutosDigitais.seam?idProcesso=…` sem o `ca` responde "Sem permissão
+      // para acessar a página". Quem identifica a conversação Seam é o `cid`
+      // (visível no destino do erro: `error.seam?cid=681717`). Não tente abrir
+      // este iframe "numa conversação própria" removendo o `ca`: a rota morre em
+      // SILÊNCIO, porque o `catch` abaixo devolve null e o chamador cai no
+      // scroll — a lista continua vindo e o defeito passa despercebido.
+      iframe.src = location.href;
       document.body.appendChild(iframe);
       await new Promise((res) => {
         let feito = false;
@@ -1216,17 +1323,19 @@ var PJE = (function () {
 
       const vistos = new Set();
       const docs = [];
+      let lidas = 1;
       const acumular = (linhas) => {
         for (const l of linhas) {
           if (vistos.has(l.id)) continue;
           vistos.add(l.id);
           docs.push(l);
         }
-        if (onProgress) onProgress(docs.length);
+        // Página e total vão junto: quem recusa o envio durante a leitura
+        // precisa poder dizer QUANTO falta, e não só que está ocupado.
+        if (onProgress) onProgress(docs.length, lidas, paginas);
       };
       acumular(lerLinhas(tb, mapa));
 
-      let lidas = 1;
       let assinatura = assinaturaGrid(tb, mapa);
       for (let n = 2; n <= paginas; n++) {
         if (Date.now() - inicio > TETO_MS) break;
@@ -1242,9 +1351,18 @@ var PJE = (function () {
         acumular(lerLinhas(tbn, mn));
         assinatura = assinaturaGrid(tbn, mn);
         lidas++;
+        dlog("grid: página " + lidas + "/" + paginas + ", " + docs.length + " documento(s)");
       }
 
       if (!docs.length) return null;
+      // DIAG — o custo REAL desta leitura na sessão do PJe. `performance` do
+      // iframe é same-origin e precisa ser lido ANTES do `remove()`; é a única
+      // medida direta de quantas requisições a grid gastou.
+      dlog(
+        "grid: FIM — " + lidas + "/" + paginas + " páginas, " + docs.length +
+          " documento(s), " + Math.round((Date.now() - inicio) / 1000) + "s, " +
+          reqsDoIframe(iframe) + " requisições no iframe"
+      );
       return {
         docs,
         total: docs.length,
@@ -1259,6 +1377,30 @@ var PJE = (function () {
     }
   }
 
+  // Quantas requisições o iframe gastou. Same-origin, então a Performance
+  // Timeline dele é legível daqui — mas só ENQUANTO ele existe.
+  function reqsDoIframe(iframe) {
+    try {
+      return iframe.contentWindow.performance.getEntriesByType("resource").length;
+    } catch {
+      return -1; // documento já foi embora: não vale falhar por causa de um log
+    }
+  }
+
+  // AVALIADO E DESCARTADO: navegar o iframe de volta aos autos antes do
+  // `remove()`, para não largar a sessão parada na tela "Documentos".
+  //
+  // A ideia parece prudente e é contraproducente: `iframe.src = location.href`
+  // carrega `listAutosDigitais.seam` outra vez e, portanto, **cria mais uma view
+  // JSF** — gastando justamente o recurso que se esgotou. Custo certo (uma view
+  // a mais no fim da operação que já consumiu ~10, e até 8 s de espera) contra
+  // um benefício hipotético sobre "tela corrente em escopo de sessão", mecanismo
+  // que a mensagem do PJe não sustenta: "Sua página expirou" é
+  // ViewExpiredException, que é view state, não tela corrente.
+  //
+  // Se um dia houver evidência de estado de sessão corrompido (sintoma
+  // DIFERENTE de view expirada), reabrir — mas medindo o custo em views.
+
   return {
     getBase,
     getIdProcesso,
@@ -1272,6 +1414,14 @@ var PJE = (function () {
     carregarTimelineCompleta,
     listarPelaGrid,
     lerAnexo,
+    // Diagnóstico da queda da view (ver o bloco DIAG no topo). `ativacaoEmVoo`
+    // não é só log: a concorrência de download cede a ela.
+    ativacaoEmVoo,
+    contadorAtivacoes,
+    gestoJsf,
+    telaDosAutosViva,
+    ehTelaDeErro,
+    dlog,
     // expostos para teste fora do navegador
     _acharGrid: acharGrid,
     _mapaColunas: mapaColunas,

@@ -30,6 +30,20 @@
     return /\.jus\.br$/.test(raiz) ? raiz : null;
   })();
 
+  // A tela do PJe morreu debaixo de nós (view JSF expirada — ver o bloco DIAG em
+  // pje.js). Fica no TOPO junto do resto do estado lido por callback: quem a lê é
+  // o worker de `baixarSelecionadas`, registrado centenas de linhas antes das
+  // declarações do meio do arquivo (zona morta temporal).
+  //
+  // Depois que a view morre, cada peça restante é só mais um POST que produz
+  // erro: parar e DIZER o motivo é a diferença entre um susto e o usuário
+  // achando que a extensão travou.
+  let telaMorta = false;
+
+  // Progresso da leitura da grid ("página 7 de 14"), para a recusa de `ocupadoJsf`
+  // dizer QUANTO falta em vez de só negar. Mesma razão de estar no topo.
+  let progressoGrid = "";
+
   // Trechos comuns do system prompt; a parte de CITAÇÕES varia por provedor:
   // a Anthropic gera citações estruturadas por página (citations API); o
   // Gemini não tem esse recurso — o modelo é instruído a citar a peça e a
@@ -673,13 +687,20 @@
   // outro, que é pior do que não gravar nada.
   function snapshotCaso() {
     if (PJE.chaveDoCaso() !== casoChave) return null;
-    return {
+    const snap = {
       cnj: PJE.getNumeroProcesso() || null,
       host: location.hostname,
       grau: casoChave.split("|")[1] || null,
       idProcesso: PJE.getIdProcesso() || null,
       versaoExt: (chrome.runtime.getManifest && chrome.runtime.getManifest().version) || null,
     };
+    // A LISTA OFICIAL (grid) NÃO entra aqui, de propósito — ela é gravada UMA vez
+    // por leitura, em `gravarGrid()`. Este snapshot roda a cada debounce de 1,2 s
+    // (cada peça que baixa pede uma gravação), e a lista de um processo de 138
+    // peças passa de 25 KB: repeti-la centenas de vezes durante um prefetch
+    // custaria caro no worker — que é justamente o processo que o Chrome mata
+    // primeiro. O banco MESCLA o patch, então gravá-la uma vez basta.
+    return snap;
   }
 
   // O que pertence a UMA conversa (e não ao processo). Separado do caso porque
@@ -1099,6 +1120,16 @@
       });
       return;
     }
+    // A OUTRA ponta que faltava: durante um turno a extensão está ativando peças
+    // na timeline, e a grid começaria a fazer POST de página inteira no iframe ao
+    // mesmo tempo. Este par — turno × grid — é o que derruba a tela do usuário
+    // em processo grande, e era o único que ninguém guardava.
+    if (busy) {
+      panel.setTimelineTip({
+        texto: "Aguarde a resposta atual terminar para recarregar a lista de peças.",
+      });
+      return;
+    }
     carregandoTimeline = true;
     try {
       // ROTA 1 — grid da tela "Documentos" (ver docs/pje-tela-documentos.md).
@@ -1109,15 +1140,26 @@
         texto: "Consultando a lista oficial de documentos do processo…",
         carregando: true,
       });
-      const grid = await PJE.listarPelaGrid((n) =>
+      const grid = await PJE.listarPelaGrid((n, pag, total) => {
+        // `progressoGrid` alimenta a recusa de `ocupadoJsf`: enquanto isto roda,
+        // o envio é negado, e negar sem dizer quanto falta é o que faz a recusa
+        // parecer travamento.
+        progressoGrid = pag && total ? "página " + pag + " de " + total : "";
         panel.setTimelineTip({
-          texto: "Lendo a lista oficial… " + n + " documento(s).",
+          texto:
+            "Lendo a lista oficial… " + n + " documento(s)" +
+            (progressoGrid ? ", " + progressoGrid : "") + ".",
           carregando: true,
-        })
-      );
+        });
+      });
       if (grid && grid.docs.length) {
         docsDaGrid = grid.docs;
+        // `lidaEm` é o que permite à dica dizer DE QUANDO é a lista quando ela
+        // voltar do disco na próxima sessão. Sem isso o cache apresentaria uma
+        // leitura de semanas atrás como se fosse de agora.
+        grid.lidaEm = Date.now();
         gridInfo = grid;
+        gravarGrid(); // uma vez por leitura — ver o comentário em `snapshotCaso`
         atualizarListaPecas();
         panel.setTimelineTip({
           texto: grid.incompleto
@@ -1156,6 +1198,7 @@
       panel.setTimelineTip(null); // volta ao padrão; o botão segue disponível
     } finally {
       carregandoTimeline = false;
+      progressoGrid = "";
       agendarSalvar();
     }
   });
@@ -1413,6 +1456,11 @@
   panel.onPreviewBaixar(async (id) => {
     if (busy) throw new Error("aguarde a resposta atual terminar para abrir a peça");
     if (exportando) throw new Error("aguarde a exportação terminar para abrir a peça");
+    // O preview pode ATIVAR a peça (postback na timeline), então também entra na
+    // fila única da sessão JSF — aqui como exceção, porque o painel espera um
+    // throw e não uma recusa silenciosa.
+    if (carregandoTimeline)
+      throw new Error("aguarde a leitura da lista de documentos terminar para abrir a peça");
     // `{bytes:true}`: o preview desenha o PDF/a imagem na tela, então precisa do
     // conteúdo aqui — uma peça retomada da memória tem `fileId` e nenhum byte, e
     // sem esta flag o download era pulado e o botão não fazia nada.
@@ -1491,9 +1539,36 @@
     bodyObs.observe(document.documentElement, { childList: true, subtree: true });
   }
 
+  // A tela dos autos expirou no servidor. Diz o que houve, de quem é a falha e
+  // qual é a saída — e diz que o trabalho está guardado, porque a pergunta que o
+  // usuário faz nessa hora é "perdi tudo?".
+  //
+  // `setStatus` e NÃO `setAlerta`: a barra de alerta embute um botão "Nova
+  // conversa", que aqui é a ação errada — jogaria fora justamente a conversa que
+  // acabou de ser gravada antes das ativações.
+  function marcarTelaMorta() {
+    if (telaMorta) return;
+    telaMorta = true;
+    PJE.dlog("SENTINELA: tela dos autos morta — abortando o que restava do lote");
+    panel.setStatus(
+      "A tela do PJe expirou (é do PJe, não da extensão). Feche e reabra o " +
+        "processo — a conversa e as peças já baixadas foram guardadas e não " +
+        "serão baixadas de novo."
+    );
+  }
+
   // Acima disto o download está fora do normal e vale dizer ao usuário que o
   // problema é a rede — a ativação JSF de uma peça leva ~5,6 s em condições boas.
   const SEGUNDOS_PECA_LENTO = 12;
+
+  // Downloads simultâneos. Continua 3 no caso comum (peça que vem pela rota
+  // completa, sem tocar no JSF), mas os workers CEDEM enquanto houver um POST
+  // A4J em voo: três GETs mais os oito HEADs do poll mais o POST são quatro
+  // frentes disputando a mesma sessão do PJe, e é assim que o Seam derruba a
+  // conversação por `concurrent-request-timeout`. Ceder custa nada quando não há
+  // ativação, que é justamente o caso em que a velocidade importa.
+  const CONCORRENCIA_DOWNLOAD = 3;
+  const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // Baixa a peça uma única vez por aba: o download do PJe é serializado na
   // sessão JSF (~5,6 s cada), então todo caminho que precisa do conteúdo passa
@@ -1533,6 +1608,17 @@
   //
   // Devolve {ok:[ids], falhas:[{id, titulo, erro}]}.
   async function baixarSelecionadas(ids) {
+    // GRAVA ANTES DE TOCAR NO JSF. Daqui para a frente cada peça pode disparar
+    // uma ativação, e é durante essa fase que a tela do PJe morre em processo
+    // grande. Quando isso acontece o usuário fecha e reabre o processo — e o que
+    // já tinha baixado precisa estar no disco COM o `fileId`, senão a segunda
+    // tentativa paga a fila inteira de novo e corre o mesmo risco.
+    //
+    // Tem de ser `salvarCasoAgora`, não `agendarSalvar`: esta última retorna
+    // cedo durante `busy`, que é exatamente o estado de um turno. Fica AQUI, no
+    // funil dos três pares baixar→subir (chat, minuta e mapa), pela mesma razão
+    // que a bomba de upload mora aqui — nos call sites, seria fácil esquecer um.
+    await salvarCasoAgora();
     panel.startPrep(ids.map(metaDe));
     const queue = ids.slice();
     const falhas = [];
@@ -1602,7 +1688,34 @@
     let avisouLento = false;
     async function worker() {
       while (queue.length) {
+        // Cede a vez enquanto outro worker está no meio de uma ativação A4J (o
+        // POST + os 8 HEADs do poll). Quem está ativando não passa por aqui: ele
+        // só volta ao topo do laço depois que a própria ativação terminou.
+        while (PJE.ativacaoEmVoo() && !telaMorta) await esperar(300);
+
+        // TUDO É RECONFERIDO DEPOIS DA ESPERA, e não antes dela. Este `await` é
+        // novo, e com ele o estado testado no topo do laço deixou de valer: dois
+        // workers podem esperar o mesmo POST e acordar juntos, o primeiro leva a
+        // última peça e o segundo receberia `undefined` do `shift` — que viraria
+        // um GET para uma URL com "undefined" e uma falha fantasma no relatório.
+        if (telaMorta) {
+          // A tela do PJe morreu: cada peça restante seria só mais um POST numa
+          // view que não existe mais. As pendentes viram FALHAS com o motivo —
+          // parar em silêncio pareceria travamento, e elas seguem elegíveis para
+          // a próxima tentativa (nunca entraram em `pecasNaConversa`).
+          while (queue.length) {
+            const pend = queue.shift();
+            falhas.push({
+              id: pend,
+              titulo: metaDe(pend).titulo,
+              erro: "a tela do PJe expirou antes desta peça",
+            });
+            panel.setPrepState(pend, "erro");
+          }
+          break;
+        }
         const id = queue.shift();
+        if (id === undefined) break; // outro worker levou a última durante a espera
         panel.setPrepState(id, "loading");
         if (precisaBaixar(id)) {
           try {
@@ -1632,6 +1745,12 @@
             // envio com falhas nunca chegaria ao fim (mesma regra da exportação)
             panel.setPrepState(id, "erro");
             continue;
+          } finally {
+            // A ativação desta peça pode ter encontrado a view já expirada. O
+            // sintoma no DOM é a timeline sumir — a variante em que o A4J
+            // responde a tela de erro SEM navegar (a que navega é registrada
+            // pela sentinela do `pagehide`).
+            if (!telaMorta && !PJE.telaDosAutosViva()) marcarTelaMorta();
           }
         }
         // A peça está em cache. Se ainda falta subir à Files API, ela tem uma
@@ -1649,11 +1768,21 @@
         }
       }
     }
-    await Promise.all([worker(), worker(), worker()]);
+    await Promise.all(
+      Array.from({ length: CONCORRENCIA_DOWNLOAD }, () => worker())
+    );
     bombear(); // a última peça pode ter entrado na fila com a bomba parada
     await cadeiaUpload;
     const perdidas = new Set(falhas.map((f) => f.id));
     const ok = ids.filter((id) => !perdidas.has(id));
+    // DIAG — correlaciona a queda da tela com o volume REAL do turno. O número
+    // de ativações é o que decide se vale mexer na serialização do submit A4J:
+    // se forem 2 em 40 peças, aquele caminho é irrelevante.
+    PJE.dlog(
+      "download: " + ok.length + " ok, " + falhas.length + " falha(s), " +
+        PJE.contadorAtivacoes(true) + " ativação(ões), " +
+        Math.round((Date.now() - t0) / 1000) + "s" + (telaMorta ? " — TELA MORTA" : "")
+    );
     return { ok, falhas };
   }
 
@@ -2699,7 +2828,15 @@
     let feitas = 0;
     async function w() {
       while (fila.length) {
+        // Mesma cedência do download do turno: enquanto há um POST A4J em voo,
+        // os outros workers esperam, para não somar GETs concorrentes ao pico da
+        // sessão do PJe. E, como o topo do laço deixou de valer depois do
+        // `await`, o `shift` é reconferido — dois workers podem acordar juntos e
+        // o segundo receberia `undefined`.
+        while (PJE.ativacaoEmVoo() && !telaMorta) await esperar(300);
+        if (telaMorta) break; // view expirada: medir agora só produz mais erro
         const id = fila.shift();
+        if (id === undefined) break;
         try {
           await garantirBaixada(id);
         } catch (e) {
@@ -2709,7 +2846,9 @@
         if (onProgresso) onProgresso(feitas, total);
       }
     }
-    await Promise.all([w(), w(), w()]);
+    await Promise.all(
+      Array.from({ length: CONCORRENCIA_DOWNLOAD }, () => w())
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -2891,16 +3030,18 @@
     const total = fila.length;
     while (fila.length) {
       // Cede ANTES de cada lote: `busy` cobre o envio (que passa a ser dono do
-      // download) e `estSeq` cobre uma nova seleção. Sem esta guarda o
-      // prefetch competiria com o turno pela sessão JSF, que é serializada.
-      if (seq !== estSeq || busy || exportando) {
+      // download), `estSeq` cobre uma nova seleção e `carregandoTimeline` cobre
+      // a leitura da grid — este último é o par que mais aparece na prática, já
+      // que o usuário marca peças enquanto o ⟳ ainda está virando páginas, e aí
+      // seriam duas frentes na mesma sessão JSF.
+      if (seq !== estSeq || busy || exportando || carregandoTimeline || telaMorta) {
         panel.setStatus("");
         return;
       }
       const lote = fila.splice(0, LOTE_PREFETCH);
       await baixarQuieto(lote);
       feitas += lote.length;
-      if (seq !== estSeq || busy || exportando) {
+      if (seq !== estSeq || busy || exportando || carregandoTimeline || telaMorta) {
         panel.setStatus("");
         return;
       }
@@ -2930,7 +3071,11 @@
     // refinamento BAIXA peças — e a exportação já está usando a sessão JSF,
     // que é serializada. Duas frentes de download só se atrapalhariam, e as
     // ativações da própria exportação re-disparam este handler o tempo todo.
-    if (busy || exportando) return;
+    // `carregandoTimeline` entra pela mesma razão: a leitura da grid é a frente
+    // JSF mais pesada que existe aqui, e o refinamento começaria a baixar peças
+    // no meio dela. `telaMorta` porque, depois da view expirar, todo download é
+    // só mais um POST inútil.
+    if (busy || exportando || carregandoTimeline || telaMorta) return;
     // O conjunto MEDIDO inclui os anexos do input; o conjunto BAIXADO, não (ver
     // `comAnexos`). A chave da memoização é a do medido: anexar ou soltar um
     // arquivo muda o request e precisa re-medir, exatamente como marcar uma peça.
@@ -3054,8 +3199,35 @@
     return true;
   }
 
+  // FILA ÚNICA DA SESSÃO JSF.
+  //
+  // Envio, minuta, mapa, preview, prefetch, refinamento, exportação e leitura da
+  // grid falam todos com o MESMO servidor de estado do PJe, e ele não tolera
+  // duas frentes na mesma view: uma faz POST de página inteira dentro do iframe
+  // enquanto a outra clica na timeline, e a tela do usuário vira `error.seam`.
+  //
+  // Vira função única porque a matriz de handlers × flags JÁ DIVERGIU: até aqui
+  // só `onExportarZip` e `onPrecatorias` checavam as três; o envio e o prefetch
+  // ignoravam `carregandoTimeline`, que é exatamente o par que o usuário cruza
+  // no fluxo normal (clicar ⟳ num processo grande leva até 120 s, e é nesse
+  // intervalo que ele marca as peças e manda a pergunta).
+  //
+  // Devolve `true` quando está OCUPADO — e já escreve o motivo, como a irmã
+  // acima. Recusa sem motivo vira "a extensão não fez nada".
+  function ocupadoJsf() {
+    if (bloqueadoPelaExportacao()) return true;
+    if (carregandoTimeline) {
+      panel.setStatus(
+        "Lendo a lista oficial de documentos" + (progressoGrid ? " (" + progressoGrid + ")" : "") +
+          ". O PJe não aceita duas operações ao mesmo tempo — isto volta assim que terminar."
+      );
+      return true;
+    }
+    return false;
+  }
+
   panel.onSend(async (text, selectedIdsDoPainel) => {
-    if (busy || bloqueadoPelaExportacao()) return;
+    if (busy || ocupadoJsf()) return;
     // A seleção do turno é a EFETIVA (checkboxes + peças restauradas cuja row a
     // timeline lazy ainda não criou) — ver `selecaoEfetiva`.
     const selectedIds = selecaoEfetiva().length
@@ -4047,7 +4219,7 @@
   }
 
   panel.onMinuta(async (text, selecaoDoPainel, modelos) => {
-    if (busy || bloqueadoPelaExportacao()) return;
+    if (busy || ocupadoJsf()) return;
     // Seleção EFETIVA, pelo mesmo motivo do chat: num processo retomado as rows
     // da timeline lazy podem não existir ainda, e a minuta recusaria peças que
     // o usuário vê marcadas na conversa.
@@ -4337,7 +4509,7 @@
     " \"> [!ALERTA]\" (o mapa é feito de nós; um bloco de citação não vira nó).";
 
   panel.onMapa(async (text, selecaoDoPainel) => {
-    if (busy || bloqueadoPelaExportacao()) return;
+    if (busy || ocupadoJsf()) return;
     const selectedIds = selecaoEfetiva().length ? selecaoEfetiva() : selecaoDoPainel;
     if (selectedIds.length === 0) {
       panel.setStatus("Marque as peças que devem embasar o mapa mental.");
@@ -4541,6 +4713,7 @@
       if (desligado) memoriaMorta = true;
       else if (caso) {
         hidratarPecas(caso.pecas);
+        hidratarGrid(caso.grid);
         retomarConversa(caso);
         conversasDoCaso = caso.conversas || [];
         panel.setConversas(conversasDoCaso, convAtual);
@@ -4826,6 +4999,57 @@
       );
     }
   }
+
+  // Grava a lista oficial no disco. Chamada UMA vez por leitura da grid — nunca
+  // pelo snapshot recorrente (ver `snapshotCaso`): são ~25 KB num processo de
+  // 138 peças, e o debounce de gravação dispara a cada peça que baixa.
+  //
+  // É o que faz o ⟳ passar a valer por PROCESSO em vez de por sessão. Como o
+  // banco mescla o patch, gravar só este campo não toca em mais nada.
+  function gravarGrid() {
+    if (!memoriaDisponivel || !casoChave || !casoCarregado || memoriaMorta) return;
+    if (!gridInfo || !docsDaGrid || !docsDaGrid.length) return;
+    CASO.salvar(casoChave, {
+      grid: {
+        docs: docsDaGrid,
+        paginas: gridInfo.paginas,
+        paginasLidas: gridInfo.paginasLidas,
+        incompleto: !!gridInfo.incompleto,
+        lidaEm: gridInfo.lidaEm || Date.now(),
+      },
+    });
+  }
+
+  // Repõe a LISTA OFICIAL (grid) do disco — irmã de `hidratarPecas`.
+  //
+  // Isto é o que faz o ⟳ passar a valer por PROCESSO em vez de por sessão: a
+  // leitura da grid custa um POST de página inteira por página na sessão do PJe,
+  // e é esse volume que expira a view da aba em processo grande. Reler o mesmo
+  // processo a cada abertura era pagar o risco de novo sem ganhar nada.
+  //
+  // O ⟳ continua existindo (o processo anda), mas agora é ATUALIZAÇÃO, e a dica
+  // diz de quando é a lista — leitura antiga apresentada como atual seria pior
+  // que não ter cache.
+  function hidratarGrid(grid) {
+    if (!grid || !Array.isArray(grid.docs) || !grid.docs.length) return;
+    docsDaGrid = grid.docs;
+    gridInfo = grid;
+    atualizarListaPecas(); // o tipo oficial já entra na 1ª pintura da lista
+    const quando = grid.lidaEm ? new Date(grid.lidaEm).toLocaleDateString("pt-BR") : null;
+    panel.setTimelineTip({
+      texto:
+        grid.docs.length + " documento(s) da lista oficial" +
+        (quando ? ", lida em " + quando : "") +
+        (grid.incompleto
+          ? " — leitura PARCIAL (" + grid.paginasLidas + " de " + grid.paginas + " páginas)."
+          : ".") +
+        " Clique em ⟳ para atualizar.",
+    });
+    console.log(
+      "[PJe IA] memória: lista oficial retomada do disco — " + grid.docs.length +
+        " documento(s), sem nenhuma requisição ao PJe"
+    );
+  }
   iniciarMemoria();
 
   // Rede de segurança: o usuário troca de aba ou fecha a janela sem ter mexido
@@ -4836,12 +5060,42 @@
     if (document.visibilityState === "hidden") salvarCasoAgora();
   });
 
+  // SENTINELA da morte da view (DIAG) — a linha mais importante do diagnóstico.
+  //
+  // Quando a view JSF expira, o PJe NAVEGA a aba para `error.seam`, e a navegação
+  // destrói este contexto: nenhum log posto depois sobrevive. Este handler roda
+  // no documento VELHO, no último instante em que ele existe, e é o único
+  // registro possível de QUAL gesto precedeu a queda.
+  //
+  // Só aparece no console com "Preserve log" ligado no DevTools — sem isso a
+  // navegação limpa tudo e a evidência some junto.
+  window.addEventListener("pagehide", () => {
+    const g = PJE.gestoJsf && PJE.gestoJsf();
+    if (!g) return; // saída normal, sem nenhum gesto nosso no JSF: nada a dizer
+    PJE.dlog(
+      "SENTINELA: a página do PJe está saindo — último gesto JSF: " +
+        g.tipo + " " + g.id + " há " + g.haMs + " ms"
+    );
+  });
+
   } // fim de iniciar()
 
   // Bootstrap: monta o painel só em telas de autos do PJe. Em apps de página
   // única (frontend novo do PJe) a timeline pode surgir bem depois do load —
   // o observer fica atento até ela aparecer (custo desprezível: um
   // querySelector por lote de mutações).
+  // DIAG — esta página É a tela de erro do PJe? É o único sinal que SOBREVIVE à
+  // navegação: o contexto anterior morreu com ela, e aqui, no documento novo,
+  // ainda dá para dizer que a aba acabou de cair. Roda antes de `iniciar()`
+  // porque a tela de erro não tem timeline e o painel nunca seria montado.
+  if (PJE.ehTelaDeErro()) {
+    PJE.dlog(
+      "SENTINELA: esta página é a tela de ERRO do PJe (" + location.pathname +
+        location.search + ") — a view da aba anterior expirou. A sessão segue " +
+        "válida: reabrir o processo resolve."
+    );
+  }
+
   if (document.querySelector("#divTimeLine")) {
     iniciar();
   } else {
