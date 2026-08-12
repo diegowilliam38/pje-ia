@@ -2322,6 +2322,11 @@ var PjePanel = (function () {
     });
     function confirmarLeituraPesada() {
       return new Promise((resolve) => {
+        // Uma chamada nova com outra pendente deixaria a primeira promessa
+        // pendurada para sempre — e quem a esperava travaria em silêncio. Não
+        // deveria acontecer (o content.js serializa), mas promessa presa é o
+        // tipo de defeito que não dá sintoma nenhum: fecha-se a anterior.
+        if (gwarnResolve) responderGwarn(false);
         let respondeu = false;
         const decidir = (r) => {
           if (respondeu) return; // storage que responde síncrono E via promessa

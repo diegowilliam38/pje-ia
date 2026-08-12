@@ -99,7 +99,31 @@
 
       <div class="card destaque">
         <p class="eyebrow" style="color: rgba(255,255,255,0.7)">A novidade mais recente</p>
-        <h2><span class="v novo">v0.38.0</span> A lista completa de peças agora vem sem abrir nenhuma tela do PJe</h2>
+        <h2><span class="v novo">v0.38.1</span> O aviso da lista não trava mais o resto da extensão</h2>
+        <p>
+          Correção de dois defeitos da versão anterior, achados em revisão antes de
+          chegarem ao uso.
+        </p>
+        <p>
+          O aviso que aparece antes da leitura pesada da lista ficava
+          <strong>segurando a fila</strong> enquanto estivesse aberto: se você lesse o
+          aviso e fosse fazer outra coisa, o envio, a minuta e a pré-visualização eram
+          recusados nesse meio-tempo — e com a mensagem “lendo a lista de documentos”,
+          que naquele momento <strong>não era verdade</strong>. Agora a espera acontece
+          com tudo liberado, e a extensão reconfere se você começou outra operação antes
+          de prosseguir.
+        </p>
+        <p>
+          A <strong>procedência da lista</strong> passou a ser guardada junto com ela. Sem
+          isso, ao reabrir o processo numa sessão seguinte, o <code>LEIA-ME</code> do
+          <code>.zip</code> descrevia a origem errada dos documentos — e é justamente ali
+          que a procedência precisa ser exata.
+        </p>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">Antes disso</p>
+        <h2><span class="v">v0.38.0</span> A lista completa de peças agora vem sem abrir nenhuma tela do PJe</h2>
         <p>
           O botão <strong>⟳ Carregar tudo</strong> — que traz a lista completa das peças,
           com o tipo oficial de cada uma — abria a tela “Documentos” do PJe e virava
@@ -125,7 +149,6 @@
       </div>
 
       <div class="card">
-        <p class="eyebrow">Antes disso</p>
         <h2><span class="v">v0.37.0</span> O pacote da precatória sai com o PDF oficial — timbre, paginação e assinatura</h2>
         <p>
           O pacote de carta precatória tinha um defeito que só aparecia tarde demais: as

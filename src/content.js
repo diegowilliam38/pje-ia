@@ -1137,8 +1137,13 @@
   }
 
   let carregandoTimeline = false;
+  // Reentrada do PRÓPRIO ⟳, separada da fila JSF de propósito: a rota 1 (API) e
+  // a espera pela confirmação do usuário não tocam no JSF, e ocupar a fila nelas
+  // seria bloquear envio, minuta, mapa e preview sem motivo — ver o comentário
+  // em `carregandoTimeline = true`, mais abaixo.
+  let lendoLista = false;
   panel.onCarregarTimeline(async () => {
-    if (carregandoTimeline) return;
+    if (lendoLista || carregandoTimeline) return;
     // A ROTA 1 (grid) faz submits A4J dentro do iframe, e a exportação está
     // ativando peças na timeline — duas frentes na MESMA sessão JSF, que o
     // PJe serializa. É a outra ponta da guarda `bloqueadoPelaExportacao`: sem
@@ -1159,7 +1164,7 @@
       });
       return;
     }
-    carregandoTimeline = true;
+    lendoLista = true;
     try {
       // ROTA 1 — API REST (`processos/{id}/documentos`): UMA requisição, ZERO
       // tela JSF gasta, e traz o tipo oficial de cada peça — que é o dado pelo
@@ -1168,6 +1173,9 @@
       // usuário em processo grande. Best-effort: `null` cai na rota 2, inclusive
       // quando a lista vem MENOR que a timeline já conhece — uma lista que
       // encolhe é pior que nenhuma.
+      //
+      // Repare que a fila JSF (`carregandoTimeline`) NÃO é ocupada aqui: esta
+      // rota não fala com o JSF, e ocupá-la faria o envio ser recusado à toa.
       panel.setTimelineTip({
         texto: "Consultando a lista oficial de documentos do processo…",
         carregando: true,
@@ -1188,10 +1196,27 @@
       // a aba do usuário expirar. Por isso o aviso está AQUI, e não no clique do
       // ⟳: no caminho normal (rota 1) esse risco não existe, e avisar seria
       // descrever um perigo que ele não corre.
+      //
+      // A ESPERA PELO USUÁRIO ACONTECE COM A FILA JSF LIVRE. Ele pode ler o
+      // aviso, ir fazer outra coisa e voltar minutos depois; com a fila tomada,
+      // todo esse tempo o envio, a minuta e o preview seriam recusados — e com a
+      // mensagem "Lendo a lista oficial de documentos", que nesse intervalo é
+      // FALSA: não há leitura nenhuma acontecendo, só um modal aberto.
       if (!(await panel.confirmarLeituraPesada())) {
         panel.setTimelineTip(null);
         return;
       }
+      // RECONFERE o que foi testado antes do `await`: o usuário pode ter mandado
+      // uma pergunta enquanto o aviso estava na tela, e aí a grid entraria no
+      // JSF junto com as ativações do turno — exatamente o par que derruba a
+      // aba. Mesma regra da corrida dos workers de download.
+      if (busy || exportando) {
+        panel.setTimelineTip({
+          texto: "Outra operação começou enquanto o aviso estava aberto — clique de novo quando ela terminar.",
+        });
+        return;
+      }
+      carregandoTimeline = true;
       const grid = await PJE.listarPelaGrid((n, pag, total) => {
         // `progressoGrid` alimenta a recusa de `ocupadoJsf`: enquanto isto roda,
         // o envio é negado, e negar sem dizer quanto falta é o que faz a recusa
@@ -1245,7 +1270,7 @@
         return;
       }
 
-      // ROTA 2 — fallback: rolar a timeline até o fim, como sempre.
+      // ROTA 3 — fallback: rolar a timeline até o fim, como sempre.
       const res = await PJE.carregarTimelineCompleta((n) =>
         panel.setTimelineTip({
           texto: "Carregando a linha do tempo… " + n + " peça(s) na lista.",
@@ -1262,7 +1287,11 @@
       console.warn("[PJe IA] carregar timeline:", e);
       panel.setTimelineTip(null); // volta ao padrão; o botão segue disponível
     } finally {
+      // As duas flags saem aqui: `carregandoTimeline` pode nem ter sido tomada
+      // (o caminho da API não a toma), e zerá-la à toa é inofensivo — o que não
+      // pode acontecer é sair deste handler com qualquer uma delas presa.
       carregandoTimeline = false;
+      lendoLista = false;
       progressoGrid = "";
       agendarSalvar();
     }
@@ -5155,6 +5184,13 @@
         paginasLidas: gridInfo.paginasLidas,
         incompleto: !!gridInfo.incompleto,
         lidaEm: gridInfo.lidaEm || Date.now(),
+        // A PROCEDÊNCIA vai junto, senão a lista volta do disco sem ela e o
+        // `.zip` gerado na sessão seguinte afirmaria "lida da tela Documentos,
+        // em 1 de 1 páginas" sobre o que veio da API numa resposta só —
+        // descrevendo um mecanismo que não foi usado, no arquivo em que a
+        // procedência é justamente o que precisa ser exato. Registro anterior
+        // gravado sem o campo continua caindo nos ramos antigos.
+        fonte: gridInfo.fonte || "grid",
       },
     });
   }
