@@ -971,8 +971,35 @@ o que não sabe que existe. **Sete dos treze passos são sobre marcar peças**, 
 
 ## Busca de peças e orientações (panel.js)
 
-- **"Carregar todas as peças" tenta DUAS rotas, nesta ordem** (detalhes e
+- **"Carregar todas as peças" tenta TRÊS rotas, nesta ordem** (detalhes e
   armadilhas em `docs/pje-tela-documentos.md`):
+  0. **`PJE.listarPelaApi`** — `GET /{base}/seam/resource/rest/pje-legacy/
+     processos/{idProcesso}/documentos`, da mesma família REST que a extensão já
+     usa para baixar peça. Devolve um ARRAY puro de `{id, descricao, data,
+     binario, linkDownload}` em **uma requisição**, autenticada pelo cookie de
+     sessão. **A `descricao` é o TIPO OFICIAL** ("Petição Inicial", "Documento de
+     Comprovação") — o dado por causa do qual a grid existia —, e o custo é
+     **ZERO tela JSF**, contra ~10 da grid num processo de 138 peças. Como é a
+     leitura da grid que esgota o orçamento de telas e faz a aba morrer com "Sua
+     página expirou", esta rota tira o risco do caminho normal.
+     Medido no 3000436-28.2026.8.06.0203: 35 documentos contra 33 na timeline —
+     **superconjunto** (nenhum id da timeline faltou) e em ordem cronológica
+     CRESCENTE, que até aqui era só premissa da exportação.
+     - **GUARDA ANTI-REGRESSÃO**: lista MENOR que a timeline já no DOM é
+       recusada (`null` → cai na grid). Uma lista que encolhe é pior que
+       nenhuma: a peça some sem ninguém ver.
+     - `juntadoEm` é convertido para o formato BRASILEIRO **na origem** — é o
+       contrato que `instanteDe`, o índice do `.zip` e o "Escolher com IA" já
+       esperam. Converter ali é o que faz o resto do código não mudar uma linha
+       e, portanto, não ter como regredir.
+     - **Não traz `juntadoPor` nem os `extras`** do tribunal. Por isso a grid
+       NÃO foi removida — e por isso `aplicarListaOficial` (content.js) é o
+       ponto único que aplica qualquer lista: a fonte nova manda no que sabe e
+       **cede** no que não sabe, senão a promoção por autor institucional, a
+       coluna do índice e o sinal da triagem sumiriam em silêncio.
+     - O **aviso de risco** (`.gwarn`) migrou para ANTES da grid, e quem o
+       dispara é o content.js (`panel.confirmarLeituraPesada()`): mostrá-lo no
+       clique do ⟳ anunciaria um perigo que, no caminho normal, não existe.
   1. **`PJE.listarPelaGrid`** — a tela "Documentos" do PJe, uma grid tabular
      paginada, lida num **iframe oculto same-origin** (nunca uma aba: isso
      custaria as permissões `tabs`+`scripting`, que mudam o aviso de instalação

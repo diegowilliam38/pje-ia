@@ -99,7 +99,34 @@
 
       <div class="card destaque">
         <p class="eyebrow" style="color: rgba(255,255,255,0.7)">A novidade mais recente</p>
-        <h2><span class="v novo">v0.37.0</span> O pacote da precatória sai com o PDF oficial — timbre, paginação e assinatura</h2>
+        <h2><span class="v novo">v0.38.0</span> A lista completa de peças agora vem sem abrir nenhuma tela do PJe</h2>
+        <p>
+          O botão <strong>⟳ Carregar tudo</strong> — que traz a lista completa das peças,
+          com o tipo oficial de cada uma — abria a tela “Documentos” do PJe e virava
+          <strong>página por página</strong>. Cada virada dessas conta como uma tela nova
+          no servidor, e o PJe guarda poucas: era daí que vinha o <em>“Sua página
+          expirou”</em> em processos grandes. Num processo de 138 peças, eram cerca de
+          <strong>dez telas</strong> gastas de uma vez.
+        </p>
+        <p>
+          Agora a extensão pede a lista <strong>diretamente ao PJe, numa única
+          consulta</strong>, e o custo em telas é <strong>zero</strong>. A lista vem
+          completa, já em ordem cronológica e com o <strong>tipo oficial</strong> de cada
+          peça — que é o que faz o atalho <strong>chave</strong> escolher bem. Em um
+          processo real, a consulta trouxe <strong>35 documentos</strong> contra 33 que a
+          linha do tempo mostrava: nada se perdeu, e duas peças que ela não exibia
+          apareceram.
+        </p>
+        <p>
+          A rota antiga continua no lugar, para quando a nova não estiver disponível — e o
+          aviso sobre a tela do PJe passou a aparecer <strong>só quando ela for
+          usada</strong>. No caminho normal, não há mais o que avisar.
+        </p>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">Antes disso</p>
+        <h2><span class="v">v0.37.0</span> O pacote da precatória sai com o PDF oficial — timbre, paginação e assinatura</h2>
         <p>
           O pacote de carta precatória tinha um defeito que só aparecia tarde demais: as
           peças <strong>escritas no editor do PJe</strong> — que é o caso da carta, do
@@ -133,7 +160,6 @@
       </div>
 
       <div class="card">
-        <p class="eyebrow">Antes disso</p>
         <h2><span class="v">v0.36.0</span> A tela do PJe não morre mais no envio, e o pacote extrai no Windows</h2>
         <p>
           Em processos grandes, clicar em <strong>Enviar</strong> às vezes derrubava a aba

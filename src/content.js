@@ -1107,6 +1107,35 @@
   // a lista veio em vez de deixar implícito que é o processo inteiro.
   let gridInfo = null;
 
+  // Ponto ÚNICO que aplica a lista oficial, venha ela da API REST, da grid ou do
+  // disco. Existe por causa de uma regressão possível e silenciosa: a API não
+  // devolve `juntadoPor` nem as colunas `extras` daquele tribunal, e a grid (ou
+  // uma leitura anterior já guardada) pode tê-los. Substituir a lista inteira
+  // apagaria esses campos — e com eles o refino de relevância por autor
+  // institucional, a coluna do índice do `.zip` e o sinal do "Escolher com IA",
+  // sem nada na tela dizendo que sumiram. Aqui a fonte nova manda no que ela
+  // sabe e CEDE no que não sabe.
+  function aplicarListaOficial(lista) {
+    const antes = new Map((docsDaGrid || []).map((d) => [d.id, d]));
+    lista.docs = lista.docs.map((d) => {
+      const velho = antes.get(d.id);
+      if (!velho) return d;
+      const out = Object.assign({}, d);
+      for (const campo of ["juntadoPor", "extras", "tipo", "juntadoEm"]) {
+        if (!out[campo] && velho[campo]) out[campo] = velho[campo];
+      }
+      return out;
+    });
+    docsDaGrid = lista.docs;
+    // `lidaEm` é o que permite à dica dizer DE QUANDO é a lista quando ela voltar
+    // do disco na próxima sessão. Sem isso o cache apresentaria uma leitura de
+    // semanas atrás como se fosse de agora.
+    lista.lidaEm = Date.now();
+    gridInfo = lista;
+    gravarGrid(); // uma vez por leitura — ver o comentário em `snapshotCaso`
+    atualizarListaPecas();
+  }
+
   let carregandoTimeline = false;
   panel.onCarregarTimeline(async () => {
     if (carregandoTimeline) return;
@@ -1132,14 +1161,37 @@
     }
     carregandoTimeline = true;
     try {
-      // ROTA 1 — grid da tela "Documentos" (ver docs/pje-tela-documentos.md).
-      // Ela sabe o TOTAL de páginas, então dá para afirmar que leu tudo; o
-      // scroll só consegue inferir pelo "parou de crescer" e entrega lista
-      // parcial sem avisar. Best-effort: null = indisponível, cai na rota 2.
+      // ROTA 1 — API REST (`processos/{id}/documentos`): UMA requisição, ZERO
+      // tela JSF gasta, e traz o tipo oficial de cada peça — que é o dado pelo
+      // qual a grid existia. Ela vem primeiro porque é instantânea e porque o
+      // custo da grid (uma tela por página) é justamente o que derruba a aba do
+      // usuário em processo grande. Best-effort: `null` cai na rota 2, inclusive
+      // quando a lista vem MENOR que a timeline já conhece — uma lista que
+      // encolhe é pior que nenhuma.
       panel.setTimelineTip({
         texto: "Consultando a lista oficial de documentos do processo…",
         carregando: true,
       });
+      const api = await PJE.listarPelaApi();
+      if (api && api.docs.length) {
+        aplicarListaOficial(api);
+        panel.setTimelineTip({
+          texto:
+            "Lista completa: " + api.total + " documento(s), direto do PJe — " +
+            "sem abrir telas do sistema.",
+        });
+        return;
+      }
+
+      // ROTA 2 — grid da tela "Documentos" (ver docs/pje-tela-documentos.md).
+      // CARA: um POST de página INTEIRA por página, e é daqui que vem o risco de
+      // a aba do usuário expirar. Por isso o aviso está AQUI, e não no clique do
+      // ⟳: no caminho normal (rota 1) esse risco não existe, e avisar seria
+      // descrever um perigo que ele não corre.
+      if (!(await panel.confirmarLeituraPesada())) {
+        panel.setTimelineTip(null);
+        return;
+      }
       const grid = await PJE.listarPelaGrid((n, pag, total) => {
         // `progressoGrid` alimenta a recusa de `ocupadoJsf`: enquanto isto roda,
         // o envio é negado, e negar sem dizer quanto falta é o que faz a recusa
@@ -1165,14 +1217,7 @@
         });
       });
       if (grid && grid.docs.length) {
-        docsDaGrid = grid.docs;
-        // `lidaEm` é o que permite à dica dizer DE QUANDO é a lista quando ela
-        // voltar do disco na próxima sessão. Sem isso o cache apresentaria uma
-        // leitura de semanas atrás como se fosse de agora.
-        grid.lidaEm = Date.now();
-        gridInfo = grid;
-        gravarGrid(); // uma vez por leitura — ver o comentário em `snapshotCaso`
-        atualizarListaPecas();
+        aplicarListaOficial(grid);
         panel.setTimelineTip({
           // A releitura recomeça da PRIMEIRA página — e é justamente ela que
           // gasta view JSF em volume (um POST de página inteira por página).
@@ -1488,7 +1533,17 @@
         (quando === new Date().toLocaleDateString("pt-BR")
           ? ""
           : " — peças juntadas depois dessa data não entraram");
-    if (gridInfo && !gridInfo.incompleto) {
+    if (gridInfo && gridInfo.fonte === "api") {
+      // A lista veio da API de documentos do PJe: uma resposta só, sem paginação
+      // — dizer "N de N páginas lidas" aqui descreveria um mecanismo que não foi
+      // usado, e o índice do `.zip` é justamente onde a procedência precisa ser
+      // exata.
+      base =
+        "lida da lista oficial de documentos do PJe (" +
+        gridInfo.total +
+        " documentos, resposta única)" +
+        carimbo;
+    } else if (gridInfo && !gridInfo.incompleto) {
       base =
         "lida da tela oficial “Documentos” do PJe, por completo (" +
         gridInfo.total +

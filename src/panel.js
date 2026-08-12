@@ -2266,45 +2266,51 @@ var PjePanel = (function () {
     // -------------------------------------------------------------------------
     let carregarTLCb = null;
     // -------------------------------------------------------------------------
-    // AVISO ANTES DA LEITURA DA LISTA OFICIAL.
+    // AVISO ANTES DA LEITURA **CARA** DA LISTA OFICIAL (a grid).
     //
-    // Este é o único gesto da extensão que pode derrubar a tela do PJe, e o
-    // motivo não é corrigível daqui: a paginação daquela tela faz POST de página
-    // INTEIRA, e o servidor guarda poucas telas por sessão. O que decide o
-    // desfecho é comportamento do usuário — quantas abas do PJe estão abertas
-    // (todas dividem a MESMA sessão) e quando ele clica —, então a orientação
-    // precisa chegar no instante da decisão, e não num guia que ninguém abre
-    // antes de clicar.
+    // A extensão tem duas rotas para a lista: a API REST, que não custa nada à
+    // sessão, e a grid da tela "Documentos", que faz POST de página INTEIRA por
+    // página — e é ela que pode derrubar a aba com "Sua página expirou". Só a
+    // segunda merece aviso, e é por isso que quem decide mostrá-lo é o
+    // content.js, no instante em que vai cair nela: avisar no clique do ⟳ diria
+    // ao usuário que ele corre um risco que, no caminho normal, não corre.
     //
-    // Mostrado UMA vez por processo no caminho normal (a partir da 2ª vez a
-    // lista vem do disco e o botão nem é necessário), com desligamento
-    // permanente para quem já sabe. A leitura do storage acontece NO CLIQUE, e
-    // não no boot: assim não há a armadilha de callback síncrono do stub de
-    // teste que já mordeu `docsOcultas` e `guiaAberta`.
+    // O motivo do aviso não é corrigível em código: o que decide o desfecho é
+    // comportamento — quantas abas do PJe estão abertas (todas dividem a MESMA
+    // sessão) e quando se clica. Por isso a orientação chega no instante da
+    // decisão, e não num guia que ninguém abre antes.
+    //
+    // Devolve uma Promise<boolean>: `true` segue, `false` desiste. A leitura do
+    // storage acontece AQUI, e não no boot, o que dispensa a armadilha de
+    // callback síncrono do stub de teste que já mordeu `docsOcultas` e
+    // `guiaAberta`.
     // -------------------------------------------------------------------------
     const gwarnBox = $(".gwarn");
     const gwarnCard = $(".gwarn-card");
     const gwarnCb = $(".gwarn-cb");
-    let gwarnSeguir = null;
-    function fecharGwarn() {
+    // A resposta pendente. Só pode ser entregue UMA vez: o usuário pode fechar
+    // pelo ✕, pelo Cancelar, pelo Esc ou pelo backdrop, e todos passam por aqui.
+    let gwarnResolve = null;
+    function responderGwarn(v) {
+      const r = gwarnResolve;
+      gwarnResolve = null;
       gwarnBox.hidden = true;
-      gwarnSeguir = null;
+      if (r) r(v);
     }
-    $(".gwarn-close").addEventListener("click", fecharGwarn);
-    $(".gwarn-cancel").addEventListener("click", fecharGwarn);
+    $(".gwarn-close").addEventListener("click", () => responderGwarn(false));
+    $(".gwarn-cancel").addEventListener("click", () => responderGwarn(false));
     gwarnBox.addEventListener("click", (e) => {
-      if (e.target === gwarnBox) fecharGwarn();
+      if (e.target === gwarnBox) responderGwarn(false);
     });
     // stopPropagation como no `.plib-card` e no `.prec-card`: sem ele o Esc daqui
     // cancelaria junto o modo minuta/mapa que estivesse ligado atrás.
     gwarnCard.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
         e.stopPropagation();
-        fecharGwarn();
+        responderGwarn(false);
       }
     });
     $(".gwarn-ok").addEventListener("click", () => {
-      const seguir = gwarnSeguir;
       if (gwarnCb.checked) {
         try {
           chrome.storage.local.set({ avisoGridVisto: true });
@@ -2312,28 +2318,29 @@ var PjePanel = (function () {
           /* contexto de extensão invalidado: o aviso volta na próxima, e tudo bem */
         }
       }
-      fecharGwarn();
-      seguir && seguir();
+      responderGwarn(true);
     });
-    tipLoad.addEventListener("click", () => {
-      if (!carregarTLCb || tipLoad.disabled) return;
-      let respondeu = false;
-      const decidir = (r) => {
-        if (respondeu) return; // storage que responde síncrono E via callback
-        respondeu = true;
-        if (r && r.avisoGridVisto) return void carregarTLCb();
-        gwarnSeguir = () => carregarTLCb();
-        gwarnCb.checked = false;
-        gwarnBox.hidden = false;
-        gwarnCard.focus();
-      };
-      try {
-        const p = chrome.storage.local.get({ avisoGridVisto: false }, decidir);
-        if (p && typeof p.then === "function") p.then(decidir);
-      } catch {
-        decidir(null); // sem storage, avisa — errar para o lado de explicar
-      }
-    });
+    function confirmarLeituraPesada() {
+      return new Promise((resolve) => {
+        let respondeu = false;
+        const decidir = (r) => {
+          if (respondeu) return; // storage que responde síncrono E via promessa
+          respondeu = true;
+          if (r && r.avisoGridVisto) return resolve(true); // já sabe do risco
+          gwarnResolve = resolve;
+          gwarnCb.checked = false;
+          gwarnBox.hidden = false;
+          gwarnCard.focus();
+        };
+        try {
+          const p = chrome.storage.local.get({ avisoGridVisto: false }, decidir);
+          if (p && typeof p.then === "function") p.then(decidir);
+        } catch {
+          decidir(null); // sem storage, avisa — errar para o lado de explicar
+        }
+      });
+    }
+    tipLoad.addEventListener("click", () => carregarTLCb && carregarTLCb());
 
     // -------------------------------------------------------------------------
     // "Baixar .zip": exporta as peças MARCADAS — ou todas as da lista, quando
@@ -4997,6 +5004,11 @@ var PjePanel = (function () {
       onCarregarTimeline(cb) {
         carregarTLCb = cb;
       },
+      // Pede o "de acordo" antes da rota CARA da lista (a grid, que gasta telas
+      // da sessão do PJe). Promise<boolean>. Quem chama é o content.js, no
+      // momento em que sabe que vai cair nela — ver o comentário longo do
+      // `.gwarn`. Já silenciado pelo usuário, resolve `true` sem abrir nada.
+      confirmarLeituraPesada,
       // Botão "Baixar .zip" da mesma faixa. cb(docs, {todas}) — `docs` já vem
       // resolvido (marcadas, ou todas quando nada está marcado) e `todas` diz
       // qual dos dois caminhos foi tomado, para o content script informar.

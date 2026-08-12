@@ -8,6 +8,16 @@
 > arquitetura em relação ao proposto: **iframe oculto same-origin em vez de aba
 > em segundo plano**, o que evita as permissões `tabs`+`scripting` — ver
 > "Iframe em vez de aba", abaixo. O scroll continua como fallback.
+>
+> ⚠️ **LEIA ANTES DE USAR ESTA ROTA (12/08/2026).** Existe um caminho MELHOR e
+> ele é a rota 1 desde a v0.38.0: `GET /{base}/seam/resource/rest/pje-legacy/
+> processos/{idProcesso}/documentos` devolve a lista inteira em UMA requisição
+> REST, com o **tipo oficial** de cada peça (campo `descricao`) e a data de
+> juntada — **sem gastar nenhuma tela JSF**, enquanto a grid gasta ~10 num
+> processo de 138 peças e é o que faz a aba do usuário morrer com "Sua página
+> expirou" (ver a seção homônima no `CLAUDE.md`). A grid segue documentada e
+> implementada porque é o fallback e porque é a única que traz **quem juntou** a
+> peça e as colunas `extras` daquele tribunal.
 
 ## O problema com os Autos Digitais
 

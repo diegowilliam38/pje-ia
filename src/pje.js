@@ -1367,6 +1367,104 @@ var PJE = (function () {
     return null;
   }
 
+  // ---------------------------------------------------------------------------
+  // LISTA OFICIAL PELA API REST — a rota que não custa NADA à sessão do PJe.
+  //
+  // Levantada na sessão real (12/08/2026) sondando a família `pje-legacy`, que a
+  // extensão já usa para baixar peça:
+  //   GET /{base}/seam/resource/rest/pje-legacy/processos/{idProcesso}/documentos
+  // devolve um ARRAY puro de `{id, descricao, data, binario, linkDownload}`,
+  // autenticado pelo mesmo cookie de sessão.
+  //
+  // POR QUE ISTO MUDA O JOGO: a `descricao` é o **tipo oficial** do PJe
+  // ("Petição Inicial", "Documento de Comprovação") — exatamente o dado mais
+  // valioso da grid, que é dele que sai o degrau `chave`. E vem em UMA
+  // requisição REST: **zero tela JSF**, contra ~10 da grid num processo de 138
+  // peças. É a leitura da grid que gasta o orçamento de telas da sessão e faz a
+  // aba do usuário morrer com "Sua página expirou"; por aqui esse custo
+  // simplesmente não existe.
+  //
+  // Medido no 3000436-28.2026.8.06.0203: 35 documentos pela API contra 33 na
+  // timeline carregada — SUPERCONJUNTO (nenhum id da timeline faltou), com dois
+  // a mais que ela não mostrava, e em ordem cronológica CRESCENTE, que até aqui
+  // era só premissa nossa na exportação.
+  //
+  // Regras que não podem cair:
+  //  · **GUARDA ANTI-REGRESSÃO**: se a API devolver MENOS itens do que a
+  //    timeline já tem no DOM, alguma coisa está errada (filtro por sigilo,
+  //    paginação escondida, outro entendimento de "documento") — e uma lista que
+  //    ENCOLHE é pior que nenhuma, porque a peça some sem ninguém ver. Nesse
+  //    caso devolve `null` e o chamador segue para a grid, como antes.
+  //  · `juntadoEm` sai daqui no formato BRASILEIRO, que é o contrato que
+  //    `instanteDe`, o índice do `.zip` e a lista do "Escolher com IA" já
+  //    esperam. Converter na origem é o que faz o resto do código não mudar uma
+  //    linha — e, portanto, não ter como regredir.
+  //  · Não traz `juntadoPor` nem as colunas `extras` do tribunal: quem quiser
+  //    esses dois continua tendo a grid. Por isso ela não foi removida.
+  //  · Best-effort como todo o resto: qualquer falha devolve `null`.
+  // ---------------------------------------------------------------------------
+  function dataBr(s) {
+    const t = String(s || "").trim();
+    // "2026-06-22 15:52:38.789" (e a variante com "T") -> "22/06/2026 15:52"
+    const m = t.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+    if (m) return m[3] + "/" + m[2] + "/" + m[1] + " " + m[4] + ":" + m[5];
+    const d = t.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (d) return d[3] + "/" + d[2] + "/" + d[1];
+    return t; // já veio em outro formato: repassa sem inventar
+  }
+
+  async function listarPelaApi() {
+    const proc = getIdProcesso();
+    if (!proc) return null;
+    try {
+      const url =
+        "/" + getBase() + "/seam/resource/rest/pje-legacy/processos/" + proc + "/documentos";
+      const r = await fetch(url, {
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      });
+      if (!r.ok) {
+        dlog("api de documentos: HTTP " + r.status + " — caindo para a grid");
+        return null;
+      }
+      const j = await r.json();
+      if (!Array.isArray(j) || !j.length) return null;
+      const docs = [];
+      const vistos = new Set();
+      for (const d of j) {
+        const id = String((d && d.id) != null ? d.id : "").trim();
+        // mesmo limiar do regex da timeline: id de peça é longo
+        if (!/^\d{4,}$/.test(id) || vistos.has(id)) continue;
+        vistos.add(id);
+        const tipo = String((d && d.descricao) || "").trim();
+        docs.push({
+          id,
+          // O título da timeline (que o usuário reconhece) vence na mesclagem;
+          // este só vale para a peça que a timeline lazy ainda não trouxe, e
+          // segue a MESMA convenção "id - nome" do resto da extensão.
+          titulo: tipo ? id + " - " + tipo : id,
+          tipo: tipo || null,
+          juntadoEm: dataBr(d && d.data),
+          binario: !!(d && d.binario),
+        });
+      }
+      if (!docs.length) return null;
+      const naTimeline = listarDocumentos().length;
+      if (docs.length < naTimeline) {
+        dlog(
+          "api de documentos: devolveu " + docs.length + " e a timeline já tem " +
+            naTimeline + " — lista suspeita, caindo para a grid"
+        );
+        return null;
+      }
+      dlog("api de documentos: " + docs.length + " documento(s), zero tela JSF gasta");
+      return { docs, total: docs.length, paginas: 1, paginasLidas: 1, incompleto: false, fonte: "api" };
+    } catch (e) {
+      dlog("api de documentos: " + ((e && e.message) || e) + " — caindo para a grid");
+      return null;
+    }
+  }
+
   /**
    * Lista os documentos pela grid. Devolve
    *   {docs, total, paginas, paginasLidas, incompleto}
@@ -1512,6 +1610,7 @@ var PJE = (function () {
     baixar,
     scrollAte,
     carregarTimelineCompleta,
+    listarPelaApi,
     listarPelaGrid,
     lerAnexo,
     // Só o pacote de precatória usa (dois postbacks por peça — ver o comentário).
