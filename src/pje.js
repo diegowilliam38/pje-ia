@@ -387,6 +387,106 @@ var PJE = (function () {
     throw new Error("o PJe não liberou a peça " + id + " a tempo — tente novamente");
   }
 
+  // ---------------------------------------------------------------------------
+  // PDF OFICIAL de uma peça — o mesmo arquivo que o ⬇ do visualizador entrega.
+  //
+  // POR QUE ISTO EXISTE, e por que NÃO substitui a rota REST: peça escrita no
+  // editor do PJe é servida pelo REST como CONTEÚDO (HTML), que vira texto. Para
+  // LER e para a IA analisar, texto é melhor — menor, pesquisável, sem OCR. Mas
+  // o pacote de carta precatória vira anexo de MALOTE DIGITAL, e ali o que vale
+  // é o documento do tribunal: timbre, paginação e o rodapé de assinatura. Um
+  // `.txt` no malote não é documento nenhum.
+  //
+  // O mecanismo foi levantado na sessão real (12/08/2026) e é o do próprio
+  // botão: um POST no form `detalheDocumento` com `detalheDocumento:download`
+  // devolve a PÁGINA (~230 KB), e dentro dela vem uma URL pré-assinada de MinIO
+  // (`minio-pjedocs…?X-Amz-…&X-Amz-Expires=120`) — o PDF é gerado sob demanda,
+  // não existe antes do clique. Um `fetch` nessa URL traz os bytes (CORS
+  // liberado, conferido na página do PJe).
+  //
+  // Quatro coisas que não podem cair:
+  //  · O POST baixa o documento CORRENTE no visualizador — ele não recebe id
+  //    nenhum. Por isso a peça é ABERTA antes (`ativarPeca`, que já serializa na
+  //    `activationChain`), e a resposta é conferida: se o id da peça não aparece
+  //    no HTML, o visualizador estava noutro documento e devolvemos null em vez
+  //    de gravar o PDF ERRADO no pacote — que ninguém notaria até o malote.
+  //  · Custa DOIS postbacks por peça (abrir + baixar). É muito para a sessão
+  //    JSF, então isto é do PACOTE, nunca do chat nem da exportação em massa.
+  //  · A URL vale 120 s: usar imediatamente, sem cache.
+  //  · Best-effort de ponta a ponta: qualquer falha devolve `null` e o chamador
+  //    segue com o texto de sempre (o pacote então avisa, no LEIA-ME, que aquele
+  //    arquivo não é o documento assinado). Nada aqui pode derrubar um turno.
+  //
+  // Específico do TJCE por enquanto: o form `detalheDocumento` é desta tela.
+  // Onde ele não existir, `null` na primeira linha e nada muda.
+  const RE_ARQUIVO_NA_RESPOSTA = /https?:\/\/[^"'\s\\<>]*\.pdf[^"'\s\\<>]*/i;
+  async function baixarPdfOficial(id) {
+    try {
+      const form = document.getElementById("detalheDocumento");
+      if (!form) return null;
+      const acao = form.getAttribute("action");
+      const vsEl = form.querySelector('[name="javax.faces.ViewState"]');
+      if (!acao || !vsEl || !vsEl.value) return null;
+
+      // Abre a peça no visualizador. `ativarPeca` já é o caminho serializado e
+      // ainda espera o servidor liberá-la — que é a mesma prova de que abriu.
+      await ativarPeca(id);
+
+      const body = new URLSearchParams();
+      body.set("detalheDocumento:msgsOpenedState", "");
+      body.set("detalheDocumento", "detalheDocumento");
+      body.set("autoScroll", "");
+      body.set("javax.faces.ViewState", vsEl.value);
+      body.set("detalheDocumento:download", "detalheDocumento:download");
+      marcarGesto("download-pdf", id);
+      const resp = await fetch(acao, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body,
+      });
+      if (!resp.ok) {
+        dlog("pdf oficial " + id + ": POST devolveu " + resp.status);
+        return null;
+      }
+      const html = await resp.text();
+      // A guarda que impede o pacote sair com a peça ERRADA (ver acima).
+      if (html.indexOf(String(id)) < 0) {
+        dlog("pdf oficial " + id + ": o visualizador está noutra peça — desisto");
+        return null;
+      }
+      const m = html.match(RE_ARQUIVO_NA_RESPOSTA);
+      if (!m) {
+        dlog("pdf oficial " + id + ": nenhuma URL de arquivo na resposta");
+        return null;
+      }
+      // `credentials: "omit"` — a URL já é assinada, e mandar cookie para outro
+      // host (o storage) não ajuda em nada e vaza sessão para fora do PJe.
+      const arq = await fetch(m[0], { credentials: "omit" });
+      if (!arq.ok) {
+        dlog("pdf oficial " + id + ": storage devolveu " + arq.status);
+        return null;
+      }
+      const blob = await arq.blob();
+      if (!blob.size) return null;
+      const head = new Uint8Array(await blob.slice(0, 5).arrayBuffer());
+      if (String.fromCharCode.apply(null, head) !== "%PDF-") {
+        dlog("pdf oficial " + id + ": o que voltou não é PDF");
+        return null;
+      }
+      const pages = await contarPaginas(blob);
+      const b64 = await blobToB64(blob);
+      dlog("pdf oficial " + id + ": " + blob.size + " bytes, " + pages + " página(s)");
+      // MESMO formato de `lerCorpo`, para o resto do pipeline não saber a
+      // diferença — mais `oficial`, que é o que o LEIA-ME usa para não marcar
+      // como "texto a substituir" a peça que veio assinada.
+      return { kind: "pdf", fmt: "pdf", b64, size: blob.size, pages, oficial: true };
+    } catch (e) {
+      dlog("pdf oficial " + id + ": " + ((e && e.message) || e));
+      return null;
+    }
+  }
+
   // Sigla do tribunal a partir do host: o rótulo imediatamente antes de
   // "jus.br" (pje.tjce.jus.br → TJCE; pje1g.trf5.jus.br → TRF5). Devolve null
   // no que não casar (ex.: *.cloud.pje.jus.br) — aí só a rota curta é usada.
@@ -1414,6 +1514,8 @@ var PJE = (function () {
     carregarTimelineCompleta,
     listarPelaGrid,
     lerAnexo,
+    // Só o pacote de precatória usa (dois postbacks por peça — ver o comentário).
+    baixarPdfOficial,
     // Diagnóstico da queda da view (ver o bloco DIAG no topo). `ativacaoEmVoo`
     // não é só log: a concorrência de download cede a ela.
     ativacaoEmVoo,

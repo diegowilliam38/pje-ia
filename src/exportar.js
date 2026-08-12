@@ -564,10 +564,51 @@
     );
   }
 
+  // Peças que saíram como TEXTO, em todas as pastas. Este pacote existe para
+  // virar anexo de malote digital, e um `.txt` ali é um documento sem valor: o
+  // que o juízo deprecado precisa receber é o PDF com timbre, paginação e o
+  // rodapé "Assinado eletronicamente por…". A peça nascida no editor do PJe é
+  // servida pela rota REST como CONTEÚDO (HTML), não como o PDF assinado — e
+  // como carta, despacho e decisão nascem quase sempre no editor, o caso comum
+  // é o pacote inteiro sair assim. Enquanto a extensão não souber pedir o PDF
+  // oficial, o mínimo é que ninguém anexe isso sem saber.
+  function textoNoPacote(info) {
+    const out = [];
+    for (const p of info.pacotes || []) {
+      for (const a of p.arquivos || []) {
+        if (a.formato !== "pdf" && !/^(jpeg|png|gif|webp)$/.test(a.formato)) {
+          out.push({ pasta: p.pasta, arquivo: a.arquivo, titulo: a.titulo, id: a.id });
+        }
+      }
+    }
+    return out;
+  }
+
   function montarLeiaMePacotes(info) {
     const L = [];
     if (info.segredo) {
       L.push("> ⚠️  PROCESSO EM SEGREDO DE JUSTIÇA — trate este material conforme as regras de sigilo.", "");
+    }
+    const soTexto = textoNoPacote(info);
+    if (soTexto.length) {
+      L.push(
+        "> ## ⚠️  LEIA ANTES DE ANEXAR AO MALOTE",
+        ">",
+        "> " + soTexto.length + " arquivo(s) deste pacote saíram como **TEXTO (.txt)**, e",
+        "> **não são o documento oficial**. Elas nasceram no editor do PJe, e a rota de",
+        "> download da extensão entrega o CONTEÚDO da peça — sem o brasão, sem a",
+        "> paginação e sem o rodapé “Assinado eletronicamente por…”.",
+        ">",
+        "> Serve para ler e conferir. **Não serve para o malote digital.**",
+        ">",
+        "> O que fazer: abra cada uma dessas peças no PJe (visualizador de documentos)",
+        "> e use o ícone de download ⬇ dele — o PJe devolve o PDF assinado. Substitua",
+        "> o `.txt` correspondente dentro da pasta, mantendo o nome do arquivo.",
+        ">",
+        "> Arquivos a substituir:"
+      );
+      for (const t of soTexto) L.push("> - `" + t.pasta + "/" + t.arquivo + "` — " + t.titulo);
+      L.push("", "");
     }
     L.push("# Pacotes de carta precatória — processo " + (info.cnj || "(sem número)"), "");
     L.push(
@@ -586,6 +627,9 @@
     L.push(
       "A peça de origem se repete em todas as pastas de propósito: cada pasta é um",
       "envio independente e precisa sair completa daqui.",
+      "",
+      "Os arquivos `.pdf` são os documentos do PJe — o mesmo arquivo que o botão de",
+      "download (⬇) do visualizador entrega, com timbre e assinatura.",
       ""
     );
     L.push("## Como as peças foram escolhidas", "");
@@ -626,7 +670,15 @@
       }
       L.push("### " + p.pasta);
       L.push("");
-      for (const a of p.arquivos) L.push("- `" + a.arquivo + "` — " + a.titulo);
+      // A marca vai na LINHA do arquivo, e não só no aviso do topo: quem abre a
+      // pasta para montar o e-mail lê esta lista, não o cabeçalho.
+      for (const a of p.arquivos) {
+        const bruto = a.formato !== "pdf" && !/^(jpeg|png|gif|webp)$/.test(a.formato);
+        L.push(
+          "- `" + a.arquivo + "` — " + a.titulo +
+            (bruto ? "  ⚠️ **texto, não é o PDF assinado — substitua antes de enviar**" : "")
+        );
+      }
       if (p.faltas && p.faltas.length) {
         L.push("", "⚠️  Não foi possível localizar: " + p.faltas.join("; ") + ".");
       }

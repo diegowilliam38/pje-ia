@@ -1145,10 +1145,22 @@
         // o envio é negado, e negar sem dizer quanto falta é o que faz a recusa
         // parecer travamento.
         progressoGrid = pag && total ? "página " + pag + " de " + total : "";
+        // O TAMANHO da leitura é sabido já na 1ª página, e ele é o melhor
+        // previsor do único efeito colateral que o usuário sente: cada página é
+        // um POST de página inteira, isto é, uma tela nova na sessão do PJe, e o
+        // servidor guarda um punhado delas. Passando de ~6, a view desta aba
+        // pode ser despejada — e quem DESCOBRE isso é o gesto seguinte do
+        // usuário (o Enviar), que então parece o culpado. Avisar antes é a
+        // diferença entre "a extensão quebrou o PJe" e "fui avisado, e não
+        // perdi nada".
         panel.setTimelineTip({
           texto:
             "Lendo a lista oficial… " + n + " documento(s)" +
-            (progressoGrid ? ", " + progressoGrid : "") + ".",
+            (progressoGrid ? ", " + progressoGrid : "") + "." +
+            (total >= 6
+              ? " Processo grande: se a aba do PJe expirar ao terminar, reabra o " +
+                "processo — a conversa e as peças já baixadas ficam guardadas."
+              : ""),
           carregando: true,
         });
       });
@@ -1162,13 +1174,21 @@
         gravarGrid(); // uma vez por leitura — ver o comentário em `snapshotCaso`
         atualizarListaPecas();
         panel.setTimelineTip({
+          // A releitura recomeça da PRIMEIRA página — e é justamente ela que
+          // gasta view JSF em volume (um POST de página inteira por página).
+          // Convidar ao segundo clique sem dizer o preço é convidar à queda da
+          // tela logo em seguida, no gesto seguinte do usuário. O que ele
+          // precisa saber cabe numa oração: o que pode acontecer e que não se
+          // perde nada.
           texto: grid.incompleto
             ? grid.total +
               " documento(s) — leitura PARCIAL (" +
               grid.paginasLidas +
               " de " +
               grid.paginas +
-              " páginas). Clique de novo para tentar o resto."
+              " páginas). Clique de novo para tentar o resto: a releitura " +
+              "recomeça do início e cansa a sessão do PJe; se a tela desta aba " +
+              "expirar, basta reabrir o processo — a conversa e as peças ficam guardadas."
             : "Lista completa: " +
               grid.total +
               " documento(s) (" +
@@ -1347,6 +1367,40 @@
     }
   });
 
+  // O que entra no PACOTE DE MALOTE é outra coisa do que entra no chat: aqui o
+  // arquivo vai ser ANEXADO a um e-mail para outro juízo, então o que vale é o
+  // documento do tribunal — timbre, paginação, rodapé de assinatura —, e não o
+  // conteúdo da peça. A rota REST de sempre entrega o CONTEÚDO (peça do editor
+  // vira texto), que serve para ler e para a IA analisar, mas não é documento.
+  //
+  // Então: tenta o PDF oficial primeiro (o mesmo arquivo do ⬇ do visualizador) e
+  // cai no caminho normal quando ele não vier — por tribunal diferente, por
+  // tela mudada, por peça que nem tem PDF. A degradação é graciosa **e
+  // anunciada**: o que sair como texto entra no LEIA-ME com a instrução de
+  // substituir, em vez de passar por documento oficial.
+  //
+  // Custo: dois postbacks por peça (abrir no visualizador + baixar), pagos só
+  // aqui — jamais no chat, na medição ou na exportação em massa, que somariam
+  // centenas deles na sessão JSF.
+  //
+  // E pagos só por QUEM PRECISA: a rota de sempre vem primeiro, e quando ela já
+  // devolve um PDF a peça está resolvida — é o caso da digitalizada e da que o
+  // advogado protocolou, cujo arquivo nos autos JÁ é o documento. Só a peça que
+  // volta como texto (a nascida no editor: carta, despacho, decisão) paga a
+  // rota nova. Num pacote típico isso corta um terço dos postbacks, e ainda
+  // aproveita o `docsCache`: peça já baixada nesta sessão não vai ao PJe de
+  // novo. Inverter esta ordem custaria dois postbacks por peça mesmo quando o
+  // arquivo certo já estava na mão.
+  async function obterParaMalote(id) {
+    // `{bytes:true}` pelo mesmo motivo da exportação comum: o pacote leva o
+    // ARQUIVO ORIGINAL, e uma peça vinda da memória de caso tem `fileId` e zero
+    // bytes — sem a flag ela sairia vazia do zip.
+    const conteudo = await garantirBaixada(id, { bytes: true });
+    if (conteudo && conteudo.kind === "pdf") return conteudo;
+    const oficial = await PJE.baixarPdfOficial(id);
+    return oficial || conteudo;
+  }
+
   async function baixarPrecatorias(pacotes, dados) {
     if (exportando) return;
     // Renumera na ordem em que serão gravados: se o usuário desmarcou a carta 2,
@@ -1385,10 +1439,7 @@
         porMovimento: !(dados && dados.pacotes[0] && dados.pacotes[0].fonte === "titulo"),
         sinal,
         onEtapa: (id, estado) => panel.setPrepState(id, estado),
-        // `{bytes:true}` pelo mesmo motivo da exportação comum: o pacote leva o
-        // ARQUIVO ORIGINAL, e uma peça vinda da memória de caso tem `fileId` e
-        // zero bytes — sem a flag ela sairia vazia do zip.
-        obter: (id) => garantirBaixada(id, { bytes: true }),
+        obter: obterParaMalote,
       });
       panel.endPrep();
       baixarBlob(r.nome, r.blob);
@@ -1420,20 +1471,39 @@
   // ressalva vira ruído que ninguém lê.
   function descreverOrigemLista(todas) {
     let base;
+    // QUANDO a lista foi lida entrou aqui junto com o cache no disco: desde que
+    // a grid passou a ser gravada na memória de caso, `gridInfo` pode ser de uma
+    // sessão de semanas atrás. Este texto vai para o LEIA-ME e o índice do .zip,
+    // que saem da ferramenta e viram registro — afirmar "por completo" no
+    // presente sobre uma leitura antiga é o defeito que a própria dica da lista
+    // evita ("lida em DD/MM"), e aqui custaria mais caro: as peças juntadas
+    // depois não estão no pacote e nada nele diria isso.
+    const quando = gridInfo && gridInfo.lidaEm
+      ? new Date(gridInfo.lidaEm).toLocaleDateString("pt-BR")
+      : null;
+    const carimbo = !quando
+      ? ""
+      : ", lida em " +
+        quando +
+        (quando === new Date().toLocaleDateString("pt-BR")
+          ? ""
+          : " — peças juntadas depois dessa data não entraram");
     if (gridInfo && !gridInfo.incompleto) {
       base =
         "lida da tela oficial “Documentos” do PJe, por completo (" +
         gridInfo.total +
         " documentos em " +
         gridInfo.paginas +
-        " página(s))";
+        " página(s))" +
+        carimbo;
     } else if (gridInfo) {
       base =
         "lida da tela oficial “Documentos” do PJe, mas PARCIALMENTE (" +
         gridInfo.paginasLidas +
         " de " +
         gridInfo.paginas +
-        " páginas)";
+        " páginas)" +
+        carimbo;
     } else {
       base =
         "lida da linha do tempo do processo, que o PJe carrega sob demanda conforme " +
@@ -1750,7 +1820,21 @@
             // sintoma no DOM é a timeline sumir — a variante em que o A4J
             // responde a tela de erro SEM navegar (a que navega é registrada
             // pela sentinela do `pagehide`).
-            if (!telaMorta && !PJE.telaDosAutosViva()) marcarTelaMorta();
+            //
+            // CONFIRMA ANTES DE CONDENAR, e não é excesso de zelo: o mesmo A4J
+            // que entrega a peça também RE-RENDERIZA a timeline — é o que troca
+            // os nós no lazy load —, e durante essa troca `#divTimeLine` não
+            // existe. Um retrato tirado nesse instante é indistinguível da tela
+            // de erro, e aqui o falso positivo é caro e PERMANENTE: `telaMorta`
+            // aborta o lote, transforma as peças pendentes em falhas nomeadas e
+            // desliga download, prefetch e medição pelo resto da sessão — sem
+            // volta que não seja recarregar a página. A segunda leitura só roda
+            // quando a timeline já sumiu (caminho raro), e separa o re-render,
+            // que dura um instante, da morte de verdade, que não volta mais.
+            if (!telaMorta && !PJE.telaDosAutosViva()) {
+              await esperar(700);
+              if (!PJE.telaDosAutosViva()) marcarTelaMorta();
+            }
           }
         }
         // A peça está em cache. Se ainda falta subir à Files API, ela tem uma

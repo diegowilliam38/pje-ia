@@ -309,6 +309,59 @@
         </p>
       </div>
 
+      <h1 class="serif" id="expirou">Quando o PJe diz “Sua página expirou”</h1>
+      <div class="card">
+        <div class="head"><div class="num"><svg class="ic-in" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></div><h2>O que aconteceu (e o que <em>não</em> aconteceu)</h2></div>
+        <p>
+          De vez em quando, a aba do processo volta com a tela de erro do PJe e a frase
+          <em>“Sua página expirou, por favor tente novamente”</em>. Antes de mais nada:
+          <strong>a sua sessão continua válida</strong> — você não precisa fazer login de
+          novo, basta reabrir o processo. E <strong>nada do seu trabalho se perde</strong>:
+          a conversa e as peças já baixadas ficam guardadas, e não são baixadas outra vez.
+        </p>
+        <p>
+          O que expirou não foi a sessão, foi a <strong>tela</strong>. O PJe guarda no
+          servidor o estado de cada tela aberta, e guarda <strong>poucas de cada vez</strong>:
+          quando esse espaço enche, a tela mais antiga é descartada em silêncio. O erro só
+          aparece no próximo clique daquela aba — por isso ele costuma surgir quando você
+          manda uma pergunta, mesmo que a causa tenha sido um gesto anterior.
+        </p>
+        <p>
+          Quem ocupa esse espaço em volume é o botão <strong>⟳ Carregar tudo</strong>, que
+          traz a lista oficial de peças: ele abre a tela “Documentos” do PJe e vira página
+          por página, e <strong>cada virada conta como uma tela nova</strong>. Num processo
+          de 138 peças são 9 páginas.
+        </p>
+        <p><strong>Por que acontece num computador e não em outro</strong> — em ordem de impacto:</p>
+        <ul>
+          <li><strong>Quantas abas do PJe você tem abertas.</strong> Todas as abas do mesmo
+          navegador dividem a <strong>mesma</strong> sessão, e cada uma já ocupa um lugar.
+          Quem trabalha com seis processos abertos chega ao ⟳ com o espaço quase cheio;
+          quem tem uma aba só, não.</li>
+          <li><strong>O tamanho do processo.</strong> 30 peças são 2 páginas; 138 são 9. É o
+          mesmo clique com custo quatro vezes maior.</li>
+          <li><strong>Há quanto tempo você está naquela sessão.</strong> Cada tela do PJe
+          aberta na manhã (painel, consultas, outros autos) já consumiu do mesmo espaço.</li>
+          <li><strong>Se você usou o ⟳ ou não.</strong> Sem ele, o envio de perguntas quase
+          nunca derruba a tela — analisar peças não cria telas novas.</li>
+        </ul>
+        <p><strong>O que fazer:</strong></p>
+        <ul>
+          <li><strong>Feche as outras abas do PJe antes de clicar em ⟳ Carregar tudo</strong>,
+          e prefira fazer isso logo ao abrir o processo, antes de começar a conversar.</li>
+          <li><strong>Você só precisa clicar uma vez por processo.</strong> A lista fica
+          guardada: da próxima vez que abrir os mesmos autos, ela volta do disco sem
+          nenhuma consulta ao PJe.</li>
+          <li>Se a tela expirar mesmo assim, <strong>feche e reabra o processo</strong> —
+          e siga de onde parou.</li>
+        </ul>
+        <p>
+          Este é um limite do PJe, não uma falha da extensão — mas é a extensão que ocupa
+          esse espaço quando lê a lista, então ela avisa antes e guarda o seu trabalho
+          antes de qualquer operação de risco.
+        </p>
+      </div>
+
       <h1 class="serif" id="memoria">O assistente lembra dos seus processos</h1>
       <div class="card">
         <p>

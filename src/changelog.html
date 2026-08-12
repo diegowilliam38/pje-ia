@@ -99,7 +99,70 @@
 
       <div class="card destaque">
         <p class="eyebrow" style="color: rgba(255,255,255,0.7)">A novidade mais recente</p>
-        <h2><span class="v novo">v0.35.0</span> Carta precatória: o pacote do malote se monta sozinho</h2>
+        <h2><span class="v novo">v0.37.0</span> O pacote da precatória sai com o PDF oficial — timbre, paginação e assinatura</h2>
+        <p>
+          O pacote de carta precatória tinha um defeito que só aparecia tarde demais: as
+          peças <strong>escritas no editor do PJe</strong> — que é o caso da carta, do
+          despacho e da decisão, quase sempre — saíam do <code>.zip</code> como
+          <strong>arquivos de texto</strong>. Texto serve para ler e para a análise com
+          IA, mas <strong>não é documento</strong>: não tem o brasão, a paginação nem o
+          rodapé de assinatura. Anexado ao malote, seria descoberto no juízo deprecado.
+        </p>
+        <p>
+          Agora a extensão busca o <strong>mesmo arquivo que o botão de download (⬇) do
+          visualizador entrega</strong> — o PDF gerado pelo próprio PJe, com timbre e
+          assinatura — e é ele que vai para a pasta. As peças que já são PDF nos autos
+          (digitalizadas, protocoladas por advogado) continuam saindo como estão, sem
+          rodeio: o arquivo delas já é o documento.
+        </p>
+        <p>
+          Quando o PDF oficial não puder ser obtido, <strong>nada é escondido</strong>: o
+          arquivo sai como texto, e o <code>LEIA-ME.md</code> do pacote abre com a lista
+          exata dos que precisam ser substituídos, com a instrução de como fazê-lo. Um
+          aviso na tela também aparece <em>antes</em> de gerar — a hora de saber disso é
+          antes de anexar ao e-mail, não depois.
+        </p>
+        <p>
+          Junto vieram as orientações sobre <strong>“Sua página expirou”</strong>, o aviso
+          do PJe que aparece de vez em quando ao carregar a lista completa de peças em
+          processos grandes. O guia agora explica o que acontece, por que ocorre num
+          computador e não em outro (todas as abas do PJe dividem a mesma sessão) e o que
+          fazer — e a própria extensão avisa antes de começar. Em nenhum caso se perde
+          trabalho: a conversa e as peças já baixadas ficam guardadas.
+        </p>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">Antes disso</p>
+        <h2><span class="v">v0.36.0</span> A tela do PJe não morre mais no envio, e o pacote extrai no Windows</h2>
+        <p>
+          Em processos grandes, clicar em <strong>Enviar</strong> às vezes derrubava a aba
+          para a tela de erro do PJe. A sessão continuava válida — bastava reabrir o
+          processo —, mas a análise era interrompida sem explicação. A causa estava em
+          outro lugar: ler a lista oficial de documentos abre <strong>uma tela nova no
+          servidor por página lida</strong>, e o PJe guarda poucas; quem descobria o
+          estrago era o clique seguinte.
+        </p>
+        <p>
+          Agora as operações que falam com o PJe <strong>cedem a vez umas às outras</strong>
+          em vez de disputar a sessão, e a recusa <strong>diz o motivo e o progresso</strong>
+          (“página 7 de 14”) em vez de parecer travamento. Antes de qualquer download, a
+          conversa e as peças são <strong>gravadas</strong>: se a tela cair, você reabre o
+          processo e continua de onde parou, sem baixar nada de novo. E a lista lida uma
+          vez fica guardada — <strong>o ⟳ passou a valer por processo</strong>, não por
+          sessão.
+        </p>
+        <p>
+          No mesmo passe, o pacote de carta precatória voltou a <strong>abrir no
+          Windows</strong>. O <code>.zip</code> estava íntegro; o problema era o
+          <strong>comprimento do caminho</strong>, que o Windows corta em 260 caracteres —
+          e o PDF “não abria” pelo mesmo motivo. Os nomes encolheram de 156 para 70
+          caracteres.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2><span class="v">v0.35.0</span> Carta precatória: o pacote do malote se monta sozinho</h2>
         <p>
           Para mandar uma carta precatória pelo <strong>malote digital</strong>, você
           precisa juntar sempre as mesmas peças: a <strong>carta</strong>, a peça que deu
@@ -142,7 +205,6 @@
       </div>
 
       <div class="card">
-        <p class="eyebrow">Antes disso</p>
         <h2><span class="v">v0.34.0</span> Documentos de texto longos entram inteiros — o limite passou a acompanhar o modelo</h2>
         <p>
           Quem anexava um arquivo de <strong>texto</strong> grande — um <code>.md</code> ou

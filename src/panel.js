@@ -985,6 +985,39 @@ var PjePanel = (function () {
             </div>
           </div>
         </div>
+        <div class="gwarn plib" hidden>
+          <div class="gwarn-card plib-card" role="dialog" aria-modal="true" aria-label="Antes de carregar a lista oficial" tabindex="-1">
+            <div class="plib-hd">
+              <span class="t">Antes de carregar a lista oficial</span>
+              <button class="gwarn-close plib-close" title="Fechar (Esc)" aria-label="Fechar">${SVG.close}</button>
+            </div>
+            <div class="gwarn-body">
+              <p>Para trazer a lista <b>completa</b> — com o tipo oficial de cada peça —, a
+              extensão abre a tela “Documentos” do PJe e vira página por página. Cada
+              virada conta como <b>uma tela nova</b> na sua sessão do PJe, e o PJe guarda
+              poucas de cada vez.</p>
+              <div class="gwarn-risco">Em processo grande, a aba pode voltar com
+              <b>“Sua página expirou”</b> no próximo clique. É um limite do PJe, não uma
+              falha da extensão — e a sessão continua válida: basta reabrir o processo.</div>
+              <ul class="gwarn-list">
+                <li><span class="gwarn-m">1</span><span><b>Feche as outras abas do PJe antes.</b>
+                Todas as abas do navegador dividem a <b>mesma</b> sessão, e cada uma já
+                ocupa um lugar — é o que mais muda o resultado.</span></li>
+                <li><span class="gwarn-m">2</span><span><b>Carregue antes de conversar.</b>
+                Assim, se a tela expirar, você reabre o processo sem interromper nada
+                pela metade.</span></li>
+                <li><span class="gwarn-m">3</span><span><b>Nada se perde</b>, em nenhum caso:
+                a conversa e as peças já baixadas ficam guardadas. E esta leitura vale
+                <b>por processo</b> — na próxima vez a lista volta do disco, sem tocar no PJe.</span></li>
+              </ul>
+            </div>
+            <label class="gwarn-nao"><input type="checkbox" class="gwarn-cb"> Não mostrar este aviso de novo</label>
+            <div class="plib-form-acts">
+              <button class="gwarn-cancel plib-cancel">Agora não</button>
+              <button class="gwarn-ok plib-save">Carregar lista</button>
+            </div>
+          </div>
+        </div>
       </div>`;
     root.appendChild(wrap);
 
@@ -2232,7 +2265,75 @@ var PjePanel = (function () {
     // setTimelineTip — o content script é quem sabe o progresso real.
     // -------------------------------------------------------------------------
     let carregarTLCb = null;
-    tipLoad.addEventListener("click", () => carregarTLCb && carregarTLCb());
+    // -------------------------------------------------------------------------
+    // AVISO ANTES DA LEITURA DA LISTA OFICIAL.
+    //
+    // Este é o único gesto da extensão que pode derrubar a tela do PJe, e o
+    // motivo não é corrigível daqui: a paginação daquela tela faz POST de página
+    // INTEIRA, e o servidor guarda poucas telas por sessão. O que decide o
+    // desfecho é comportamento do usuário — quantas abas do PJe estão abertas
+    // (todas dividem a MESMA sessão) e quando ele clica —, então a orientação
+    // precisa chegar no instante da decisão, e não num guia que ninguém abre
+    // antes de clicar.
+    //
+    // Mostrado UMA vez por processo no caminho normal (a partir da 2ª vez a
+    // lista vem do disco e o botão nem é necessário), com desligamento
+    // permanente para quem já sabe. A leitura do storage acontece NO CLIQUE, e
+    // não no boot: assim não há a armadilha de callback síncrono do stub de
+    // teste que já mordeu `docsOcultas` e `guiaAberta`.
+    // -------------------------------------------------------------------------
+    const gwarnBox = $(".gwarn");
+    const gwarnCard = $(".gwarn-card");
+    const gwarnCb = $(".gwarn-cb");
+    let gwarnSeguir = null;
+    function fecharGwarn() {
+      gwarnBox.hidden = true;
+      gwarnSeguir = null;
+    }
+    $(".gwarn-close").addEventListener("click", fecharGwarn);
+    $(".gwarn-cancel").addEventListener("click", fecharGwarn);
+    gwarnBox.addEventListener("click", (e) => {
+      if (e.target === gwarnBox) fecharGwarn();
+    });
+    // stopPropagation como no `.plib-card` e no `.prec-card`: sem ele o Esc daqui
+    // cancelaria junto o modo minuta/mapa que estivesse ligado atrás.
+    gwarnCard.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        fecharGwarn();
+      }
+    });
+    $(".gwarn-ok").addEventListener("click", () => {
+      const seguir = gwarnSeguir;
+      if (gwarnCb.checked) {
+        try {
+          chrome.storage.local.set({ avisoGridVisto: true });
+        } catch {
+          /* contexto de extensão invalidado: o aviso volta na próxima, e tudo bem */
+        }
+      }
+      fecharGwarn();
+      seguir && seguir();
+    });
+    tipLoad.addEventListener("click", () => {
+      if (!carregarTLCb || tipLoad.disabled) return;
+      let respondeu = false;
+      const decidir = (r) => {
+        if (respondeu) return; // storage que responde síncrono E via callback
+        respondeu = true;
+        if (r && r.avisoGridVisto) return void carregarTLCb();
+        gwarnSeguir = () => carregarTLCb();
+        gwarnCb.checked = false;
+        gwarnBox.hidden = false;
+        gwarnCard.focus();
+      };
+      try {
+        const p = chrome.storage.local.get({ avisoGridVisto: false }, decidir);
+        if (p && typeof p.then === "function") p.then(decidir);
+      } catch {
+        decidir(null); // sem storage, avisa — errar para o lado de explicar
+      }
+    });
 
     // -------------------------------------------------------------------------
     // "Baixar .zip": exporta as peças MARCADAS — ou todas as da lista, quando
@@ -2405,6 +2506,20 @@ var PjePanel = (function () {
         precOk.disabled = true;
         return;
       }
+      // AVISO DE FORMATO — fixo, e antes de gerar. Este pacote vira anexo de
+      // malote, e peça escrita no editor do PJe (que é o caso da carta, do
+      // despacho e da decisão quase sempre) chega à extensão como CONTEÚDO, não
+      // como o PDF assinado. Descobrir isso depois de anexar ao e-mail é o pior
+      // momento possível — daí a faixa de aviso, e não uma linha na nota de
+      // rodapé. O `.zip` repete a informação com a lista exata dos arquivos.
+      const fmt = document.createElement("div");
+      fmt.className = "prec-aviso";
+      fmt.textContent =
+        "Peças escritas no editor do PJe saem como .txt: a extensão recebe o conteúdo " +
+        "delas, não o PDF com timbre e assinatura. Para enviar pelo malote, baixe essas " +
+        "peças pelo ícone ⬇ do visualizador do PJe e substitua os .txt na pasta — o " +
+        "LEIA-ME do .zip diz quais são.";
+      precIntro.appendChild(fmt);
       const nota = document.createElement("div");
       nota.className = "prec-nota";
       nota.textContent =

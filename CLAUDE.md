@@ -1352,6 +1352,38 @@ pedido ao modelo.
   "evento com movimento e sem peça" seguido de "evento com peça e sem movimento"
   (4 ocorrências no 3000436-28.2026). `lerEventos` faz o movimento órfão ser
   HERDADO pelo evento seguinte; sem isso, uma carta nesse formato sumiria calada.
+- **O pacote leva o PDF OFICIAL, não o texto da peça** (`PJE.baixarPdfOficial` +
+  `obterParaMalote` em content.js). O que entra num anexo de malote é o
+  documento do tribunal — timbre, paginação, rodapé de assinatura —, e a rota
+  REST de sempre entrega o CONTEÚDO (peça do editor vira texto), que serve para
+  ler e para a IA analisar mas **não é documento**. Como carta, despacho e
+  decisão nascem quase sempre no editor, o pacote inteiro saía em `.txt` — e o
+  defeito só apareceria no juízo deprecado.
+  **A rota foi levantada na sessão real (12/08/2026)** e é a do próprio botão ⬇
+  do visualizador: um POST no form `detalheDocumento` com
+  `detalheDocumento:download` devolve a PÁGINA (~230 KB), e dentro dela vem uma
+  URL pré-assinada de MinIO (`minio-pjedocs…?X-Amz-…&X-Amz-Expires=120`) — o PDF
+  é **gerado sob demanda**, não existe antes do clique (medido: abrir a peça no
+  visualizador dispara só `…/documento/download/{id}`, e nada de storage). Um
+  `fetch` na URL traz os bytes; o CORS é liberado.
+  O que não pode cair:
+  - **O POST baixa o documento CORRENTE** — ele não recebe id nenhum. Por isso a
+    peça é aberta antes (`ativarPeca`, já serializado) e a resposta é conferida:
+    se o id não aparece no HTML, devolve `null` em vez de gravar **o PDF errado**
+    no pacote, que ninguém notaria até o malote.
+  - **Dois postbacks por peça** — é caro para a sessão JSF, então é do PACOTE, e
+    nunca do chat, da medição ou da exportação em massa (que somariam centenas).
+  - **A URL vale 120 s**: usar na hora, sem cache.
+  - **Best-effort**: qualquer falha vira `null` e o chamador segue com o texto de
+    sempre. É por isso que o aviso continua existindo — a degradação é graciosa,
+    mas nunca silenciosa: faixa no modal ANTES de gerar (`.prec-aviso` fixo),
+    bloco no topo do `LEIA-ME.md` com a lista dos arquivos a substituir
+    (`textoNoPacote`) e a marca na LINHA de cada arquivo, porque quem monta o
+    e-mail lê a lista da pasta, não o cabeçalho. Critério: `formato !== "pdf"` e
+    não-imagem — peça digitalizada, que já é PDF, não é marcada.
+  - Específico do TJCE por enquanto (o form `detalheDocumento` é desta tela);
+    onde ele não existir, `null` na primeira linha e nada muda. Coberto por
+    teste em jsdom com `fetch` fake: caminho feliz + as seis guardas.
 - **MARCA para conferência, nunca baixa direto** (`panel.mostrarPrecatorias`): a
   escolha é por regra sobre metadados e o resultado vai por MALOTE — um erro só
   apareceria no juízo deprecado, semanas depois, e um `.zip` só se confere
@@ -1635,6 +1667,17 @@ no Enviar, e não no ⟳ que o causou.
   motivo próprio. O aviso vai por `setStatus` e **nunca** por `setAlerta`, que
   embute um botão "Nova conversa" — a ação errada, já que jogaria fora a conversa
   recém-gravada.
+- **Mas a morte é CONFIRMADA em duas leituras, e a segunda não é zelo.** O
+  sintoma que `marcarTelaMorta` observa é `#divTimeLine` ter sumido — e o mesmo
+  A4J que entrega a peça também **re-renderiza a timeline** (é o que troca os
+  nós no lazy load). Durante a troca o nó não existe, então um retrato tirado
+  ali é indistinguível da tela de erro. O falso positivo é o pior tipo: `telaMorta`
+  nunca volta a `false`, então ele aborta o lote, transforma as peças pendentes
+  em falhas nomeadas e desliga download, prefetch e medição **pelo resto da
+  sessão** — sem saída que não seja recarregar a página, e anunciando uma
+  expiração que não houve. A segunda leitura (700 ms) só roda no caminho em que
+  a timeline já sumiu, e separa o re-render, que dura um instante, da morte de
+  verdade, que não volta mais.
 - **A concorrência de download CEDE à ativação** (`CONCORRENCIA_DOWNLOAD` = 3, e
   os workers esperam enquanto `PJE.ativacaoEmVoo()`): três GETs mais os oito HEAD
   do poll mais o POST A4J são quatro frentes na mesma sessão. Adaptativo em vez
@@ -1663,6 +1706,35 @@ no Enviar, e não no ⟳ que o causou.
   sai o degrau `chave`, antes perdido até alguém reler a grid). `gravarGrid` é
   chamada UMA vez por leitura e **nunca** entra em `snapshotCaso`: são ~25 KB num
   processo de 138 peças, e o debounce dispara a cada peça que baixa.
+- **Cache no disco obriga a datar TODA afirmação sobre a lista.** `gridInfo`
+  deixou de ser "o que esta sessão leu" e passou a poder vir de semanas atrás. A
+  dica da lista já dizia "lida em DD/MM"; faltava o mesmo em
+  `descreverOrigemLista`, que escreve o LEIA-ME e o índice do **`.zip`** — e
+  ali custa mais caro, porque o pacote sai da ferramenta e vira registro:
+  afirmar "por completo" no presente sobre uma leitura antiga esconde que as
+  peças juntadas depois não estão lá. Fora do dia da leitura, o texto diz a data
+  **e** a consequência.
+- **O que NÃO dá para corrigir daqui vira ORIENTAÇÃO no gesto** (`.gwarn` em
+  panel.js + a seção `#expirou` do `help.html`). A parte do problema que sobra
+  depois de todas as guardas é **comportamento**: quantas abas do PJe estão
+  abertas (todas dividem a MESMA sessão) e quando o usuário clica no ⟳. Isso não
+  se resolve em código — e um guia que ninguém abre antes de clicar também não
+  resolve. Por isso o aviso é um modal **no clique do ⟳**, com o que vai
+  acontecer, o que fazer (fechar as outras abas é o item nº 1, é o que mais muda
+  o resultado) e a garantia de que nada se perde. Regras: quem decide mostrar é
+  o PAINEL, não o content.js (é UI pura — o `carregarTLCb` nem sabe que o aviso
+  existe); a leitura de `avisoGridVisto` acontece **no clique**, nunca no boot,
+  o que dispensa a armadilha de callback síncrono que já mordeu `docsOcultas` e
+  `guiaAberta`; e há "não mostrar de novo", porque o aviso é para ensinar, e
+  quem já aprendeu não precisa ser abordado a cada processo.
+- **O custo da leitura é dito ANTES, e o convite à releitura vem com o preço.**
+  O total de páginas é sabido já na 1ª e é o melhor previsor do efeito colateral:
+  passando de ~6, a view desta aba pode ser despejada — e quem descobre é o
+  gesto seguinte do usuário (o Enviar), que então parece o culpado. Pela mesma
+  razão, a dica de leitura PARCIAL não pode só convidar a "clicar de novo": a
+  releitura **recomeça da primeira página** e é exatamente o gesto que gasta
+  view em volume. As duas frases dizem também que nada se perde, que é a
+  pergunta real de quem vê a tela do PJe cair.
 - **NÃO mexer no `ca` da URL do iframe.** Testado na sessão real:
   `listAutosDigitais.seam?idProcesso=…` sem o `ca` responde "Sem permissão para
   acessar a página" — ele é a **chave de acesso**, não a conversação. Quem
@@ -2187,7 +2259,7 @@ que não podem quebrar:
   `R$` e `art./súmula` viram pílulas coloridas. Rodam ENTRE o escape e o
   `inlineMd` — o texto ainda não tem tags nesse ponto, então nenhum atributo é
   corrompido; trechos entre crases saem de cena por placeholders PUA
-  (`…`, sempre escapados no código) para um `art. 5º` escrito como
+  (`\uE010`…`\uE011`, sempre escapados no código) para um `art. 5º` escrito como
   código não virar pílula dentro do `<code>`.
 - **Etiqueta de origem** (`origemNoRodape`): a referência final do item —
   `(Contestação, id 123461, fl. 61)` — sai do meio da frase e vira `.mm-src` em
@@ -2230,6 +2302,18 @@ que não podem quebrar:
   `chrome`…) e trate como falso positivo o `typeof module !== "undefined"` dos
   rodapés de teste e os IIFE `var X = (function(){…})()`, que são consumidos por
   outro arquivo. Não deixe o config no repo: o projeto não tem `package.json`.
+- **NENHUM caractere de controle CRU no fonte — e o pior é o `NUL`.** A regra já
+  valia para os placeholders PUA do `renderMd` e do mapa ("sempre como escapes
+  ASCII no código"); aqui ela tem um custo maior, de FERRAMENTA. O git decide se
+  um arquivo é binário procurando um `\0` nos primeiros ~8 KB: `precatoria.js`
+  usava dois NUL crus como separador em `textoEvento` e entrou no repositório
+  como **`Bin 0 -> 12113 bytes`** — 247 linhas de lógica jurídica commitadas sem
+  uma linha de diff, e toda alteração futura ali invisível em revisão. O
+  ripgrep também pula binários, então as buscas no repo passam a mentir por
+  omissão (procurar `textoEvento` em `src/` não devolvia nada). `node --check`
+  passa: o NUL é legal dentro de string. Escrever `"\u0000"` resolve tudo e não
+  muda um byte em runtime. Varredura: procurar bytes `< 0x09`, `0x0B`, `0x0C`,
+  `0x0E–0x1F` e o intervalo PUA `U+E000–U+F8FF` em `src/*` e nos `.md`.
 - **Testar o BOOT do content.js sem PJe** (o único teste que pega erro de ordem
   de inicialização): DOM com `#divTimeLine`, stubs de `chrome`, `PJE`
   (a superfície real é `listarDocumentos`, não `listar`), `PLIB`,

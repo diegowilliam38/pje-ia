@@ -889,6 +889,46 @@ button > svg { flex: none; }
   margin-bottom: var(--sp-2b);
 }
 .prec-list { overflow: auto; padding: 0 var(--sp-4) var(--sp-3); flex: 1; min-height: 0; }
+
+/* AVISO antes de ler a lista oficial. Reaproveita a casca do `.plib` (como o
+   `.prec`); o que é próprio daqui é o corpo de texto — este modal explica, não
+   lista itens para escolher. Tokens de aviso SUAVE (--warn-*): informa o que
+   pode acontecer, não bloqueia nada. */
+/* O card é flex-column com `max-height: 92%`: quem rola tem de ser ESTE bloco,
+   e só ele — cabeçalho, checkbox e ações ficam sempre à vista (um modal cujo
+   botão "Carregar lista" sai da tela é um beco sem saída no painel flutuante,
+   que é o modo mais estreito). Mesmo par do `.prec-list`. */
+.gwarn-body {
+  padding: 0 var(--sp-4) var(--sp-2);
+  font-size: var(--fs-ui); line-height: 1.5; color: var(--ink);
+  overflow: auto; flex: 1 1 auto; min-height: 0;
+}
+.gwarn-body p { margin: 0 0 var(--sp-2b); }
+.gwarn-risco {
+  font-size: var(--fs-meta); color: var(--warn-ink); line-height: 1.45;
+  background: var(--warn-bg); border: 1px solid var(--warn-line);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--r-sm); padding: var(--sp-2) var(--sp-3);
+  margin-bottom: var(--sp-2b);
+}
+.gwarn-list { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--sp-2); }
+.gwarn-list li { display: flex; gap: var(--sp-2); align-items: flex-start; }
+/* O número é a ordem de importância, e a primeira linha é a que muda o
+   resultado — por isso ele é marca, não bullet. */
+.gwarn-m {
+  flex: none; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--pje-2); color: #fff;
+  font-size: var(--fs-nano); font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  margin-top: 1px;
+}
+.gwarn-nao {
+  flex: none;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 var(--sp-4) var(--sp-2);
+  font-size: var(--fs-meta); color: var(--muted); cursor: pointer;
+}
+.gwarn-nao input { width: 14px; height: 14px; accent-color: var(--pje); }
 /* Botão desabilitado precisa PARECER desabilitado: em cheio ele mantinha o
    azul da ação principal e convidava ao clique justamente na tela em que não há
    nada para baixar. */
