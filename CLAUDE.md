@@ -2341,6 +2341,19 @@ que não podem quebrar:
   passa: o NUL é legal dentro de string. Escrever `"\u0000"` resolve tudo e não
   muda um byte em runtime. Varredura: procurar bytes `< 0x09`, `0x0B`, `0x0C`,
   `0x0E–0x1F` e o intervalo PUA `U+E000–U+F8FF` em `src/*` e nos `.md`.
+- **Testar o CAMINHO DO ENVIO em jsdom** (irmão do teste de boot, e o que protege
+  o fluxo mais usado): sobre o mesmo harness, marcar um checkbox, escrever no
+  textarea, clicar em `.send` e conferir que (a) o `.status` NÃO traz recusa de
+  fila (`Lendo a lista oficial…`, `Exportação em andamento`), (b) `PJE.baixar`
+  foi chamada com o id marcado, (c) foi ao worker um `{type:"chat"}` pela porta,
+  (d) o conteúdo da peça está dentro do payload e (e) o `countTokens` rodou.
+  Stubs necessários além dos do boot: `apiKey` no `storage.local`, e o
+  `sendMessage` respondendo `countTokens` e `upload`.
+  **Armadilha do stub**: o `kind` de peça de texto é **`"text"`**, não
+  `"texto"` (`fmt` é que vale `"texto"|"html"|"rtf"`). Com o valor errado,
+  `podeAnexar` recusa a peça, ela entra em `semConteudo` e o request sai SEM o
+  documento — um falso positivo de bug convincente, porque o turno segue e o
+  inventário ainda anuncia a peça como não anexada.
 - **Testar o BOOT do content.js sem PJe** (o único teste que pega erro de ordem
   de inicialização): DOM com `#divTimeLine`, stubs de `chrome`, `PJE`
   (a superfície real é `listarDocumentos`, não `listar`), `PLIB`,
