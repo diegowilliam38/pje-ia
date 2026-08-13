@@ -731,6 +731,28 @@ button > svg { flex: none; }
 .d-ver:hover { background: var(--line-strong); color: var(--pje-2); }
 
 .empty { color: var(--muted); padding: 8px 4px; font-size: var(--fs-meta); }
+/* O PJe DESTA página fala outro dialeto (o KZ, frontend novo) e a extensão
+   ainda não o lê. Bloco FIXO da coluna, e não um estado da lista: pendurado no
+   vazio, o aviso dependeria de a lista chegar sem peças — verdade hoje, mas
+   premissa. Aviso SUAVE (DESIGN.md §2): a `.alertbar` embutiria um botão
+   "Nova conversa" que aqui não resolve nada, e o vermelho dela é reservado ao
+   que bloqueia um envio. */
+.naosup {
+  color: var(--warn-ink); background: var(--warn-bg);
+  border: 1px solid var(--warn-line); border-radius: var(--r-sm);
+  padding: var(--sp-2b) var(--sp-3); margin: 0 0 var(--sp-2);
+  font-size: var(--fs-meta); line-height: 1.45;
+}
+.naosup b { display: block; margin-bottom: 3px; font-size: var(--fs-ui); }
+.naosup p { margin: 0; }
+/* A `.docs` é um flex column travado em 264px no modo flutuante, e no estreito
+   o `.doclist` ainda reserva 96px de min-height. Somando o aviso, o conteúdo
+   estourava a caixa e a `.docs-tip` ia parar DENTRO do chat (visto em captura
+   headless, não no código). O aviso não encolhe; quem cede é a lista — que
+   neste estado está vazia por definição, já que é a leitura das peças que não
+   funciona. Se algum dia vier peça junto do aviso, ela rola. */
+.naosup { flex: 0 0 auto; }
+.docs:has(> .naosup:not([hidden])) .doclist { min-height: 0; }
 /* Aviso da lista incompleta + carregar tudo. Em repouso é UMA linha: ícone ⚠️
    (texto no title) e o botão de ação — o aviso de duas linhas era permanente e
    competia com a lista. O texto reaparece quando há PROGRESSO a mostrar

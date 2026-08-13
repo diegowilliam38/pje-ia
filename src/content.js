@@ -568,6 +568,27 @@
 
   const panel = PjePanel.mount();
 
+  // Esta página é de um PJe cujo dialeto a extensão lê? (ver `PJE.dialeto`.)
+  // Quando não é — hoje só o PJe KZ, o frontend novo, relatado no TRT2 —, a
+  // coluna de peças passa a EXPLICAR a lista vazia em vez de anunciá-la, e os
+  // botões que dependeriam das rotas do PJe legado saem desabilitados.
+  //
+  // A guarda de `typeof` não é zelo: o harness de boot em jsdom stuba o `PJE`
+  // com a superfície que usa, e um TypeError AQUI abortaria o content.js
+  // inteiro — o painel montaria, metade dele não existiria e nada no console
+  // apontaria para esta linha (é a mesma classe de estrago da zona morta
+  // temporal descrita logo abaixo).
+  if (typeof PJE.suportado === "function" && !PJE.suportado()) {
+    panel.setNaoSuportado({
+      titulo: "Este tribunal ainda não é suportado",
+      texto:
+        "A tela de documentos aqui é a do PJe novo (KZ), que a extensão ainda não " +
+        "sabe ler — por isso nenhuma peça aparece na lista. Não é a sua chave de " +
+        "API: não há nada a configurar. Nos tribunais com o PJe clássico a " +
+        "extensão funciona normalmente.",
+    });
+  }
+
   // ATENÇÃO ao acrescentar estado lido por callback do painel: este arquivo
   // REGISTRA os callbacks muito antes de declarar as variáveis que eles leem e
   // chama `refresh()` no meio — que roda `panel.setDocs` de forma SÍNCRONA. Um

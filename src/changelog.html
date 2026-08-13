@@ -99,7 +99,36 @@
 
       <div class="card destaque">
         <p class="eyebrow" style="color: rgba(255,255,255,0.7)">A novidade mais recente</p>
-        <h2><span class="v novo">v0.38.1</span> O aviso da lista não trava mais o resto da extensão</h2>
+        <h2><span class="v novo">v0.39.0</span> Tribunal incompatível agora se explica, em vez de parecer defeito</h2>
+        <p>
+          Alguns tribunais já migraram para o <strong>PJe novo</strong> (a tela de autos
+          com endereço <code>/pjekz/</code>, como no <strong>TRT2</strong>). A extensão
+          ainda não sabe ler a lista de peças dessa versão — e até agora isso aparecia
+          como uma lista <strong>vazia</strong>, sem explicação nenhuma.
+        </p>
+        <p>
+          O resultado era confuso da pior forma: quem clicava em <strong>chave</strong>
+          recebia a mensagem “nenhuma peça reconhecida como <em>chave</em>” e entendia
+          que o problema era a <strong>chave de API</strong> — que estava perfeitamente
+          configurada. A conclusão natural era que a extensão tinha quebrado.
+        </p>
+        <p>
+          Agora a coluna de peças diz o que está acontecendo, com todas as letras: o
+          tribunal usa o PJe novo, ainda não suportado, <strong>não é a sua chave</strong>
+          e não há nada a configurar. Os botões que dependeriam da lista ficam
+          desabilitados, com o motivo ao passar o mouse — em vez de aceitarem o clique e
+          não fazerem nada.
+        </p>
+        <p>
+          <strong>Nos tribunais com o PJe clássico nada muda</strong>: o aviso só existe
+          onde o endereço é o do PJe novo. O suporte de verdade a essa versão depende de
+          um levantamento com acesso a um processo real, e está em estudo.
+        </p>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">Antes disso</p>
+        <h2><span class="v">v0.38.1</span> O aviso da lista não trava mais o resto da extensão</h2>
         <p>
           Correção de dois defeitos da versão anterior, achados em revisão antes de
           chegarem ao uso.
@@ -122,7 +151,6 @@
       </div>
 
       <div class="card">
-        <p class="eyebrow">Antes disso</p>
         <h2><span class="v">v0.38.0</span> A lista completa de peças agora vem sem abrir nenhuma tela do PJe</h2>
         <p>
           O botão <strong>⟳ Carregar tudo</strong> — que traz a lista completa das peças,

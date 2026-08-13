@@ -817,6 +817,7 @@ var PjePanel = (function () {
               <span><i class="l-dot cat-peticao"></i>petições</span>
               <span><i class="l-dot cat-prova"></i>provas</span>
             </div>
+            <div class="naosup" role="note" hidden></div>
             <div class="doclist" title="Arraste para marcar várias peças · Shift+clique marca até aqui · botão direito abre “marcar daqui para baixo/cima”"></div>
             <div class="docs-tip">
               <span class="tip-i" role="note" tabindex="0" title="${TIP_PADRAO_ATTR}" aria-label="${TIP_PADRAO_ATTR}">!</span>
@@ -1038,11 +1039,22 @@ var PjePanel = (function () {
     const railNEl = $(".rail-n"); // badge da aba vertical (lista recolhida)
     const docQ = $(".doc-q");
     const docQN = $(".doc-q-n");
+    const naoSupBox = $(".naosup");
     const tipBox = $(".docs-tip");
     const tipTxt = $(".tip-txt");
     const tipLoad = $(".tip-load");
     const tipZip = $(".tip-zip");
     const tipIa = $(".tip-ia");
+    // `{titulo, texto}` quando esta página é de um PJe cujo dialeto a extensão
+    // ainda não lê (ver `PJE.dialeto`); `null` no caso normal, que é o de todos
+    // os tribunais suportados — nada aqui muda para eles.
+    //
+    // O estado mora no PAINEL, e não só no content.js, porque é a coluna de
+    // peças inteira que troca de recado: a lista vazia deixa de ser "não achei
+    // nada NESTA TELA" (que sugere rolar, clicar, tentar de novo) e passa a ter
+    // causa e nome. Declarado AQUI, no topo, junto dos elementos que ele
+    // governa — a armadilha da zona morta temporal vale neste arquivo também.
+    let naoSuportado = null;
     const msgs = $(".msgs");
     const ft = $(".ft");
     const statusEl = $(".status");
@@ -2040,8 +2052,30 @@ var PjePanel = (function () {
     // depois e apaga a mensagem) nem a `.docs-tip` (que tem dono, com
     // auto-reset de 12 s).
     function setSelNota(txt) {
+      // Num PJe não suportado a lista está vazia por uma causa que já tem
+      // aviso próprio, e qualquer nota sobre degraus de seleção é ruído — com
+      // potencial de ENGANAR, que foi exatamente o que originou este recurso:
+      // o usuário clicou em “chave”, leu “Nenhuma peça reconhecida como
+      // «chave»” e entendeu que faltava a CHAVE DA API (que estava certa).
+      if (naoSuportado) txt = "";
       selNota.textContent = txt || "";
       selNota.hidden = !txt;
+    }
+
+    // Estado vazio da lista de peças.
+    //
+    // O aviso de tribunal não suportado NÃO mora aqui, e isso é correção de um
+    // defeito que o teste pegou: pendurado no estado vazio, ele dependia de a
+    // lista chegar vazia — verdade no PJe KZ de hoje, mas premissa, não
+    // garantia. Um único link que casasse o padrão da timeline faria o aviso
+    // SUMIR e deixaria o usuário com peças que não têm rota de download. Ele
+    // passou a ser um bloco fixo da coluna (`.naosup`), e aqui só resta não
+    // repetir o assunto: um "nenhuma peça encontrada" logo abaixo de um aviso
+    // que já explicou o motivo é uma segunda frase mais fraca enfraquecendo a
+    // primeira.
+    function htmlListaVazia() {
+      if (naoSuportado) return "";
+      return '<div class="empty">Nenhuma peça encontrada nesta tela.</div>';
     }
 
     // Aplica um degrau de seleção. Os três compartilham o mesmo contrato:
@@ -2696,7 +2730,10 @@ var PjePanel = (function () {
     function setTimelineTip(estado) {
       const { texto = null, carregando = false } = estado || {};
       clearTimeout(tipTimer);
-      tipLoad.disabled = carregando;
+      // O `|| naoSuportado` não é redundante com o `setNaoSuportado`: esta
+      // linha REESCREVE o `disabled` a cada chamada e reabilitaria o botão que
+      // ele desligou. Quem grava por último manda.
+      tipLoad.disabled = carregando || !!naoSuportado;
       // rotulo(), nunca textContent: o botão é <svg> + <span class="lbl"> e
       // escrever no botão inteiro apagaria o ícone na primeira carga.
       rotulo(tipLoad, carregando ? "Carregando…" : "Carregar tudo");
@@ -5053,6 +5090,45 @@ var PjePanel = (function () {
       classificarPeca,
       // Estado da dica: {texto, carregando}. Sem argumento volta ao padrão.
       setTimelineTip,
+      // Declara que esta página é de um PJe cujo dialeto a extensão ainda não
+      // lê. Muda só o que a coluna de peças DIZ e desliga os botões que não
+      // teriam como funcionar — nenhum outro comportamento é tocado, porque em
+      // tribunal suportado esta função nunca é chamada e o painel é byte a
+      // byte o de antes.
+      //
+      // Os botões saem por `disabled` com o motivo no `title`, e não escondidos:
+      // um controle que some não ensina nada, e o usuário que já conhecia o
+      // “⟳ Carregar tudo” concluiria que a extensão quebrou. É a mesma escolha
+      // do 📚 Modelos fora da janela de 1M.
+      setNaoSuportado(info) {
+        naoSuportado = info || null;
+        if (!naoSuportado) return;
+        setSelNota("");
+        naoSupBox.textContent = "";
+        const t = document.createElement("b");
+        t.textContent = naoSuportado.titulo;
+        const p = document.createElement("p");
+        p.textContent = naoSuportado.texto;
+        naoSupBox.append(t, p);
+        naoSupBox.hidden = false;
+        const motivo = naoSuportado.titulo + " — este controle não teria o que fazer aqui.";
+        // Os degraus entram junto, e não por simetria: com a `.sel-nota`
+        // suprimida acima, clicar em “chave” numa lista vazia não faria NADA e
+        // o checkbox voltaria sozinho — “indistinguível de um botão quebrado”,
+        // que é a frase com que o próprio `aplicarDegrau` justifica a nota que
+        // aqui deixou de existir. O aviso logo acima é a explicação; o
+        // `disabled` é o que impede a pergunta.
+        for (const b of [tipLoad, tipIa, tipZip, tipZipMais, chkEss, chkMain, chkAll, docQ]) {
+          if (!b) continue;
+          b.disabled = true;
+          b.title = motivo;
+        }
+        // A lista pode já ter sido pintada com o vazio clássico (o content.js
+        // chama isto logo após o mount, mas o `refresh()` do boot é síncrono e
+        // a ordem entre os dois não deve virar requisito silencioso).
+        const vazio = doclist.querySelector(".empty");
+        if (vazio) vazio.remove();
+      },
       // Preview no hover: cb SÍNCRONO que devolve o conteúdo em cache ou null
       // ({kind:"pdf", b64, size, pages} | {kind:"text", text}) — nunca baixa.
       onPreview(cb) {
@@ -5385,7 +5461,7 @@ var PjePanel = (function () {
           doclist.appendChild(row);
         }
         if (!docs.length) {
-          doclist.innerHTML = '<div class="empty">Nenhuma peça encontrada nesta tela.</div>';
+          doclist.innerHTML = htmlListaVazia();
         }
         filtrarDocs(); // re-aplica a busca ativa à lista recém-renderizada
         syncSelection();

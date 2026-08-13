@@ -74,6 +74,35 @@ var PJE = (function () {
     return new URLSearchParams(location.search).get("idProcesso");
   }
 
+  // DIALETO do PJe desta página — o PORTÃO por trás do qual todo caminho novo
+  // de outro PJe tem de ficar, para os tribunais que funcionam hoje seguirem
+  // no ramo "legacy" byte a byte.
+  //
+  // A extensão inteira foi construída contra o PJe 1.x (JSF/Seam): o
+  // `idProcesso` vem na QUERYSTRING, as peças são links "123456 - Nome" dentro
+  // de `#divTimeLine` e todas as rotas vivem sob
+  // `/{base}/seam/resource/rest/pje-legacy/`. O PJe KZ — o frontend novo, base
+  // path `pjekz` (relatado no TRT2: `/pjekz/processo/4047423/detalhe`) — não
+  // tem NADA disso: o id do processo mora no PATH e a árvore `seam` não
+  // existe. Lá `getIdProcesso()` devolve null, `listarPelaApi` e
+  // `listarPelaGrid` saem na PRIMEIRA linha (`if (!proc) return null`) e a
+  // lista chega vazia ao painel.
+  //
+  // POR QUE PELO BASE PATH, e nunca por "a lista veio vazia": a timeline do
+  // PJe é LAZY, então um heurístico de FALHA acusaria de não suportado o
+  // tribunal legado cuja timeline ainda não carregou — trocaria um silêncio
+  // por uma afirmação falsa, que é pior. Sinal POSITIVO só acende onde o
+  // dialeto é de fato outro.
+  function dialeto() {
+    return /^pjekz$/i.test(getBase()) ? "kz" : "legacy";
+  }
+
+  // Esta página fala o dialeto que a extensão lê? Açúcar para o único
+  // consumidor de hoje (o aviso no painel), e o nome que os call sites leem.
+  function suportado() {
+    return dialeto() === "legacy";
+  }
+
   // Número CNJ do processo (NNNNNNN-DD.AAAA.J.TR.OOOO). Vai ao system prompt
   // para o modelo não precisar garimpá-lo nos PDFs — sem ele, o título do mapa
   // mental saía com número inventado. O padrão CNJ é nacional, então a mesma
@@ -1603,6 +1632,9 @@ var PJE = (function () {
     getBase,
     getIdProcesso,
     getNumeroProcesso,
+    // O portão de dialeto (ver o comentário longo em `dialeto`).
+    dialeto,
+    suportado,
     chaveDoCaso,
     lerCabecalhoProcesso,
     listarDocumentos,

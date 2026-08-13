@@ -24,6 +24,33 @@ variam por tribunal (`pje.tjce.jus.br/pje1grau`, `pje1g.trf5.jus.br/pje`…):
 `pje.js` deriva o base path da URL (`getBase`). `DOMINIOS_JURIDICOS` ganha o
 domínio-raiz do tribunal atual em runtime (busca de jurisprudência).
 
+**Portão de dialeto (`PJE.dialeto`/`PJE.suportado`)**: tudo acima descreve o PJe
+**1.x (JSF/Seam)** — `idProcesso` na querystring, peças como links `123456 - Nome`
+em `#divTimeLine`, rotas sob `/{base}/seam/resource/rest/pje-legacy/`. O **PJe KZ**
+(frontend novo, base path `pjekz`; relatado no TRT2) não tem nada disso: o id vive
+no PATH e a árvore `seam` não existe, então `getIdProcesso()` devolve `null`,
+`listarPelaApi`/`listarPelaGrid` saem na PRIMEIRA linha e a lista chega vazia — com
+`chaveDoCaso()` nulo, o que ainda desliga a memória de caso. Hoje isso só **se
+anuncia** (`panel.setNaoSuportado`: bloco `.naosup` na coluna, degraus e botões da
+`.docs-tip` desabilitados, `.sel-nota` suprimida). Regras:
+- **Todo caminho de KZ fica ATRÁS do portão**, para os tribunais suportados
+  seguirem no ramo `legacy` byte a byte — mesma disciplina do condicionamento por
+  `caps` (nunca por nome de modelo) que permitiu somar Gemini e OpenAI.
+- **Sinal POSITIVO (o base path), nunca "a lista veio vazia"**: a timeline é lazy,
+  e um heurístico de falha acusaria o tribunal legado cuja timeline ainda não
+  carregou — trocaria silêncio por afirmação falsa.
+- **Não dar fallback genérico ao `getIdProcesso()`** (ler o id do path): `null` ali
+  é intencional, e um id adivinhado produziria chave de caso errada (agrupando
+  processos distintos) e URL de download inventada. O fallback tem de nascer
+  DENTRO do portão.
+- **O aviso NÃO pode morar no estado vazio da lista** (foi a 1ª versão, e o teste
+  pegou): ele dependeria de a lista chegar vazia — verdade no KZ de hoje, mas
+  premissa. Um único link que casasse o padrão da timeline o faria sumir.
+- A `.docs` é `flex column` com `max-height: 264px` no flutuante e o `.doclist`
+  reserva 96px no `.estreito`: sem `.naosup{flex:0 0 auto}` + `min-height:0` no
+  `.doclist`, a faixa estoura e a `.docs-tip` vai parar DENTRO do chat (só a
+  captura headless mostra).
+
 Content scripts injetados nesta ordem
 (cada um é um IIFE que expõe um global — não há imports entre content scripts):
 
