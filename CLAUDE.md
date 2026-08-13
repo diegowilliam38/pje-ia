@@ -184,17 +184,33 @@ quebrar:
     `The parameter 'safety_settings' is not available on the Gemini API but it is
     available on the Gemini Enterprise Agent Platform.` — quarta redação, e ela
     casa `/safety/i`, então a autocura funciona e o usuário não vê erro. Duas
-    consequências que não podem ser esquecidas: (a) **o afrouxamento do filtro
-    configurável deixou de existir de fato** — o que resta é a instrução no
-    prompt e a saída de trocar para um modelo Claude, e nenhuma nota da UI deve
-    prometer o contrário; (b) **todo primeiro request Gemini de cada vida do
-    worker paga um 400 + reenvio**, e o worker MV3 morre a cada ~30 s de
-    ociosidade, então na prática é quase um por turno. Barato quando as peças vão
-    por `uri` da Files API; **caro no fallback base64**, em que o corpo inteiro
-    (dezenas de MB) sobe duas vezes. Se for tratar, a correção é gravar a
-    descoberta em `chrome.storage.session` (sobrevive à morte do worker e morre
-    com o navegador, que é a granularidade certa para "re-aprender"), e NÃO
-    apagar a maquinaria da autocura — o campo pode voltar.
+    consequências: (a) **o afrouxamento do filtro configurável deixou de existir
+    de fato** — o que resta é a instrução no prompt e a saída de trocar para um
+    modelo Claude, e nenhuma nota da UI deve prometer o contrário; (b) a
+    autocura, escrita para um caso RARO, passou a valer para todo request.
+  - **Por isso a descoberta é MEMORIZADA em `chrome.storage.session`**
+    (`CHAVE_SAFETY_OFF` + `carregarSafetyDaSessao`/`lembrarSafetyIndisponivel`,
+    v0.40.1). Com a descoberta só numa variável de módulo, o worker MV3 — que
+    morre a cada ~30 s de ociosidade — re-aprendia a cada turno: **400 + reenvio
+    do corpo inteiro, quase sempre**. Barato quando as peças vão por `uri` da
+    Files API; caro no fallback base64, em que dezenas de MB sobem duas vezes.
+    Com a memória de sessão o preço cai para UMA vez por sessão do navegador.
+    - **`session` e não `local`**: sobrevive à morte do worker (o que resolve o
+      problema) e morre com o navegador — a granularidade certa para re-testar,
+      sem lógica de expiração e sem gravar nada permanente no disco do usuário.
+    - **NÃO apagar a maquinaria da autocura**, nem trocá-la por um "não mandar
+      mais": se o campo voltar a ser aceito, a sessão seguinte volta a mandá-lo
+      sozinha, sem release. É o que separa uma memória de um hardcode.
+    - **Best-effort dos dois lados**: sem `chrome` (é assim que gemini.js é
+      testado fora do navegador) ou com storage que lança, degrada exatamente
+      para o comportamento anterior — no pior caso um reenvio. Falha ali não
+      pode derrubar um turno, que é o oposto do que a função existe para evitar.
+    - Coberto por teste com `fetch` fake que simula a API de hoje (recusa todo
+      request com o campo) e recarrega o MÓDULO por query string para simular a
+      morte do worker: descoberta+gravação, 2º turno na mesma vida, **worker
+      reiniciado lendo da sessão** (o caso que corrige), ausência de `chrome`,
+      storage que lança, e o bloqueio de política — que continua não podendo
+      custar um segundo envio dos autos.
 - **usage normalizado** para as 4 categorias da Anthropic em gemini.js
   (`input = total_input − total_cached`; `cache_read = total_cached`;
   `cache_creation = 0`; `output` inclui thoughts) — custo, tooltip e gauge funcionam

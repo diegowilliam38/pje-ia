@@ -188,10 +188,63 @@ const SAFETY_LIVRE = [
   { category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "BLOCK_NONE" },
 ];
 // AUTOCURA: se a Interactions API não aceitar `safety_settings` (400 nomeando o
-// campo), reenviamos SEM ele e desligamos isto para a sessão — o provedor PADRÃO
-// (Gemini) nunca pode quebrar por causa de um campo que a versão da API não
-// conhece. Volta a `true` quando o worker reinicia (re-aprende).
+// campo), reenviamos SEM ele e paramos de mandá-lo — o Gemini nunca pode
+// quebrar por causa de um campo que a versão da API não conhece.
+//
+// A DESCOBERTA VIVE EM `chrome.storage.session`, e não só nesta variável de
+// módulo, por um motivo MEDIDO: em 13/08/2026 o Google removeu
+// `safety_settings` da Gemini API (a recusa diz que o parâmetro só existe no
+// "Gemini Enterprise Agent Platform"), e a recusa vale para TODOS os modelos —
+// conferido no 3.7 e no 3.6. Ou seja, a autocura deixou de ser o caso raro para
+// o qual foi escrita e passou a valer para todo request. Como o worker MV3 morre
+// a cada ~30 s de ociosidade, uma variável de módulo re-aprende a cada turno: o
+// usuário pagava 400 + reenvio do corpo INTEIRO quase sempre — barato quando as
+// peças vão por `uri` da Files API, caro no fallback base64, em que dezenas de
+// MB sobem duas vezes. Com a memória de sessão o preço cai para UMA vez por
+// sessão do navegador.
+//
+// `session` e não `local` de propósito: sobrevive à morte do worker (que é o que
+// resolve o problema) e morre com o navegador (que é a granularidade certa para
+// re-testar — sem lógica de expiração e sem gravar nada permanente no disco de
+// quem usa). E a maquinaria continua de pé: se o campo voltar a ser aceito, a
+// sessão seguinte volta a mandá-lo sozinha, sem precisar de release.
+const CHAVE_SAFETY_OFF = "geminiSafetyIndisponivel";
 let safetyGeminiSuportado = true;
+let safetyConsultado = false; // já lemos o storage nesta vida do worker?
+
+// Best-effort dos DOIS lados: sem `chrome` (é assim que este arquivo é testado
+// fora do navegador) ou com o storage indisponível, o comportamento degrada
+// exatamente para o de antes — no pior caso, um reenvio. Falha aqui não pode
+// derrubar um turno, que é o oposto do que esta função existe para evitar.
+function sessaoDaExtensao() {
+  try {
+    const c = globalThis.chrome;
+    return (c && c.storage && c.storage.session) || null;
+  } catch {
+    return null;
+  }
+}
+async function carregarSafetyDaSessao() {
+  if (safetyConsultado) return;
+  safetyConsultado = true;
+  const sess = sessaoDaExtensao();
+  if (!sess) return;
+  try {
+    const v = await new Promise((resolve) => sess.get([CHAVE_SAFETY_OFF], resolve));
+    if (v && v[CHAVE_SAFETY_OFF]) safetyGeminiSuportado = false;
+  } catch {
+    /* segue mandando o campo — no pior caso, um reenvio */
+  }
+}
+function lembrarSafetyIndisponivel() {
+  const sess = sessaoDaExtensao();
+  if (!sess) return;
+  try {
+    sess.set({ [CHAVE_SAFETY_OFF]: true });
+  } catch {
+    /* idem: a descoberta se perde, o turno não */
+  }
+}
 
 // req: {apiKey, model, system, messages, tools?, thinkingLevel?}
 // Campos do caminho Anthropic (betas, container, thinking, output_config,
@@ -253,6 +306,9 @@ export async function* streamGemini(req) {
       body: prepararCorpo(incluiSafety),
     });
 
+  // A descoberta gravada na sessão precisa estar carregada ANTES do primeiro
+  // envio — é ela que evita repetir o 400 + reenvio a cada vida do worker.
+  await carregarSafetyDaSessao();
   let resp = await enviar(safetyGeminiSuportado);
   if (!resp.ok) {
     let apiMsg = await lerCorpoErroGemini(resp);
@@ -261,18 +317,21 @@ export async function* streamGemini(req) {
     // então não dispara um segundo envio dos autos (caro) à toa.
     //
     // O casamento é por `/safety/`, e não pelo literal `safety_settings`, porque
-    // a API recusa o campo em pelo menos TRÊS redações e só a primeira traz o
+    // a API recusa o campo em pelo menos QUATRO redações e só a primeira traz o
     // nome em snake_case: campo desconhecido ("Unknown name \"safety_settings\""),
     // valor de enum inválido ("Unknown value at 'safety_settings[4].category'" —
     // o caso real de `HARM_CATEGORY_CIVIC_INTEGRITY`, que nem toda versão
-    // conhece) e threshold restrito ("Safety setting threshold ... restricted",
-    // com espaço e maiúscula). Errar aqui não custa um recurso: o Gemini é o
-    // provedor PADRÃO, então um 400 não reconhecido deixa a extensão sem
-    // responder nada na primeira pergunta de quem acabou de instalar. O preço do
-    // casamento largo é, no pior caso, UM reenvio por vida do worker.
+    // conhece), threshold restrito ("Safety setting threshold ... restricted",
+    // com espaço e maiúscula) e a ATUAL, de 13/08/2026 ("The parameter
+    // 'safety_settings' is not available on the Gemini API but it is available
+    // on the Gemini Enterprise Agent Platform") — esta última em TODOS os
+    // modelos. Errar aqui não custa um recurso: um 400 não reconhecido deixaria
+    // a extensão sem responder nada. O preço do casamento largo é, no pior caso,
+    // UM reenvio por sessão do navegador (ver a memória de sessão acima).
     if (resp.status === 400 && safetyGeminiSuportado && /safety/i.test(apiMsg)) {
       safetyGeminiSuportado = false;
-      console.debug("[PJe IA] Gemini: safety_settings não aceito — reenviando sem o campo e desativando nesta sessão");
+      lembrarSafetyIndisponivel();
+      console.debug("[PJe IA] Gemini: safety_settings não aceito — reenviando sem o campo e desativando nesta sessão do navegador");
       resp = await enviar(false);
       if (!resp.ok) apiMsg = await lerCorpoErroGemini(resp);
     }

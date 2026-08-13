@@ -99,7 +99,39 @@
 
       <div class="card destaque">
         <p class="eyebrow" style="color: rgba(255,255,255,0.7)">A novidade mais recente</p>
-        <h2><span class="v novo">v0.40.0</span> Chega o Gemini 3.7 Flash, e a extensão passa a vir configurada no GPT-5.6 Luna</h2>
+        <h2><span class="v novo">v0.40.1</span> Nos modelos Gemini, a resposta deixa de esperar uma ida e volta perdida</h2>
+        <p>
+          O Google <strong>retirou da API</strong> um ajuste que a extensão enviava junto
+          de cada pergunta — o que afrouxa o filtro de conteúdo do próprio Google, e que
+          existe aqui porque autos falam de <strong>violência, crimes e drogas</strong>, e
+          o filtro barra esse assunto por padrão.
+        </p>
+        <p>
+          A extensão já sabia se virar: ela percebia a recusa e <strong>reenviava sem o
+          ajuste</strong>, então você nunca viu erro nenhum. O problema era o
+          <em>reaprender</em>: quem faz esses envios é um serviço interno do Chrome que é
+          <strong>desligado depois de ~30 segundos parado</strong>, e a cada vez que ele
+          voltava, a extensão descobria tudo de novo. Na prática, quase toda pergunta ao
+          Gemini gastava <strong>um envio perdido antes do que valia</strong> — o que pesa
+          principalmente quando as peças seguem inteiras dentro do pedido.
+        </p>
+        <p>
+          Agora essa descoberta fica guardada <strong>enquanto o navegador estiver
+          aberto</strong>: acontece uma vez por sessão, não uma vez por pergunta. E se o
+          Google voltar a aceitar o ajuste, a extensão volta a usá-lo sozinha, sem
+          precisar de atualização.
+        </p>
+        <p>
+          <strong>Nos modelos Claude e GPT nada muda</strong> — o ajuste era só do Gemini.
+          O que continua valendo: quando o bloqueio vem da camada de política do Google
+          (aquela que não se pode desligar), a saída segue sendo trocar para um modelo
+          Claude, e a extensão diz isso.
+        </p>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">Antes disso</p>
+        <h2><span class="v">v0.40.0</span> Chega o Gemini 3.7 Flash, e a extensão passa a vir configurada no GPT-5.6 Luna</h2>
         <p>
           <strong>Se você já usa a extensão, nada muda</strong>: o modelo que está salvo na
           sua configuração continua exatamente como está. A troca vale para
@@ -126,7 +158,6 @@
       </div>
 
       <div class="card">
-        <p class="eyebrow">Antes disso</p>
         <h2><span class="v">v0.39.1</span> O botão de salvar deixou de se esconder na tela de configuração</h2>
         <p>
           A janela de configuração é mais alta do que o espaço que o Chrome dá a ela, e
@@ -1168,7 +1199,7 @@
 
       <h1 class="serif" id="historico">Histórico completo</h1>
       <p class="lead">
-        As 70 versões, da mais recente à primeira. As marcadas com
+        As 71 versões, da mais recente à primeira. As marcadas com
         <span class="dot-marco"></span> mudaram o produto de forma visível.
       </p>
 
@@ -1178,6 +1209,7 @@
             <tr><th>Versão</th><th>Data</th><th>O que mudou</th></tr>
           </thead>
           <tbody>
+            <tr><td><span class="v">0.40.1</span></td><td>13/08/2026</td><td>Nos modelos <strong>Gemini</strong>, a resposta deixou de gastar uma ida e volta perdida antes de começar. O Google retirou da API um ajuste que a extensão enviava (o que afrouxa o filtro de conteúdo — necessário porque autos falam de crime e violência); a extensão já se recuperava sozinha reenviando sem ele, mas <strong>reaprendia isso a cada pergunta</strong>, porque o serviço interno do Chrome que faz os envios é desligado após ~30 s parado. Agora a descoberta vale por <strong>sessão do navegador</strong>. Se o Google voltar a aceitar o ajuste, a extensão volta a usá-lo sozinha</td></tr>
             <tr class="marco"><td><span class="v">0.40.0</span></td><td>13/08/2026</td><td><span class="dot-marco"></span><strong>Gemini 3.7 Flash entra na lista, e a extensão passa a vir configurada no GPT-5.6 Luna.</strong> Quem já usa não é afetado — o modelo salvo continua o mesmo; a troca vale para instalações novas. O Luna custa <strong>US$ 0,20 por milhão de tokens de entrada</strong> contra US$ 1,50 do Gemini Flash, e é o único dos dois em que a busca de jurisprudência pode ser <strong>restringida aos domínios oficiais</strong> pelo servidor do provedor — no Gemini isso é só um pedido no texto, que o modelo já ignorou em teste. O <strong>Gemini 3.7 Flash</strong> passa a ser o Gemini recomendado (mesma janela de 1M e as mesmas 1.000 páginas do 3.6); o 3.6 e o 3.5 Flash-Lite continuam na lista</td></tr>
             <tr><td><span class="v">0.39.1</span></td><td>13/08/2026</td><td>O <strong>“Salvar configuração”</strong> deixou de ficar abaixo da dobra na tela de configuração: a linha com <strong>Testar chave</strong> e <strong>Salvar</strong> acompanha a rolagem, e um aviso de <strong>“Alterações não salvas”</strong> aparece assim que você mexe em algum campo. Antes, quem trocava o modelo fechava a janela achando que tinha terminado e perdia a mudança sem aviso</td></tr>
             <tr><td><span class="v">0.39.0</span></td><td>13/08/2026</td><td>Tribunal que já migrou para o <strong>PJe novo</strong> (onde a extensão ainda não funciona) passa a <strong>dizer isso</strong>, em vez de mostrar uma lista de peças vazia que parecia defeito da extensão</td></tr>
