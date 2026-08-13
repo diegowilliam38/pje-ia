@@ -29,6 +29,17 @@ if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path (Join-Path $staging "*") -DestinationPath $zip
 Remove-Item $staging -Recurse -Force
 
+# Cópia com nome FIXO, para o release. O botão "⬇️ Baixar a extensão" do
+# README aponta para .../releases/latest/download/pje-ia.zip — um endereço que
+# só continua valendo se o asset tiver sempre o mesmo nome. Enquanto o release
+# levava apenas o zip versionado, esse link respondia 404: quem chegava pelo
+# GitHub não conseguia baixar a extensão, e nada na página dizia o porquê.
+# Anexe OS DOIS ao release (`gh release create <tag> tecjustica-pje-v*.zip pje-ia.zip`).
+$fixo = Join-Path $raiz "pje-ia.zip"
+if (Test-Path $fixo) { Remove-Item $fixo -Force }
+Copy-Item $zip $fixo
+
 $tam = "{0:N0} KB" -f ((Get-Item $zip).Length / 1KB)
 Write-Host "✔ Pacote gerado: $zip ($tam)" -ForegroundColor Green
-Write-Host "  Envie este arquivo na aba 'Pacote' do painel do desenvolvedor da Chrome Web Store."
+Write-Host "  Cópia para o release: $fixo (nome fixo — é o link do README)"
+Write-Host "  Envie o versionado na aba 'Pacote' do painel do desenvolvedor da Chrome Web Store."
