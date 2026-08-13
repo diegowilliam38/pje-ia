@@ -78,16 +78,18 @@ const PROVS = ["anthropic", "gemini", "openai"];
 const NOME_PROVEDOR = { anthropic: "Anthropic", gemini: "Google", openai: "OpenAI" };
 // Primeiro modelo de cada provedor = o recomendado. Clicar num cartão troca
 // para ele; o provedor NÃO é gravado no storage — continua derivado do `model`.
-const PADRAO = { anthropic: "claude-haiku-4-5", gemini: "gemini-3.6-flash", openai: "gpt-5.6-luna" };
+const PADRAO = { anthropic: "claude-haiku-4-5", gemini: "gemini-3.7-flash", openai: "gpt-5.6-luna" };
 // Modelo usado quando NADA foi salvo ainda. Precisa ser byte a byte o default
-// do `getCfg` em background.js: sem `model` no storage o worker chama o Gemini
-// 3.6 Flash, mas o <select> mostrava o PRIMEIRO <option> do HTML (o Haiku) —
-// então, na primeira instalação, o popup pedia a chave da Anthropic para uma
-// extensão que ia falar com o Google, e o selo do painel contradizia a tela de
-// configuração. Não dá para importar a constante do worker (este script é
-// clássico e aquele é ES module), então a duplicação é deliberada e anotada
-// nos dois lados.
-const MODELO_PADRAO = "gemini-3.6-flash";
+// do `getCfg` em background.js: sem `model` no storage o worker chama o
+// GPT-5.6 Luna, e enquanto o <select> mostrava o PRIMEIRO <option> do HTML (o
+// Haiku) a primeira instalação pedia a chave da Anthropic para uma extensão
+// que ia falar com outro provedor, com o selo do painel contradizendo a tela
+// de configuração. Não dá para importar a constante do worker (este script é
+// clássico e aquele é ES module), então a duplicação é deliberada, anotada nos
+// dois lados e coberta por teste. Defesa a mais: o Luna é também o PRIMEIRO
+// <option> do <select> nas duas telas, então mesmo o fallback do navegador
+// (quando `value` não casa nenhum id) cai no mesmo modelo que o worker usa.
+const MODELO_PADRAO = "gpt-5.6-luna";
 
 // O chip reflete a chave do PROVEDOR do modelo selecionado: escolher um modelo
 // de um provedor sem a chave dele avisa na hora, antes mesmo de salvar. O

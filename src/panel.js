@@ -6046,6 +6046,7 @@ var PjePanel = (function () {
           "claude-sonnet-5": "Claude Sonnet 5",
           "claude-opus-4-8": "Claude Opus 4.8",
           "claude-fable-5": "Claude Fable 5",
+          "gemini-3.7-flash": "Gemini 3.7 Flash",
           "gemini-3.6-flash": "Gemini 3.6 Flash",
           "gemini-3.5-flash-lite": "Gemini 3.5 Flash-Lite",
           // Os três GPT faltavam desde que a OpenAI entrou: o fallback abaixo

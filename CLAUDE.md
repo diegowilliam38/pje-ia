@@ -169,16 +169,32 @@ quebrar:
     filtro é determinístico pelo conteúdo, então o erro **não é `retryable`**.
   - A autocura reenvia SEM o campo e desliga o recurso pela vida do worker
     quando a API recusa `safety_settings`, e o casamento é **`/safety/i`**, não o
-    literal snake_case: a API recusa em pelo menos TRÊS redações — campo
+    literal snake_case: a API recusa em pelo menos QUATRO redações — campo
     desconhecido (`Unknown name "safety_settings"`), valor de enum inválido
     (`Unknown value at 'safety_settings[4].category'` — o caso real do
-    `HARM_CATEGORY_CIVIC_INTEGRITY`, que nem toda versão conhece) e threshold
-    restrito (`Safety setting threshold ... restricted`, com espaço e maiúscula).
-    Estreitar isso de novo custa caro: o Gemini é o provedor **PADRÃO**, e um 400
-    não reconhecido deixa a extensão muda na primeira pergunta de quem acabou de
-    instalar. O preço do casamento largo é, no pior caso, UM reenvio por vida do
-    worker. Coberto por teste com `fetch` fake nas três redações + o bloqueio de
-    política (que NÃO pode custar um segundo envio dos autos).
+    `HARM_CATEGORY_CIVIC_INTEGRITY`, que nem toda versão conhece), threshold
+    restrito (`Safety setting threshold ... restricted`, com espaço e maiúscula)
+    e a de hoje, descrita abaixo. Estreitar isso custa caro: um 400 não
+    reconhecido deixa a extensão muda na primeira pergunta. O preço do casamento
+    largo é, no pior caso, UM reenvio por vida do worker. Coberto por teste com
+    `fetch` fake nas redações + o bloqueio de política (que NÃO pode custar um
+    segundo envio dos autos).
+  - **MEDIDO EM 13/08/2026, com chave real: a Gemini API NÃO ACEITA MAIS
+    `safety_settings` — em NENHUM modelo.** A resposta é 400 com
+    `The parameter 'safety_settings' is not available on the Gemini API but it is
+    available on the Gemini Enterprise Agent Platform.` — quarta redação, e ela
+    casa `/safety/i`, então a autocura funciona e o usuário não vê erro. Duas
+    consequências que não podem ser esquecidas: (a) **o afrouxamento do filtro
+    configurável deixou de existir de fato** — o que resta é a instrução no
+    prompt e a saída de trocar para um modelo Claude, e nenhuma nota da UI deve
+    prometer o contrário; (b) **todo primeiro request Gemini de cada vida do
+    worker paga um 400 + reenvio**, e o worker MV3 morre a cada ~30 s de
+    ociosidade, então na prática é quase um por turno. Barato quando as peças vão
+    por `uri` da Files API; **caro no fallback base64**, em que o corpo inteiro
+    (dezenas de MB) sobe duas vezes. Se for tratar, a correção é gravar a
+    descoberta em `chrome.storage.session` (sobrevive à morte do worker e morre
+    com o navegador, que é a granularidade certa para "re-aprender"), e NÃO
+    apagar a maquinaria da autocura — o campo pode voltar.
 - **usage normalizado** para as 4 categorias da Anthropic em gemini.js
   (`input = total_input − total_cached`; `cache_read = total_cached`;
   `cache_creation = 0`; `output` inclui thoughts) — custo, tooltip e gauge funcionam
@@ -2551,26 +2567,45 @@ expandido.
 - Modelos da API: manter os IDs do `popup.html`/`options.html` alinhados aos aliases
   atuais da Anthropic (`claude-haiku-4-5` — rápido e barato, mas com janela de 200 mil
   tokens/100 págs.; o Sonnet 5 de 1M é a opção para autos volumosos) e do Google
-  (**`gemini-3.6-flash` é o DEFAULT em `background.js`** — 1M de tokens e 1000 págs.
-  cobrem os autos inteiros sem a guarda de páginas estourar, que é o caso comum;
-  `gemini-3.5-flash-lite` — GA na Interactions API). **Consequência do default ser
-  Gemini, e ela é real**: `citacoesNativas:false`, então a experiência padrão usa
-  citação TEXTUAL (o `ⓘ` ao lado do selo do modelo) em vez das citações `[n]`
-  clicáveis por página; e a busca de jurisprudência roda sem `allowed_domains`
-  (garantia mole por prompt — ver "Prioridade das fontes na busca web"). Quem quiser
-  citação nativa por página troca para um modelo Anthropic. E a tabela
+  (`gemini-3.7-flash` — o mais novo da linha Flash, 08/2026, e o recomendado do
+  provedor; `gemini-3.6-flash` e `gemini-3.5-flash-lite` seguem na lista). **Modelo
+  que já esteve na lista NÃO é removido**: `select.value` com um id que sumiu deixa o
+  campo VAZIO, e quem tinha aquele modelo salvo perderia a seleção. E a tabela
   `MODEL_CAPS` sincronizada com os docs (limites, versões de tools, thinking/effort).
+- **`gpt-5.6-luna` é o DEFAULT em `background.js`** (desde a v0.40.0; antes era o
+  `gemini-3.6-flash`). Dois motivos, e os dois são de produto: **preço** — US$ 0,20/1,20
+  contra 1,50/7,50 do Gemini Flash, e a conta de mandar autos inteiros é feita de
+  input — e a **allowlist de domínios na busca**, que a OpenAI aplica no SERVIDOR e o
+  Gemini não tem (lá a prioridade das fontes .jus.br é só instrução de prompt, garantia
+  mole que já vazou em smoke test — ver "Prioridade das fontes na busca web").
+  **Consequência que permanece**: `citacoesNativas:false` também na OpenAI, então a
+  experiência padrão segue usando citação TEXTUAL (o `ⓘ` ao lado do selo) em vez das
+  `[n]` clicáveis por página; quem as quiser troca para um modelo Anthropic. **A base
+  instalada não é afetada**: o "Salvar" do popup grava `model` sempre, então só storage
+  SEM `model` (instalação nova) cai no default.
+- **Trocar o default é mudança de QUATRO pontos, não de um.** Além de `getCfg` e
+  `MODELO_PADRAO` (abaixo), o modelo novo precisa ser o **primeiro `<option>`** das
+  duas telas — é para onde o navegador cai quando `select.value` não casa nenhum id,
+  e alinhar os dois transforma esse fallback silencioso em rede de segurança — e o
+  **cartão de provedor** dele vem primeiro na fileira, que é a hierarquia que o
+  usuário lê. Ordem hoje: GPT → Claude → Gemini.
 - **O modelo padrão vive em DOIS lugares e eles precisam bater**: `getCfg` em
   `background.js` (ES module do worker) e `MODELO_PADRAO` em `popup.js` (script
   clássico, compartilhado por popup e options — não pode importar do worker).
-  Quando o default virou Gemini, só o worker mudou: sem `model` no storage o
-  `<select>` caía no PRIMEIRO `<option>` do HTML (o Haiku), então na **primeira
+  Quando o default virou Gemini (v0.25), só o worker mudou: sem `model` no storage
+  o `<select>` caía no PRIMEIRO `<option>` do HTML (o Haiku), então na **primeira
   instalação** — o público que chega pela Store — o popup pedia a chave da
   Anthropic para uma extensão que ia falar com o Google, e o selo do painel
   contradizia a tela de configuração. `select.value` com um id fora da lista
   (config de uma versão anterior) deixa o campo VAZIO: o popup cai no padrão em
   vez de gravar modelo vazio. Coberto por teste em jsdom que lê o default do
-  próprio `background.js` — divergir de novo quebra o teste, não o usuário.
+  próprio `background.js` — divergir de novo quebra o teste, não o usuário. O
+  teste extrai TUDO dos fontes (default, ids dos `<option>`, chaves de
+  `MODEL_CAPS`, nomes do selo): repetir a constante nele criaria uma terceira
+  cópia para divergir. Ele cobre também o que a troca de default quebraria em
+  silêncio — as duas telas oferecendo conjuntos diferentes de modelos, um modelo
+  ofertado sem caps ou sem nome no selo, e o `PADRAO` de um cartão apontando para
+  id inexistente.
 - **`capsDe` tem fallback POR PROVEDOR** (`FALLBACK_POR_PROVEDOR`): id
   desconhecido tem o provedor decidido por `providerDe` (prefixo, acerta
   sempre), então cair sempre nas caps do Haiku dava um par incoerente — request

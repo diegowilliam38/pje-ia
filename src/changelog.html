@@ -99,7 +99,35 @@
 
       <div class="card destaque">
         <p class="eyebrow" style="color: rgba(255,255,255,0.7)">A novidade mais recente</p>
-        <h2><span class="v novo">v0.39.1</span> O botão de salvar deixou de se esconder na tela de configuração</h2>
+        <h2><span class="v novo">v0.40.0</span> Chega o Gemini 3.7 Flash, e a extensão passa a vir configurada no GPT-5.6 Luna</h2>
+        <p>
+          <strong>Se você já usa a extensão, nada muda</strong>: o modelo que está salvo na
+          sua configuração continua exatamente como está. A troca vale para
+          <strong>quem instala agora</strong> — a extensão passa a chegar apontada para o
+          <strong>GPT-5.6 Luna</strong> em vez do Gemini.
+        </p>
+        <p>
+          São duas as razões. A primeira é <strong>preço</strong>: o Luna custa
+          US$&nbsp;0,20 por milhão de tokens de entrada, contra US$&nbsp;1,50 do Gemini
+          Flash — e a conta de analisar autos inteiros é feita de entrada. A segunda é a
+          <strong>busca de jurisprudência</strong>: no GPT dá para <em>restringir a busca
+          aos domínios oficiais</em> (STF, STJ, o tribunal do processo), e o servidor da
+          OpenAI garante isso; no Gemini não existe esse recurso, e a preferência por
+          fontes oficiais é só um pedido no texto — que o modelo pode ignorar, como já
+          aconteceu em teste.
+        </p>
+        <p>
+          O <strong>Gemini 3.7 Flash</strong>, lançado agora, entra na lista de modelos e é
+          o Gemini recomendado — mesma janela de 1 milhão de tokens e as mesmas 1.000
+          páginas de PDF do 3.6, com respostas mais diretas. O 3.6 e o 3.5 Flash-Lite
+          continuam disponíveis, e trocar de modelo segue sendo um clique em
+          <strong>Configuração</strong>.
+        </p>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">Antes disso</p>
+        <h2><span class="v">v0.39.1</span> O botão de salvar deixou de se esconder na tela de configuração</h2>
         <p>
           A janela de configuração é mais alta do que o espaço que o Chrome dá a ela, e
           <strong>“Salvar configuração” ficava abaixo da dobra</strong> — enquanto os
@@ -122,7 +150,6 @@
       </div>
 
       <div class="card">
-        <p class="eyebrow">Antes disso</p>
         <h2><span class="v">v0.39.0</span> Tribunal incompatível agora se explica, em vez de parecer defeito</h2>
         <p>
           Alguns tribunais já migraram para o <strong>PJe novo</strong> (a tela de autos
@@ -1141,7 +1168,7 @@
 
       <h1 class="serif" id="historico">Histórico completo</h1>
       <p class="lead">
-        As 63 versões, da mais recente à primeira. As marcadas com
+        As 70 versões, da mais recente à primeira. As marcadas com
         <span class="dot-marco"></span> mudaram o produto de forma visível.
       </p>
 
@@ -1151,6 +1178,13 @@
             <tr><th>Versão</th><th>Data</th><th>O que mudou</th></tr>
           </thead>
           <tbody>
+            <tr class="marco"><td><span class="v">0.40.0</span></td><td>13/08/2026</td><td><span class="dot-marco"></span><strong>Gemini 3.7 Flash entra na lista, e a extensão passa a vir configurada no GPT-5.6 Luna.</strong> Quem já usa não é afetado — o modelo salvo continua o mesmo; a troca vale para instalações novas. O Luna custa <strong>US$ 0,20 por milhão de tokens de entrada</strong> contra US$ 1,50 do Gemini Flash, e é o único dos dois em que a busca de jurisprudência pode ser <strong>restringida aos domínios oficiais</strong> pelo servidor do provedor — no Gemini isso é só um pedido no texto, que o modelo já ignorou em teste. O <strong>Gemini 3.7 Flash</strong> passa a ser o Gemini recomendado (mesma janela de 1M e as mesmas 1.000 páginas do 3.6); o 3.6 e o 3.5 Flash-Lite continuam na lista</td></tr>
+            <tr><td><span class="v">0.39.1</span></td><td>13/08/2026</td><td>O <strong>“Salvar configuração”</strong> deixou de ficar abaixo da dobra na tela de configuração: a linha com <strong>Testar chave</strong> e <strong>Salvar</strong> acompanha a rolagem, e um aviso de <strong>“Alterações não salvas”</strong> aparece assim que você mexe em algum campo. Antes, quem trocava o modelo fechava a janela achando que tinha terminado e perdia a mudança sem aviso</td></tr>
+            <tr><td><span class="v">0.39.0</span></td><td>13/08/2026</td><td>Tribunal que já migrou para o <strong>PJe novo</strong> (onde a extensão ainda não funciona) passa a <strong>dizer isso</strong>, em vez de mostrar uma lista de peças vazia que parecia defeito da extensão</td></tr>
+            <tr><td><span class="v">0.38.1</span></td><td>12/08/2026</td><td>O aviso sobre a leitura pesada da lista deixou de segurar a fila do PJe enquanto ficava na tela</td></tr>
+            <tr class="marco"><td><span class="v">0.38.0</span></td><td>12/08/2026</td><td><span class="dot-marco"></span><strong>A lista completa de peças passou a vir sem abrir nenhuma tela do PJe</strong>: uma única requisição no lugar de ~10 telas por processo. Era a leitura dessas telas que esgotava o limite da sessão e fazia a página dos autos morrer com “Sua página expirou” — quase sempre no <em>Enviar</em> seguinte, que parecia o culpado</td></tr>
+            <tr><td><span class="v">0.37.0</span></td><td>12/08/2026</td><td>O pacote da carta precatória passou a levar o <strong>PDF oficial do PJe</strong> — com timbre, paginação e rodapé de assinatura —, e não mais o texto da peça. Como carta, despacho e decisão nascem no editor, o pacote inteiro saía em <code>.txt</code>, que não é documento para anexar a um malote</td></tr>
+            <tr><td><span class="v">0.36.0</span></td><td>12/08/2026</td><td>A tela do PJe deixou de morrer no meio de um envio grande, e o pacote da precatória passou a <strong>extrair no Windows</strong> (os caminhos dentro do <code>.zip</code> estouravam o limite de 260 caracteres, e o Explorer recusava a extração)</td></tr>
             <tr class="marco"><td><span class="v">0.35.0</span></td><td>12/08/2026</td><td><span class="dot-marco"></span><strong>Pacote de carta precatória pronto para o malote digital</strong>: a seta ao lado de <strong>⬇ Baixar .zip</strong> monta, para cada carta expedida no processo, uma pasta com a <strong>carta</strong>, a peça de <strong>origem da ação</strong> (denúncia, queixa ou petição inicial) e a <strong>decisão anterior à expedição</strong> — cada pasta pronta para virar um envio. Para isso a extensão passou a ler o <strong>movimento processual</strong> do PJe, e não o nome do arquivo: num processo real com 3 cartas, o nome devolvia 6 peças (as outras 3 eram a mesma carta <strong>devolvida</strong>, de título idêntico), e o movimento devolveu exatamente as 3 expedidas. A lista completa é carregada <strong>automaticamente</strong> antes da busca, porque a peça de origem é a mais antiga do processo e quase nunca está no trecho já aberto. <strong>Nada baixa sem conferência</strong>: você vê as peças de cada pasta, desmarca o que não quer, e o que faltar aparece nomeado — pasta cuja carta não pôde ser baixada não é criada, com o motivo no LEIA-ME</td></tr>
             <tr class="marco"><td><span class="v">0.34.0</span></td><td>12/08/2026</td><td><span class="dot-marco"></span><strong>O limite de texto passou a acompanhar a janela do modelo</strong>, em vez de ser um número fixo de 60 mil caracteres (~30 páginas) herdado de quando a extensão só lidava com peças do editor do PJe. Um arquivo de texto de 1,5 milhão de caracteres entrava a <strong>3,8%</strong> mesmo num modelo de 1 milhão de tokens — e o medidor marcava 2%, porque o envio era mesmo minúsculo. O corte era ainda <strong>desigual por formato</strong>: o mesmo conteúdo em PDF passava inteiro. Agora o limite é dividido entre os documentos de texto do envio: um anexo sozinho cabe com ~2 milhões de caracteres num modelo de 1M, e vinte peças de texto continuam entrando (cortadas, com aviso) em vez de o envio ser recusado. O aviso passou a dizer <strong>“anexo”</strong> quando o cortado é um arquivo seu, informa o limite realmente aplicado e aponta a saída. Duas falhas do medidor corrigidas junto: o cálculo exato <strong>ignorava anexos ainda não enviados</strong> (a trava de contexto ficava cega), e o adiantamento de download repintava o medidor sem eles</td></tr>
             <tr><td><span class="v">0.33.1</span></td><td>11/08/2026</td><td>O <strong>clipe 📎</strong> voltou a abrir no primeiro clique. Depois da primeira resposta, o botão não reagia e o painel “pulava”: a faixa de atalhos do teclado aparecia ao clicar e <strong>empurrava a linha de mensagem 20 pixels para cima</strong>, tirando o botão de baixo do cursor antes de você soltar o mouse — o clique se perdia. O mesmo defeito atingia o <strong>Enviar</strong> depois de mexer na lista de peças. Anexar também deixou de tirar o cursor de onde você estava escrevendo</td></tr>

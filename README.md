@@ -61,7 +61,7 @@ investigação aberta, um agente com MCP é o caminho — o próprio painel suge
 
 - **Chat sobre os autos** — converse com o modelo sobre as peças selecionadas, com histórico multi-turno e streaming em tempo real (raciocínio do modelo em bloco colapsável).
 - **Três provedores de IA** — modelos **Claude (Anthropic)**, **Gemini (Google)** e **GPT (OpenAI)** na mesma extensão: cadastre a chave do provedor que preferir (ou as três) e troque de modelo nas opções. Ver a tabela [Qual modelo escolher?](#-qual-modelo-escolher) abaixo.
-- **Selo do modelo ativo** — a barra de ferramentas mostra o modelo e o nível de raciocínio em uso (ex.: "Gemini 3.6 Flash · raciocínio alto"), atualizado na hora ao salvar as opções; clique nele para abrir a configuração.
+- **Selo do modelo ativo** — a barra de ferramentas mostra o modelo e o nível de raciocínio em uso (ex.: "GPT-5.6 Luna · raciocínio alto"), atualizado na hora ao salvar as opções; clique nele para abrir a configuração.
 - **Custo por resposta** — o rodapé estima o custo em US$ de cada resposta e o acumulado da conversa, calculado pela tabela de preços do provedor (com o desconto de cache).
 - **Citações com página** *(modelos Claude)* — as afirmações vêm com marcadores `[n]` e a lista de fontes ("Contestação, fl. 12") no rodapé; nos modelos Gemini a citação vem no próprio texto ("conforme a Contestação, fl. 12").
 - **Busca de jurisprudência** 🔍 — toggle que libera pesquisa na web (fontes oficiais: STF, STJ, Planalto, LexML…), com a consulta em andamento exibida em tempo real. Nos modelos Gemini usa o Google Search.
@@ -105,13 +105,14 @@ investigação aberta, um agente com MCP é o caminho — o próprio painel suge
 
 | Modelo | Janela / PDF | Preço (US$/1M tokens) | Perfil |
 |---|---|---|---|
-| **Claude Haiku 4.5** (padrão) | 200 mil / 100 págs. | 1 / 5 | Rápido e barato; citações `[n]` clicáveis |
+| **GPT-5.6 Luna** (padrão) | 1,05M tokens | 0,20 / 1,20 | O mais barato dos de janela grande; citações no texto |
+| **Claude Haiku 4.5** | 200 mil / 100 págs. | 1 / 5 | Rápido e barato; citações `[n]` clicáveis |
 | **Claude Sonnet 5** | 1M / 600 págs. | 3 / 15 | Autos volumosos; todos os recursos |
 | **Claude Opus 4.8** | 1M / 600 págs. | 5 / 25 | Qualidade superior para análises delicadas |
 | **Claude Fable 5** | 1M / 600 págs. | 10 / 50 | O mais capaz — e o mais caro e lento |
-| **Gemini 3.6 Flash** | 1M / 1000 págs. | 1,50 / 7,50 | Rápido e multimodal, ótimo custo para autos grandes |
+| **Gemini 3.7 Flash** | 1M / 1000 págs. | 1,50 / 7,50 | O Gemini mais novo e o indicado do provedor |
+| **Gemini 3.6 Flash** | 1M / 1000 págs. | 1,50 / 7,50 | A geração anterior do Flash, ainda disponível |
 | **Gemini 3.5 Flash-Lite** | 1M / 1000 págs. | 0,30 / 2,50 | O mais barato e veloz — triagens e resumos |
-| **GPT-5.6 Luna** | 1,05M tokens | 0,20 / 1,20 | O GPT rápido e econômico; citações no texto |
 | **GPT-5.6 Terra** | 1,05M tokens | 2 / 12 | GPT equilibrado entre custo e capacidade; citações no texto |
 | **GPT-5.6 (Sol)** | 1,05M tokens | 5 / 30 | O GPT mais capaz; citações no texto |
 
@@ -247,8 +248,8 @@ melhor o assistente capta o seu estilo.
 
 Os modelos ficam **só neste navegador** (não sincronizam) e você os apaga quando quiser
 pela própria biblioteca. Como a minuta manda os autos inteiros **mais** os seus modelos,
-o recurso exige um modelo de IA com janela de **1 milhão de tokens** — no Haiku 4.5
-(padrão) o botão fica desativado, explicando o porquê.
+o recurso exige um modelo de IA com janela de **1 milhão de tokens** — o modelo padrão
+(GPT-5.6 Luna) atende, e no Haiku 4.5 o botão fica desativado, explicando o porquê.
 
 <p align="center">
   <img src="docs/modelos-de-pecas.png" alt="Biblioteca de modelos de peças: as peças-modelo agrupadas por espécie, cada uma com a categoria, o título e a descrição, e os botões Importar (vários .docx de uma vez) e Novo" width="820">

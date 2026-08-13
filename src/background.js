@@ -90,6 +90,26 @@ const MODEL_CAPS = {
   // tokensPagina: 258 (documentação oficial) — a estimativa local usa este
   // valor no lugar dos 2000/pág. da Anthropic. preco.cacheRead: tabela
   // oficial (implicit caching; não há cobrança de gravação).
+  // Gemini 3.7 Flash (08/2026) — o mais novo da linha Flash e o recomendado
+  // do provedor. Caps IDÊNTICAS às do 3.6 (janela de 1M, teto de saída de
+  // 65.536, thinking nativo), confirmadas no endpoint de modelos com chave
+  // real, e o corpo da Interactions API que a extensão monta hoje passa sem
+  // mudança nenhuma. PREÇO: a tabela oficial cobra o MESMO que o 3.6 —
+  // US$ 1,50 / 7,50 / 0,15 —, com promocional de metade até 31/12/2026. Vale
+  // aqui a regra que o Sonnet 5 já seguia: registramos o preço de TABELA, não
+  // o promocional, para o rodapé nunca subestimar o custo (e para dois modelos
+  // de preço igual não aparecerem com custos diferentes na mesma conversa).
+  "gemini-3.7-flash": {
+    provider: "gemini",
+    contextTokens: 1000000,
+    maxPages: 1000,
+    googleSearch: true,
+    citacoesNativas: false,
+    thinking: null,
+    effort: true, // vira generation_config.thinking_level
+    tokensPagina: 258,
+    preco: { in: 1.5, out: 7.5, cacheRead: 0.15 },
+  },
   "gemini-3.6-flash": {
     provider: "gemini",
     contextTokens: 1000000,
@@ -237,22 +257,29 @@ function custoUsdDe(usage, preco) {
 // citação por página a um modelo que não as produz).
 const FALLBACK_POR_PROVEDOR = {
   anthropic: "claude-haiku-4-5",
-  gemini: "gemini-3.6-flash",
+  gemini: "gemini-3.7-flash",
   openai: "gpt-5.6-luna",
 };
 function capsDe(model) {
   return MODEL_CAPS[model] || MODEL_CAPS[FALLBACK_POR_PROVEDOR[providerDe(model)]];
 }
 
-// Default: Gemini 3.6 Flash — 1M de tokens e 1000 páginas cobrem os autos
-// inteiros sem a guarda de páginas estourar, que é o caso comum aqui, e o
-// custo é baixo. O que se abre mão é a citação nativa por página
-// (`citacoesNativas:false` → citação textual, com o ⓘ ao lado do selo) e a
-// allowlist de domínios na busca; quem quiser os dois troca para um modelo
-// Anthropic no popup/opções. ESTE VALOR TAMBÉM VIVE EM `popup.js`
-// (`MODELO_PADRAO`), que é script clássico e não pode importar daqui —
-// mudar aqui exige mudar lá, senão a tela de configuração passa a mostrar um
-// modelo diferente do que a extensão usa.
+// Default: GPT-5.6 Luna — 1,05M de tokens cobrem os autos inteiros sem a
+// guarda de páginas estourar (o caso comum aqui) e é o mais barato dos
+// modelos de janela grande: US$ 0,20/1,20 por 1M, contra 1,50/7,50 do Gemini
+// Flash. Sobre o padrão anterior (Gemini 3.6 Flash) ganha-se ainda a
+// **allowlist de domínios na busca**, que a OpenAI aplica no servidor e o
+// Gemini não tem — no Gemini a priorização de fontes .jus.br é só instrução
+// de prompt (garantia mole, ver "Prioridade das fontes na busca web").
+// O que se abre mão continua sendo a citação nativa por página
+// (`citacoesNativas:false` → citação textual, com o ⓘ ao lado do selo), igual
+// ao padrão anterior: quem a quiser troca para um modelo Anthropic.
+// ESTE VALOR TAMBÉM VIVE EM `popup.js` (`MODELO_PADRAO`), que é script
+// clássico e não pode importar daqui — mudar aqui exige mudar lá, senão a
+// tela de configuração passa a mostrar um modelo diferente do que a extensão
+// usa (foi exatamente o bug da v0.25, hoje coberto por teste).
+// Não afeta quem já usa a extensão: o "Salvar" do popup grava `model`
+// sempre, então só instalação nova (storage sem `model`) cai neste default.
 function getCfg() {
   return new Promise((resolve) =>
     chrome.storage.local.get(
@@ -262,7 +289,7 @@ function getCfg() {
           apiKey: v.apiKey,
           geminiApiKey: v.geminiApiKey,
           openaiApiKey: v.openaiApiKey,
-          model: v.model || "gemini-3.6-flash",
+          model: v.model || "gpt-5.6-luna",
           effort: v.effort || "high",
         })
     )

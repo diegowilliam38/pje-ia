@@ -79,6 +79,15 @@
         <span class="eyebrow-n" id="provCount"></span>
       </div>
       <div class="prov-grid" role="tablist" aria-label="Provedor de IA">
+        <!-- Ordem = hierarquia: o GPT é o provedor PADRÃO (o modelo default,
+             gpt-5.6-luna, é dele), então vem primeiro. Os ids e o data-prov
+             não mudaram — quem escolhe o cartão aceso é `pintarProvedores`,
+             pelo provedor do modelo salvo, nunca a posição. -->
+        <button class="prov" type="button" id="provO" data-prov="openai" role="tab" aria-selected="false">
+          <span class="prov-i po">O</span>
+          <span class="prov-n">GPT</span>
+          <span class="kstate" id="kstateO">não configurada</span>
+        </button>
         <button class="prov" type="button" id="provA" data-prov="anthropic" role="tab" aria-selected="false">
           <span class="prov-i pa">A</span>
           <span class="prov-n">Claude</span>
@@ -88,11 +97,6 @@
           <span class="prov-i pg">G</span>
           <span class="prov-n">Gemini</span>
           <span class="kstate" id="kstateG">não configurada</span>
-        </button>
-        <button class="prov" type="button" id="provO" data-prov="openai" role="tab" aria-selected="false">
-          <span class="prov-i po">O</span>
-          <span class="prov-n">GPT</span>
-          <span class="kstate" id="kstateO">não configurada</span>
         </button>
       </div>
 
@@ -133,7 +137,7 @@
             <input id="geminiApiKey" type="password" placeholder="AIza..." autocomplete="off" aria-label="Chave da API do Google" />
             <button class="toggle-pw" id="togglePwG" type="button">mostrar</button>
           </div>
-          <span class="hint">Em aistudio.google.com — o provedor do modelo padrão. <a href="help.html#gemini" target="_blank">Passo a passo →</a></span>
+          <span class="hint">Em aistudio.google.com — grátis para começar. <a href="help.html#gemini" target="_blank">Passo a passo →</a></span>
         </div>
 
         <div class="pc-sec" id="keyO" data-prov="openai" hidden>
@@ -149,11 +153,20 @@
             <input id="openaiApiKey" type="password" placeholder="sk-..." autocomplete="off" aria-label="Chave da API da OpenAI" />
             <button class="toggle-pw" id="togglePwO" type="button">mostrar</button>
           </div>
-          <span class="hint">Em platform.openai.com — precisa de crédito na conta. <a href="help.html#openai" target="_blank">Passo a passo →</a></span>
+          <span class="hint">Em platform.openai.com — o provedor do modelo padrão; precisa de crédito na conta. <a href="help.html#openai" target="_blank">Passo a passo →</a></span>
         </div>
 
       <label class="field" for="model">Modelo</label>
+      <!-- O PRIMEIRO <option> é o modelo PADRÃO (gpt-5.6-luna) de propósito:
+           quando `select.value` recebe um id que não existe mais, o navegador
+           cai no primeiro da lista, e alinhar os dois faz esse fallback
+           coincidir com o default do worker em vez de contradizê-lo. -->
       <select id="model">
+        <optgroup label="GPT (OpenAI)" data-prov="openai">
+          <option value="gpt-5.6-luna">GPT-5.6 Luna (padrão — 1M tokens, rápido e barato)</option>
+          <option value="gpt-5.6-terra">GPT-5.6 Terra (1M tokens — equilibrado)</option>
+          <option value="gpt-5.6-sol">GPT-5.6 (Sol — o mais capaz)</option>
+        </optgroup>
         <optgroup label="Claude (Anthropic)" data-prov="anthropic">
           <option value="claude-haiku-4-5">Claude Haiku 4.5 (rápido e barato)</option>
           <option value="claude-sonnet-5">Claude Sonnet 5 (processos grandes — 1M tokens)</option>
@@ -161,13 +174,9 @@
           <option value="claude-fable-5">Claude Fable 5 (mais capaz)</option>
         </optgroup>
         <optgroup label="Gemini (Google)" data-prov="gemini">
-          <option value="gemini-3.6-flash">Gemini 3.6 Flash (padrão — 1M tokens, rápido)</option>
+          <option value="gemini-3.7-flash">Gemini 3.7 Flash (o mais novo — 1M tokens, rápido)</option>
+          <option value="gemini-3.6-flash">Gemini 3.6 Flash (1M tokens, rápido)</option>
           <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite (1M tokens — o mais barato)</option>
-        </optgroup>
-        <optgroup label="GPT (OpenAI)" data-prov="openai">
-          <option value="gpt-5.6-luna">GPT-5.6 Luna (recomendado — 1M tokens, rápido e barato)</option>
-          <option value="gpt-5.6-terra">GPT-5.6 Terra (1M tokens — equilibrado)</option>
-          <option value="gpt-5.6-sol">GPT-5.6 (Sol — o mais capaz)</option>
         </optgroup>
       </select>
 

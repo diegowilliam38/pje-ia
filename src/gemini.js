@@ -17,7 +17,8 @@
 //    tools?, generation_config:{thinking_level}}. PROIBIDO: temperature/
 //    top_p/top_k e terminar o input com turno do modelo (prefill) → 400.
 //    TETO DE SAÍDA: enviamos generation_config.max_output_tokens = 65536
-//    EXPLÍCITO — o limite máximo dos modelos (3.6 Flash e 3.5 Flash-Lite),
+//    EXPLÍCITO — o limite máximo dos modelos (3.7 Flash, 3.6 Flash e 3.5
+//    Flash-Lite; o do 3.7 conferido no endpoint de modelos em 13/08/2026),
 //    para a resposta nunca ser cortada por um default menor. O campo não
 //    está nas páginas de docs, mas é o que o próprio AI Studio gera nos
 //    exemplos oficiais da Interactions API (confirmado em 2026-07). NUNCA
