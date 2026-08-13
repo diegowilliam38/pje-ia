@@ -16,7 +16,32 @@
       .status-chip { margin-bottom: 12px; }
       label.field { margin: 12px 0 5px; }
       .btn { margin-top: 14px; }
-      .save-row { position: relative; }
+      /* A LINHA DE AÇÃO ACOMPANHA A ROLAGEM.
+         O popup do Chrome tem teto de 600px e este conteúdo passa disso, então
+         "Salvar configuração" nascia ABAIXO DA DOBRA: quem trocava o modelo ou
+         o nível de raciocínio — controles que ficam bem acima, à vista — não
+         tinha como saber que havia algo a salvar, fechava o popup e perdia a
+         mudança em silêncio. Relato real de usuários.
+         `sticky` e não `fixed`: há conteúdo DEPOIS (privacidade, primeiros
+         passos, links), e o botão precisa voltar ao fluxo quando a rolagem
+         chega nele de verdade — com `fixed` ele cobriria esse conteúdo para
+         sempre. O `margin` negativo cancela o padding que só existe para a
+         faixa não encostar no que passa por baixo dela. */
+      .save-row {
+        position: relative;
+        position: sticky;
+        bottom: 0;
+        z-index: 3;
+        background: var(--paper);
+        padding: 10px 0;
+        margin-bottom: -10px;
+      }
+      /* A sombra só existe enquanto a faixa está DE FATO flutuando sobre o
+         conteúdo. Pintada sempre, ela seguia anunciando uma camada suspensa
+         depois que a rolagem chega ao fim e a linha volta ao fluxo — afirmando
+         uma profundidade que naquele momento não existe. Quem liga e desliga a
+         classe é o observador do sentinela, em popup.js. */
+      .save-row.grudado { box-shadow: var(--sh-bar); }
       /* O overlay cobre a `.save-row` INTEIRA (inset: 0) — e ela não tem mais
          conteúdo além dos botões. Enquanto ele repetia o `margin-top: 14px` que
          o `.btn` tinha quando nascia sozinho na coluna, o "Salvo!" aparecia
@@ -178,12 +203,20 @@
       <!-- O status do salvamento fica SOBRE o botão (posição absoluta): como
            bloco próprio ele reservava 30px vazios em toda abertura do popup. -->
       <div class="save-row">
+        <!-- Só aparece quando há mudança por salvar. O botão visível diz que
+             existe uma ação; este aviso diz que ela está PENDENTE — sem ele, um
+             botão parado no rodapé é indistinguível de um botão já usado. -->
+        <div class="save-hint" id="saveHint"><span>Alterações não salvas</span></div>
         <div class="save-acts">
           <button class="btn btn-sec" id="testKey" type="button">Testar chave</button>
           <button class="btn" id="save">Salvar configuração</button>
         </div>
         <div class="save-status" id="saveStatus"></div>
       </div>
+      <!-- Sentinela do estado "grudado": enquanto ESTE elemento está fora da
+           tela, existe conteúdo abaixo e a faixa de ação está flutuando. Vem
+           logo DEPOIS dela porque o sticky é `bottom: 0`. -->
+      <div class="save-sentinela" aria-hidden="true"></div>
       <!-- Uma caixa, três fatos: onde a chave fica, para onde as peças vão e o
            que faz a espera encolher. Eram três blocos de aparências diferentes
            (e o terceiro não existia em tela nenhuma de configuração). -->

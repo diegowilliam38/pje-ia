@@ -314,6 +314,50 @@ if (abrirOpcoes) {
   });
 }
 
+// -----------------------------------------------------------------------------
+// "Alterações não salvas"
+//
+// O botão fica no fim de uma tela que passa do teto de 600px do popup do Chrome,
+// e os controles que mais mudam (modelo, nível de raciocínio, cartão do
+// provedor) estão bem acima dele. O usuário mexia, fechava e perdia a mudança
+// sem nada na tela ter avisado que havia uma pendência.
+//
+// A DETECÇÃO É POR DELEGAÇÃO (`input`/`change` no container), e não campo a
+// campo: a lista de campos desta tela já mudou três vezes — chave da OpenAI,
+// effort, memória de caso — e um registro manual esquece exatamente o campo
+// novo, falhando em silêncio para o recurso mais recente.
+//
+// Atribuir `.value` por JavaScript NÃO dispara `input`, então a carga inicial
+// (`storage.local.get`) nunca acende o aviso. O outro lado da moeda: os três
+// pontos em que o próprio popup escreve num campo — cartão de provedor,
+// "Trocar" e as personas — precisam avisar À MÃO, e são mudanças reais que o
+// usuário precisa salvar.
+// A classe vive na `.save-row` (e não no aviso) porque a revelação é um grid
+// `0fr→1fr` no filho — o pai precisa ser quem manda no estado.
+const saveRow = document.querySelector(".save-row");
+function marcarPendente() {
+  if (saveRow) saveRow.classList.add("pendente");
+}
+function limparPendente() {
+  if (saveRow) saveRow.classList.remove("pendente");
+}
+
+// Estado "grudado": enquanto o sentinela — que vem logo DEPOIS da faixa — está
+// fora da tela, há conteúdo passando por baixo dela e a sombra faz sentido.
+// Existe só no popup; na página de opções não há sticky nem sentinela.
+const sentinela = document.querySelector(".save-sentinela");
+if (saveRow && sentinela && "IntersectionObserver" in window) {
+  new IntersectionObserver(([e]) => {
+    saveRow.classList.toggle("grudado", !e.isIntersecting);
+  }).observe(sentinela);
+}
+const formBox = document.querySelector(".body") || document.body;
+formBox.addEventListener("input", marcarPendente);
+formBox.addEventListener("change", marcarPendente);
+provs.forEach((b) => b.addEventListener("click", marcarPendente));
+document.querySelectorAll(".pc-trocar").forEach((b) => b.addEventListener("click", marcarPendente));
+personas.forEach((b) => b.addEventListener("click", marcarPendente));
+
 saveBtn.addEventListener("click", () => {
   const apiKey = apiKeyEl.value.trim();
   const geminiApiKey = geminiKeyEl.value.trim();
@@ -334,6 +378,10 @@ saveBtn.addEventListener("click", () => {
     }
     pintarMascaras();
     setChip();
+    // `pintarMascaras` reescreve campos de chave por JS; se algum dia isso
+    // passar a disparar `input`, o aviso reacenderia logo após salvar. Limpar
+    // DEPOIS dele é o que mantém a ordem à prova disso.
+    limparPendente();
     // salvou a primeira chave: os passos de primeiro uso cumpriram seu papel
     if (firstRun && (apiKey || geminiApiKey || openaiApiKey)) firstRun.hidden = true;
     const temChaveDoModelo = temChaveDigitada(campoDoProvedor(provedorDoModelo()));

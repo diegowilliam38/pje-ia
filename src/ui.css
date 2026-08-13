@@ -73,6 +73,9 @@
   --sh-seg: 0 1px 2px rgba(14, 50, 63, 0.1);
   --sh-btn: 0 1px 2px rgba(14, 50, 63, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.18);
   --sh-pop: 0 1px 2px rgba(14, 50, 63, 0.1), 0 24px 60px -18px rgba(14, 50, 63, 0.34);
+  /* Faixa de ação grudada no rodapé do popup: sombra ASCENDENTE, para dizer que
+     há conteúdo passando por baixo. Mesma cor-base das demais. */
+  --sh-bar: 0 -10px 14px -10px rgba(14, 50, 63, 0.22);
   /* raios — mesma escala do painel (DESIGN.md §4) */
   --r-xs: 4px; --r-tight: 6px; --r-sm: 7px; --r-md: 8px; --r-ctrl: 9px;
   --r-box: 10px; --r-lg: 11px; --r-xl: 12px; --r-2xl: 14px;
@@ -532,6 +535,41 @@ input:focus, select:focus, textarea:focus {
    COLADOS nos chips de persona logo acima, sem a separação que anuncia "aqui
    termina o formulário e começa a ação". Vale para o popup e para as opções. */
 .save-row { margin-top: var(--sp-5); }
+/* "Alterações não salvas": aviso SUAVE (o trio --warn-*), nunca erro — nada
+   deu errado, só falta um clique. Vive dentro da `.save-row`, então o overlay
+   do "Salvo!" (inset: 0) o cobre junto no momento do salvamento.
+   A revelação é `grid-template-rows: 0fr→1fr`, a MESMA técnica do `.hint-key`
+   do painel: anima a abertura sem reservar espaço morto quando não há nada a
+   salvar — que é o estado normal, e o popup do Chrome só tem 600px de altura.
+   Sem ela o aviso surgia de uma vez e empurrava os botões 34px para baixo. */
+.save-hint {
+  display: grid; grid-template-rows: 0fr;
+  margin-bottom: 0;
+  transition: grid-template-rows 0.18s ease, margin-bottom 0.18s ease;
+}
+.save-hint > span {
+  overflow: hidden;
+  display: flex; align-items: center; gap: 7px;
+  font-size: var(--fs-meta); font-weight: 600;
+  color: var(--warn-ink);
+  min-height: 0;
+}
+.save-hint > span::before {
+  content: ""; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--warn); flex: none;
+}
+.save-row.pendente .save-hint { grid-template-rows: 1fr; margin-bottom: var(--sp-2b); }
+/* O fundo/borda só existem quando a caixa está aberta: pintados sempre, o
+   `overflow: hidden` do estado fechado deixava um fio de 1px do `--warn-line`
+   visível sob os botões. */
+.save-row.pendente .save-hint > span {
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-line); border-radius: 8px;
+  padding: 6px 10px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .save-hint { transition: none; }
+}
 .save-acts { display: flex; gap: var(--sp-3); }
 /* `.btn` é `width: 100%` (ele nasceu sozinho na coluna). Numa linha flex isso
    vira a base dos DOIS, e como o secundário não encolhe (`flex: none`) o

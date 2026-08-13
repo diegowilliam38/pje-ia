@@ -267,6 +267,7 @@ empate sobe (16 → `--fs-lead`).
 --sh-seg:   0 1px 2px rgba(14, 50, 63, 0.10);  /* pill ativo do segmented */
 --sh-btn:   0 1px 2px rgba(14, 50, 63, 0.22), inset 0 1px 0 rgba(255,255,255,0.18);
 --sh-pop:   0 1px 2px rgba(14, 50, 63, 0.10), 0 24px 60px -18px rgba(14, 50, 63, 0.34);
+--sh-bar:   0 -10px 14px -10px rgba(14, 50, 63, 0.22);  /* faixa de ação grudada (popup) */
 --sh-panel: 0 1px 2px rgba(14, 50, 63, 0.10), 0 24px 60px -18px rgba(14, 50, 63, 0.34);
 ```
 
