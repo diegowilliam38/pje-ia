@@ -171,29 +171,137 @@
     );
   }
 
-  // Uma linha por rascunho — vale no dropdown e na lista de tela cheia. A âncora
-  // (.ropen) abre; o botão .rdel (fora da âncora) exclui.
+  // Uma linha por rascunho no DROPDOWN (280px de largura). A âncora (.ropen)
+  // abre; o botão .rdel (fora da âncora) exclui.
+  //
+  // A página de tela cheia usa `linhaCartao`, não esta. Enquanto as duas
+  // compartilhavam a mesma função, a página herdava o desenho pensado para um
+  // menu estreito — era isso que a mantinha pobre.
+  function linhaCompacta(r, atualId) {
+    const atual = r.id === atualId;
+    const quando = tempoRelativo(r.atualizadoEm || r.criadoEm || Date.now());
+    const proc = r.processo ? escaparTexto(r.processo) + " · " : "";
+    return (
+      '<div class="rrow' + (atual ? " atual" : "") + '" data-id="' +
+      escaparTexto(r.id) + '" data-busca="' + escaparTexto(textoBuscaMinuta(r)) + '">' +
+      '<a class="ropen" href="editor.html?id=' + encodeURIComponent(r.id) + '">' +
+      '<span class="rt">' + escaparTexto(tituloUtil(r)) + "</span>" +
+      '<span class="rm">' + proc + quando + (atual ? " · aberta" : "") + "</span>" +
+      "</a>" +
+      '<button class="rdel" type="button" title="Excluir esta minuta" ' +
+      'aria-label="Excluir minuta">' + SVG_LIXO + "</button>" +
+      "</div>"
+    );
+  }
   function linhasRascunhos(lista, atualId) {
     if (!lista.length) return vazioHtml();
-    return lista
-      .map((r) => {
-        const atual = r.id === atualId;
-        const quando = tempoRelativo(r.atualizadoEm || r.criadoEm || Date.now());
-        const proc = r.processo ? escaparTexto(r.processo) + " · " : "";
-        const busca = norm((r.titulo || "Minuta") + " " + (r.processo || ""));
-        return (
-          '<div class="rrow' + (atual ? " atual" : "") + '" data-id="' +
-          escaparTexto(r.id) + '" data-busca="' + escaparTexto(busca) + '">' +
-          '<a class="ropen" href="editor.html?id=' + encodeURIComponent(r.id) + '">' +
-          '<span class="rt">' + escaparTexto(r.titulo || "Minuta") + "</span>" +
-          '<span class="rm">' + proc + quando + (atual ? " · aberta" : "") + "</span>" +
-          "</a>" +
-          '<button class="rdel" type="button" title="Excluir esta minuta" ' +
-          'aria-label="Excluir minuta">' + SVG_LIXO + "</button>" +
-          "</div>"
-        );
-      })
-      .join("");
+    return lista.map((r) => linhaCompacta(r, atualId)).join("");
+  }
+
+  // ---------------------------------------------------- prazo de validade
+  // A poda vive no content.js (MAX_MINUTAS / VALIDADE_MINUTA_MS) e é privada
+  // ao IIFE de lá. Duplicada aqui DE PROPÓSITO e com esta nota: divergir faria
+  // a tela mentir sobre quando a minuta some — que é a informação que ela
+  // existe para dar. Ao mudar uma, mudar a outra.
+  const MAX_MINUTAS_UI = 10;
+  const VALIDADE_MINUTA_MS_UI = 7 * 24 * 60 * 60 * 1000;
+  const H = 3600000;
+
+  // `tempoRelativo` só olha para TRÁS. Numa lista cujo conteúdo é apagado em 7
+  // dias, o que decide se o usuário perde trabalho é o que falta para o fim —
+  // e não havia nada que soubesse calcular isso. Uma minuta a 4 horas de ser
+  // apagada mostrava apenas "há 6 dias".
+  function tempoRestante(ts) {
+    const ms = VALIDADE_MINUTA_MS_UI - (Date.now() - (ts || 0));
+    if (ms <= 0) return { ms: 0, pct: 0, nivel: "fim", txt: "expira a qualquer momento" };
+    const pct = Math.max(0, Math.min(100, (ms / VALIDADE_MINUTA_MS_UI) * 100));
+    const h = Math.floor(ms / H);
+    if (ms < 6 * H) return { ms, pct, nivel: "critico", txt: "expira em " + Math.max(1, h) + " h" };
+    if (ms < 24 * H) return { ms, pct, nivel: "aviso", txt: "expira em " + h + " h" };
+    const d = Math.floor(ms / (24 * H));
+    // O verbo é obrigatório em TODOS os degraus. Um "6 dias" seco no canto do
+    // card fica logo acima de "há 6 dias" na linha de meta — um é futuro, o
+    // outro é passado, e sem o verbo os dois se leem como a mesma coisa.
+    return { ms, pct, nivel: "ok", txt: "expira em " + d + (d > 1 ? " dias" : " dia") };
+  }
+
+  // Título FRACO: `tituloDaMinuta` (content.js) devolve "Minuta" quando o
+  // markdown não trouxe um `#`. Duas minutas do mesmo processo ficavam
+  // idênticas na lista — a primeira linha útil do corpo distingue.
+  function tituloUtil(r) {
+    const t = (r.titulo || "").trim();
+    if (t && t !== "Minuta") return t;
+    const linha = String(r.md || "")
+      .split("\n")
+      // O hífen só é marcação no INÍCIO da linha (item de lista). Removê-lo do
+      // texto inteiro transformava "Intime-se" em "Intimese" e "Cite-se" em
+      // "Citese" — e esse é justamente o vocabulário de um despacho, que é o
+      // caso em que o título fraco mais aparece.
+      .map((l) =>
+        l
+          .replace(/^#{1,6}\s+/, "")
+          .replace(/^\s*[-*+]\s+/, "")
+          .replace(/[*_`>|]/g, "")
+          .trim()
+      )
+      // Pula a linha que só repete o título fraco: quando ela é a primeira do
+      // corpo, aceitá-la devolveria "Minuta" outra vez — o mesmo rótulo que
+      // esta função existe para substituir.
+      .find((l) => l.length > 3 && l !== t);
+    return linha ? linha.slice(0, 80) : t || "Minuta";
+  }
+
+  // Prévia do corpo: o que distingue duas minutas parecidas de relance.
+  function previaMinuta(r, n) {
+    return String(r.md || "")
+      // `[ \t]*` e NÃO `\s+`: `\s` casa `\n` (o `.` não), então num markdown
+      // que comece com título VAZIO ("# " + linha em branco) o `\s+` atravessa
+      // as quebras e o `.*$` engolia o primeiro parágrafo inteiro — a prévia
+      // saía vazia justamente nas minutas de título fraco, que são as que mais
+      // precisam dela.
+      .replace(/^#{1,6}[ \t]*.*$/gm, " ")   // títulos já estão no rótulo
+      .replace(/\[COMPLETAR:[^\]]*\]/g, " ") // marcador de pendência polui a prévia
+      .replace(/^[ \t]*[-*+][ \t]+/gm, "")   // marcador de lista, só no início da linha
+      .replace(/[*_`>#|]/g, "")              // (sem o hífen: "Intime-se" viraria "Intimese")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, n || 110);
+  }
+
+  // Índice de busca: título, processo E CORPO. O corpo ficava de fora, então
+  // procurar por uma parte do texto da minuta não achava nada.
+  function textoBuscaMinuta(r) {
+    const o = r.origem || null;
+    return norm(
+      tituloUtil(r) + " " + (r.processo || "") + " " +
+      (o ? (o.rotulo || "") + " " + (o.tese || "") + " " : "") +
+      previaMinuta(r, 400)
+    );
+  }
+
+  // A cor da espécie reusa os tokens --cat-* das categorias de peça. Não é
+  // reciclagem: no sistema essas cores são SEMÂNTICAS (DESIGN.md §2) e já
+  // significam exatamente isto — dourado para atos decisórios, verde para
+  // audiência, neutro para o resto.
+  const CAT_ESPECIE = {
+    sentenca: "decisao", decisao: "decisao", acordao: "decisao", despacho: "decisao",
+    ata: "audiencia", oficio: "outro", mandado: "outro", outro: "outro",
+  };
+  const SEM_ESPECIE = "__sem__";
+  // Sentinela para "sem processo". Sem ela, a opção nasceria com valor "" — o
+  // MESMO de "Todas" —, e clicar em "Sem processo" mostraria a lista inteira:
+  // uma opção que não faz o que promete, e a única forma de isolar as minutas
+  // sem processo identificado.
+  const SEM_PROCESSO = "__semproc__";
+  function processoDaMinuta(r) {
+    return r.processo || SEM_PROCESSO;
+  }
+  function especieDaMinuta(r) {
+    return (r.origem && r.origem.especie) || SEM_ESPECIE;
+  }
+  function rotuloEspecie(r) {
+    if (r.origem && r.origem.rotulo) return r.origem.rotulo;
+    return "Sem espécie registrada";
   }
 
   // Cabeçalho de busca (fica FORA das linhas re-filtradas, para o campo não
@@ -356,22 +464,333 @@
         "automaticamente após 7 dias (no máximo as 10 mais recentes).";
     }
     listarRascunhos((lista) => {
-      mostrarAviso(
-        '<div class="lista-box">' +
-          (aviso ? '<div class="lista-aviso">' + aviso + "</div>" : "") +
-          (lista.length
-            ? '<div class="lista-h">Suas minutas recentes</div>' +
-              campoBusca(lista.length) +
-              '<div class="lista-b">' + linhasRascunhos(lista, null) + "</div>"
-            : vazioPaginaHtml()) +
-          "</div>"
+      if (!lista.length) {
+        mostrarAviso(
+          '<div class="lista-box">' +
+            (aviso ? '<div class="lista-aviso">' + aviso + "</div>" : "") +
+            vazioPaginaHtml() +
+            "</div>"
+        );
+        return;
+      }
+      montarPainelMinutas(lista, aviso);
+    });
+  }
+
+  // ------------------------------------------------- a página de minutas
+  // Estado dos filtros. Vive fora do render porque `renderListaMinutas` é
+  // chamada a cada mudança e reconstrói só a coluna da direita — o campo de
+  // busca fica na coluna da ESQUERDA, fora do que é re-renderizado, e por isso
+  // não perde o foco durante a digitação (era esse o motivo do antigo filtro
+  // por `row.hidden`, que agora não é mais necessário).
+  const filtro = { especie: "", processo: "", ordem: "recente", busca: "" };
+
+  function aplicarFiltros(lista) {
+    let out = lista.slice();
+    if (filtro.especie) out = out.filter((r) => especieDaMinuta(r) === filtro.especie);
+    if (filtro.processo) out = out.filter((r) => processoDaMinuta(r) === filtro.processo);
+    if (filtro.busca) {
+      const q = norm(filtro.busca.trim());
+      if (q) out = out.filter((r) => textoBuscaMinuta(r).indexOf(q) !== -1);
+    }
+    const quando = (r) => r.atualizadoEm || r.criadoEm || 0;
+    if (filtro.ordem === "antiga") out.sort((a, b) => quando(a) - quando(b));
+    else if (filtro.ordem === "titulo")
+      out.sort((a, b) => tituloUtil(a).localeCompare(tituloUtil(b), "pt-BR"));
+    else if (filtro.ordem === "processo")
+      out.sort(
+        (a, b) =>
+          String(a.processo || "~").localeCompare(String(b.processo || "~"), "pt-BR") ||
+          quando(b) - quando(a)
       );
-      const box = elAviso.querySelector(".lista-box");
-      if (box) {
-        ligarBusca(box);
-        ligarExcluir(box);
+    else out.sort((a, b) => quando(b) - quando(a));
+    return out;
+  }
+
+  // Agrupamento TEMPORAL. "Expirando em breve" vem primeiro e é o único ponto
+  // em que a ordem cronológica é quebrada de propósito: ali o custo de não ver
+  // é perder trabalho. Só se aplica na ordenação por recência — agrupar por
+  // tempo uma lista em ordem alfabética não diria nada.
+  function agruparMinutas(lista) {
+    if (filtro.ordem !== "recente") return [{ titulo: "", itens: lista }];
+    const agora = new Date();
+    const hoje0 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate()).getTime();
+    const ontem0 = hoje0 - 24 * H;
+    const g = { expira: [], hoje: [], ontem: [], antes: [] };
+    for (const r of lista) {
+      const ts = r.atualizadoEm || r.criadoEm || 0;
+      if (tempoRestante(ts).ms < 24 * H) g.expira.push(r);
+      else if (ts >= hoje0) g.hoje.push(r);
+      else if (ts >= ontem0) g.ontem.push(r);
+      else g.antes.push(r);
+    }
+    return [
+      { titulo: "Expirando em breve", itens: g.expira, urgente: true },
+      { titulo: "Hoje", itens: g.hoje },
+      { titulo: "Ontem", itens: g.ontem },
+      { titulo: "Antes", itens: g.antes },
+    ].filter((s) => s.itens.length);
+  }
+
+  function linhaCartao(r) {
+    const ts = r.atualizadoEm || r.criadoEm || Date.now();
+    const vida = tempoRestante(ts);
+    const cat = CAT_ESPECIE[especieDaMinuta(r)] || "outro";
+    const previa = previaMinuta(r);
+    // "editada" separa o que foi trabalhado do que só foi gerado. 2 s de folga
+    // porque o editor grava o HTML convertido logo na primeira abertura.
+    const editada = (r.atualizadoEm || 0) > (r.criadoEm || 0) + 2000;
+    return (
+      '<div class="mcard" data-id="' + escaparTexto(r.id) + '">' +
+      '<a class="mc-open" href="editor.html?id=' + encodeURIComponent(r.id) + '">' +
+      '<div class="mc-top">' +
+      '<span class="mc-esp cat-' + cat + '">' + escaparTexto(rotuloEspecie(r)) + "</span>" +
+      '<span class="mc-vida n-' + vida.nivel + '">' + escaparTexto(vida.txt) + "</span>" +
+      "</div>" +
+      '<div class="mc-tit">' + escaparTexto(tituloUtil(r)) + "</div>" +
+      '<div class="mc-meta">' +
+      (r.processo ? '<span class="mc-proc">' + escaparTexto(r.processo) + "</span>" : "") +
+      "<span>" + tempoRelativo(ts) + "</span>" +
+      (editada ? '<span class="mc-ed">editada</span>' : "") +
+      "</div>" +
+      (previa ? '<div class="mc-previa">' + escaparTexto(previa) + "…</div>" : "") +
+      // A barra só aparece quando resta MENOS de 48 h. Ela é um elemento de
+      // alerta, e uma barra quase cheia em todos os cards é o que o DESIGN.md
+      // chama de "tudo alerta com a mesma intensidade, nada alerta" — além de
+      // se ler como um separador do cartão. O prazo calmo já vai no rótulo.
+      (vida.nivel === "ok"
+        ? ""
+        : '<div class="mc-barra"><i class="n-' + vida.nivel +
+          '" style="width:' + vida.pct.toFixed(1) + '%"></i></div>') +
+      "</a>" +
+      '<button class="rdel mc-del" type="button" title="Excluir esta minuta" ' +
+      'aria-label="Excluir minuta">' + SVG_LIXO + "</button>" +
+      "</div>"
+    );
+  }
+
+  function opcoesFiltro(lista, chave, rotuloDe, atual) {
+    const cont = new Map();
+    for (const r of lista) {
+      const v = chave(r);
+      cont.set(v, (cont.get(v) || 0) + 1);
+    }
+    const itens = [...cont.entries()].sort((a, b) => b[1] - a[1]);
+    // O contador em cada opção é o que responde "estou vendo tudo?" sem o
+    // usuário precisar contar as linhas.
+    const linha = (valor, rot, n) =>
+      '<button type="button" class="mp-opt' + (atual === valor ? " on" : "") +
+      '" data-v="' + escaparTexto(valor) + '"><span>' + escaparTexto(rot) +
+      '</span><b>' + n + "</b></button>";
+    return (
+      linha("", "Todas", lista.length) +
+      itens.map(([v, n]) => linha(v, rotuloDe(v), n)).join("")
+    );
+  }
+
+  function montarPainelMinutas(lista, aviso) {
+    const rotEsp = (v) => {
+      if (v === SEM_ESPECIE) return "Sem espécie registrada";
+      const r = lista.find((x) => especieDaMinuta(x) === v);
+      return r ? rotuloEspecie(r) : v;
+    };
+    const html =
+      '<div class="minutas-pg">' +
+      (aviso ? '<div class="lista-aviso">' + aviso + "</div>" : "") +
+      '<aside class="mp-filtros">' +
+      '<div class="mp-busca">' + SVG_LUPA +
+      '<input type="search" class="mp-busca-in" autocomplete="off" spellcheck="false" ' +
+      'placeholder="Buscar no título, processo ou texto…" aria-label="Buscar minuta">' +
+      "</div>" +
+      '<div class="mp-grupo" data-f="especie"><div class="mp-h">Espécie</div>' +
+      opcoesFiltro(lista, especieDaMinuta, rotEsp, filtro.especie) + "</div>" +
+      '<div class="mp-grupo" data-f="processo"><div class="mp-h">Processo</div>' +
+      opcoesFiltro(lista, processoDaMinuta, (v) => (v === SEM_PROCESSO ? "Sem processo" : v),
+        filtro.processo) +
+      "</div>" +
+      '<div class="mp-grupo"><div class="mp-h">Ordenar</div>' +
+      '<select class="mp-ordem" aria-label="Ordenar as minutas">' +
+      '<option value="recente">Mais recentes</option>' +
+      '<option value="antiga">Mais antigas</option>' +
+      '<option value="processo">Por processo</option>' +
+      '<option value="titulo">Por título (A–Z)</option>' +
+      "</select></div>" +
+      // O teto é a resposta à pergunta "está tudo aqui?". Não há paginação
+      // porque não pode haver mais de 10: paginar daria sensação de
+      // completude sem a informação.
+      '<div class="mp-teto"><b>' +
+      // "12 de 10" seria aritmética estranha, e o estado existe: a poda roda a
+      // cada gravação, então entre uma e outra a lista pode passar do teto.
+      (lista.length > MAX_MINUTAS_UI
+        ? lista.length + " guardadas"
+        : lista.length + " de " + MAX_MINUTAS_UI + " guardadas") +
+      "</b>" +
+      (lista.length > MAX_MINUTAS_UI
+        ? "<span>Acima do limite de " + MAX_MINUTAS_UI +
+          ": as mais antigas serão apagadas na próxima gravação.</span>"
+        : lista.length === MAX_MINUTAS_UI
+        ? "<span>O limite está cheio: a próxima minuta apaga a mais antiga.</span>"
+        : "<span>Guardo as " + MAX_MINUTAS_UI +
+          " mais recentes; cada uma some 7 dias depois de editada.</span>") +
+      '<button type="button" class="mp-ajuda">Como funciona →</button></div>' +
+      "</aside>" +
+      '<div class="mp-lista"></div>' +
+      "</div>";
+    mostrarAviso(html);
+    const raiz = elAviso.querySelector(".minutas-pg");
+    if (!raiz) return;
+    const alvo = raiz.querySelector(".mp-lista");
+    const inp = raiz.querySelector(".mp-busca-in");
+    const ordem = raiz.querySelector(".mp-ordem");
+    ordem.value = filtro.ordem;
+
+    function render() {
+      const vis = aplicarFiltros(lista);
+      if (!vis.length) {
+        alvo.innerHTML =
+          '<div class="mp-vazio">Nenhuma minuta corresponde aos filtros.' +
+          '<button type="button" class="mp-limpar">Limpar filtros</button></div>';
+        return;
+      }
+      alvo.innerHTML = agruparMinutas(vis)
+        .map(
+          (s) =>
+            (s.titulo
+              ? '<div class="mp-sec' + (s.urgente ? " urgente" : "") + '">' +
+                "<span>" + escaparTexto(s.titulo) + "</span><b>" + s.itens.length + "</b></div>"
+              : "") + s.itens.map(linhaCartao).join("")
+        )
+        .join("");
+    }
+    render();
+
+    let tBusca = 0;
+    inp.addEventListener("input", () => {
+      clearTimeout(tBusca);
+      tBusca = setTimeout(() => {
+        filtro.busca = inp.value;
+        render();
+      }, 140);
+    });
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && inp.value) {
+        e.stopPropagation();
+        inp.value = "";
+        filtro.busca = "";
+        render();
       }
     });
+    ordem.addEventListener("change", () => {
+      filtro.ordem = ordem.value;
+      render();
+    });
+    // Filtros delegados: as opções são recriadas quando uma minuta é excluída.
+    raiz.addEventListener("click", (e) => {
+      const opt = e.target.closest(".mp-opt");
+      if (opt) {
+        const grupo = opt.closest(".mp-grupo");
+        const qual = grupo && grupo.dataset.f;
+        if (!qual) return;
+        filtro[qual] = opt.dataset.v;
+        grupo.querySelectorAll(".mp-opt").forEach((b) => b.classList.remove("on"));
+        opt.classList.add("on");
+        render();
+        return;
+      }
+      if (e.target.closest(".mp-limpar")) {
+        filtro.especie = "";
+        filtro.processo = "";
+        filtro.busca = "";
+        inp.value = "";
+        raiz.querySelectorAll(".mp-opt").forEach((b) =>
+          b.classList.toggle("on", b.dataset.v === "")
+        );
+        render();
+        return;
+      }
+      if (e.target.closest(".mp-ajuda")) {
+        try {
+          window.open("help.html#resolucao615", "_blank", "noopener");
+        } catch (err) {
+          /* fora da extensão */
+        }
+      }
+    });
+    // Exclusão em dois cliques, como no dropdown. A lista é remontada do zero
+    // depois (os contadores dos filtros e o "N de 10" mudam junto) — sem isso
+    // a coluna da esquerda passaria a mentir sobre o que sobrou.
+    alvo.addEventListener("click", (e) => {
+      const btn = e.target.closest(".rdel");
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const card = btn.closest(".mcard");
+      if (!card) return;
+      if (btn.dataset.armado !== "1") {
+        alvo.querySelectorAll(".rdel.armado").forEach(desarmarLixo);
+        btn.dataset.armado = "1";
+        btn.classList.add("armado");
+        btn.textContent = "Excluir?";
+        btn._t = setTimeout(() => desarmarLixo(btn), 4000);
+        return;
+      }
+      clearTimeout(btn._t);
+      excluirRascunho(card.dataset.id, () => {
+        card.classList.add("saindo");
+        setTimeout(() => mostrarListaCheia(""), 170);
+      });
+    });
+  }
+
+  // --------------------------------------------------- origem da minuta
+  // A orientação que gerou o texto, mostrada a quem vai revisar. É o registro
+  // que os arts. 19, §6º e 21, §2º da Resolução CNJ 615/2025 pedem — e, na
+  // prática, é o que permite a quem abre a minuta dias depois saber com que
+  // tese ela foi pedida, em vez de ter de inferir do texto.
+  //
+  // Fica FORA da folha e não entra no "Copiar formatado" nem no .docx: o que
+  // vai ao PJe é o ato. Recolhida por padrão — quem já sabe a tese não precisa
+  // relê-la a cada abertura.
+  //
+  // Minutas gravadas ANTES desta versão não têm o campo: sem `d.origem` a
+  // faixa simplesmente não aparece e a tela fica a de antes.
+  function mostrarOrigem(d) {
+    const o = d && d.origem;
+    const box = document.getElementById("origem");
+    if (!box) return;
+    if (!o || !(o.tese || o.rotulo)) {
+      box.hidden = true;
+      return;
+    }
+    box.textContent = "";
+    const sum = document.createElement("summary");
+    const forte = document.createElement("b");
+    forte.textContent = o.rotulo || "Minuta";
+    sum.appendChild(forte);
+    sum.appendChild(
+      document.createTextNode(
+        o.tese
+          ? " · gerada a partir da sua " +
+            (o.regime === "sentido" ? "determinação" : "tese")
+          : " · gerada com auxílio de IA"
+      )
+    );
+    box.appendChild(sum);
+    if (o.tese) {
+      const p = document.createElement("blockquote");
+      p.className = "og-tese";
+      p.textContent = o.tese; // conteúdo do usuário: textContent, nunca innerHTML
+      box.appendChild(p);
+    }
+    const pe = document.createElement("p");
+    pe.className = "og-meta";
+    pe.textContent =
+      "Texto produzido com auxílio de IA" +
+      (o.modelo ? " (" + o.modelo + ")" : "") +
+      (o.modelosQtd ? ", seguindo " + o.modelosQtd + " modelo(s) seus" : "") +
+      ". Revise e assine: a responsabilidade pelo ato continua sendo de quem o assina.";
+    box.appendChild(pe);
+    box.hidden = false;
   }
 
   // ------------------------------------------------------------------ Jodit
@@ -565,6 +984,7 @@
       elSub.textContent = d.processo ? "Processo " + d.processo : "";
       elSalvo.className = "salvo ok";
       elSalvo.textContent = "salvo " + horaCurta(d.atualizadoEm || d.criadoEm || Date.now());
+      mostrarOrigem(d);
       // HTML editado tem prioridade; na primeira abertura, converte o Markdown
       // cru com o parser dedicado e grava o HTML de volta.
       if (d.html) {

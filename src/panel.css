@@ -2066,6 +2066,79 @@ button > svg { flex: none; }
 .minutabar-x:hover, .mapabar-x:hover { background: var(--line-strong); color: var(--text); }
 /* seletor de peça-modelo: cai na própria linha da faixa (a faixa quebra) */
 .minutabar { flex-wrap: wrap; }
+
+/* ---------- Orientação obrigatória (Resolução CNJ 615/2025) ----------
+   Espécie do ato + tese. Ao contrário do seletor de peças-modelo, esta linha
+   NÃO depende da biblioteca nem da janela de 1M: é obrigação normativa e não
+   pode sumir junto com uma feature opcional. */
+.minuta-ato {
+  flex-basis: 100%; display: flex; align-items: center; gap: 6px;
+  padding-top: 2px; flex-wrap: wrap;
+}
+.minuta-ato[hidden] { display: none; }
+.minuta-ato .ma-lab { flex: none; font-weight: 600; color: var(--pje-2); }
+.minuta-ato-sel {
+  flex: 1; min-width: 0; font: inherit; font-size: var(--fs-meta); color: var(--text);
+  border: 1px solid rgba(20, 96, 126, 0.35); border-radius: var(--r-sm);
+  padding: 4px 8px; background: var(--surface); cursor: pointer;
+}
+.minuta-ato-sel:focus {
+  outline: none; border-color: var(--line-focus); box-shadow: var(--ring);
+}
+.minuta-tese {
+  flex-basis: 100%; display: flex; flex-direction: column; gap: var(--sp-1);
+  padding-top: var(--sp-2);
+}
+.minuta-tese[hidden] { display: none; }
+.mt-lab {
+  display: flex; align-items: center; gap: var(--sp-1);
+  font-weight: 600; color: var(--pje-2);
+}
+/* O asterisco é gerado no CSS: obrigatório é propriedade do estado, e um
+   <span> no HTML precisaria ser mostrado/escondido junto com a linha. */
+.mt-lab .mt-txt::after { content: " *"; color: var(--erro); font-weight: 700; }
+.mt-info {
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; background: transparent; color: var(--muted-2);
+  cursor: help; padding: 0; line-height: 0;
+}
+.mt-info:hover { color: var(--pje); }
+.mt-txtarea {
+  width: 100%; box-sizing: border-box; resize: vertical; min-height: 46px;
+  font: inherit; font-size: var(--fs-meta); line-height: 1.45; color: var(--text);
+  border: 1px solid var(--line-input); border-radius: var(--r-sm);
+  padding: var(--sp-2) var(--sp-2b); background: var(--surface);
+}
+.mt-txtarea::placeholder { color: var(--muted-3); }
+.mt-txtarea:focus {
+  outline: none; border-color: var(--line-focus); box-shadow: var(--ring);
+}
+/* Aviso SUAVE (--warn-*), nunca a .alertbar: nada está quebrado — falta um
+   passo, e a nota diz qual. Mesma regra da .sel-nota dos degraus de seleção. */
+.mt-nota {
+  font-size: var(--fs-micro); line-height: 1.4; color: var(--warn-ink);
+  background: var(--warn-bg); border: 1px solid var(--warn-line);
+  border-radius: var(--r-tight); padding: var(--sp-2) var(--sp-2b);
+}
+.mt-nota[hidden] { display: none; }
+.mt-como {
+  border: none; background: transparent; color: var(--pje-2); cursor: pointer;
+  font: inherit; font-size: var(--fs-micro); font-weight: 600; padding: 0;
+  text-decoration: underline; text-underline-offset: 2px;
+}
+.mt-como:hover { color: var(--pje-3); }
+/* A alternativa para quem ainda não tem a tese. Secundária de propósito: ela
+   NÃO produz um ato, e um botão com o peso do "Gerar minuta" sugeriria que
+   sim. */
+.mt-analise {
+  align-self: flex-start; display: inline-flex; align-items: center;
+  border: 1px solid var(--line-strong); background: var(--surface);
+  color: var(--text-2); border-radius: var(--r-sm); padding: 4px 10px;
+  font: inherit; font-size: var(--fs-micro); font-weight: 600; cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+.mt-analise:hover { background: var(--hover-2); border-color: var(--pje); color: var(--pje-2); }
+.mt-analise[hidden] { display: none; }
 .minuta-modelo {
   flex-basis: 100%; display: flex; align-items: center; gap: 6px; padding-top: 2px;
   /* O estado vazio põe TRÊS itens na linha (rótulo + frase + botão): no painel

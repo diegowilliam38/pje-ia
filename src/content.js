@@ -4426,9 +4426,13 @@
   // painel, que já escapa antes de formatar) e vai para chrome.storage.local,
   // de onde src/editor.html o abre para edição, cópia e exportação.
   // ---------------------------------------------------------------------------
+  // NÃO pede mais "o ato cabível… e dispositivo". Pedir o ato E o resultado é
+  // encomendar ao modelo a "formulação de juízos conclusivos sobre a aplicação
+  // da norma jurídica" — o item AR4 do Anexo da Resolução CNJ 615/2025, de ALTO
+  // risco. Quem diz a espécie agora é o seletor da faixa, e quem diz o
+  // resultado é a tese do usuário. (Duplicada em panel.js — mudar as duas.)
   const INSTRUCAO_MINUTA_PADRAO =
-    "Elabore a minuta do ato cabível neste momento do processo, com relatório, " +
-    "fundamentação e dispositivo, indicando a origem de cada afirmação.";
+    "Redija a minuta seguindo a praxe forense, indicando a origem de cada afirmação.";
 
   // Prescritivo pelo mesmo motivo do sufixo do mapa: modelos menores seguem
   // instruções ao pé da letra, e aqui o produto é um texto que vai circular
@@ -4463,6 +4467,81 @@
     " NÃO use blocos de aviso do tipo \"> [!ALERTA]\" ou \"> [!ATENÇÃO]\": nada de" +
     " observação ao leitor no corpo do ato — o que não estiver confirmado nas peças vira" +
     " [COMPLETAR: o que falta].";
+
+  // ---------------------------------------------------------------------------
+  // ORIENTAÇÃO DECISÓRIA (Resolução CNJ 615/2025)
+  //
+  // O Anexo da resolução separa a "formulação de juízos conclusivos sobre a
+  // aplicação da norma jurídica ou precedentes a um conjunto determinado de
+  // fatos concretos" (AR4, ALTO risco) da "produção de textos de apoio para
+  // facilitar a confecção de atos judiciais" (BR4, baixo) e dos "atos
+  // processuais ordinatórios" (BR1, baixo). A diferença entre os dois primeiros
+  // não está no texto que sai — está em QUEM decidiu o resultado. Com a tese
+  // informada antes, o modelo redige uma conclusão que já é humana, e é isso
+  // que rebaixa o risco da ferramenta.
+  //
+  // O art. 19, §3º, II veda o uso como instrumento autônomo "sem a devida
+  // ORIENTAÇÃO, interpretação, verificação e revisão": a orientação vem antes
+  // da revisão no próprio texto normativo. O art. 20, IV mantém o magistrado
+  // "integralmente responsável"; o art. 32 veda que a IA "restrinja ou
+  // substitua a autoridade final".
+  //
+  // O bloco vai em XML pelo mesmo motivo da `molduraModelos`: o conteúdo é
+  // texto livre do usuário e a tag é a única fronteira que o modelo não
+  // confunde com a resposta. E vai no FIM (junto da instrução), não no prefixo
+  // cacheado — a orientação muda a cada request, ao contrário dos modelos.
+  function blocoOrientacao(ato) {
+    if (!ato || ato.regime === "livre" || !ato.tese) return "";
+    const limpo = String(ato.tese).replace(/<\/?orientacao_decisoria\b[^>]*>/gi, "");
+    return (
+      "\n\n<orientacao_decisoria>\n" +
+      "ESPÉCIE DO ATO: " + (ato.rotulo || ato.especie) + "\n" +
+      (ato.regime === "tese"
+        ? "TESE E DISPOSITIVO, definidos por quem vai assinar:\n"
+        : "DETERMINAÇÃO, definida por quem vai assinar:\n") +
+      limpo +
+      "\n</orientacao_decisoria>"
+    );
+  }
+
+  // A regra que diz ao modelo o que fazer com o bloco acima. Fica FORA do
+  // `SUFIXO_MINUTA` de propósito: aquele é a regra de FORMA, vale para toda
+  // minuta e é a maior superfície de regressão do fluxo — esta é condicional.
+  function regraDaOrientacao(ato) {
+    if (!ato || ato.regime === "livre") return "";
+    // O ponto mais delicado do desenho é o que fazer quando as peças
+    // CONTRARIAM a orientação. "Corrigir" quem assina devolveria o modelo ao
+    // AR4 — ele estaria formulando o juízo conclusivo por conta própria. Calar
+    // seria pior: um ato fundamentado contra os próprios autos, com aparência
+    // de acabado. A saída é o canal que o SUFIXO_MINUTA já estabelece, o
+    // [COMPLETAR: …] — e NÃO um marcador novo, que brigaria com a proibição de
+    // blocos de aviso no corpo do ato.
+    const comum =
+      " Se alguma peça CONTRARIAR a orientação, não altere o dispositivo e não" +
+      " omita o ponto: registre-o no corpo do ato como [COMPLETAR: divergência —" +
+      " a orientação afirma X, mas (Título da peça, id 123456, fl. 7) registra Y]," +
+      " para quem for assinar resolver antes de assinar." +
+      " Se a orientação não disser algo necessário (valor, prazo, verba de" +
+      " sucumbência, prazo de cumprimento), use [COMPLETAR: …] no lugar — nunca" +
+      " arbitre por conta própria.";
+    if (ato.regime === "tese") {
+      return (
+        " ORIENTAÇÃO OBRIGATÓRIA: a tese e o dispositivo do bloco" +
+        " <orientacao_decisoria> JÁ FORAM DECIDIDOS por quem assina o ato. Você" +
+        " NÃO decide o resultado, NÃO escolhe entre teses possíveis e NÃO propõe" +
+        " solução diferente: a sua tarefa é REDIGIR o ato que implementa essa" +
+        " decisão, fundamentando-a com os fatos e as provas das peças anexadas." +
+        comum
+      );
+    }
+    return (
+      " ORIENTAÇÃO OBRIGATÓRIA: a determinação do bloco <orientacao_decisoria> JÁ" +
+      " FOI DECIDIDA por quem assina o ato. Redija o despacho que a implementa, na" +
+      " forma de praxe, sem acrescentar determinação que não conste dela e sem" +
+      " decidir questão de mérito." +
+      comum
+    );
+  }
 
   // Quando o usuário escolhe uma categoria de modelos (biblioteca MLIB), TODAS
   // as peças-modelo daquela espécie (o painel já aplica o teto) entram no
@@ -4509,29 +4588,68 @@
     };
   }
 
-  panel.onMinuta(async (text, selecaoDoPainel, modelos) => {
-    if (busy || ocupadoJsf()) return;
+  // NÃO é `async` no topo, e isso é a parte que não pode ser "simplificada": as
+  // guardas de entrada precisam devolver `false` DE FORMA SÍNCRONA para o
+  // painel saber que a recusa aconteceu e preservar a instrução, a categoria e
+  // a tese que o usuário digitou. Num handler `async`, `return false` viraria
+  // `Promise.resolve(false)` e o teste `=== false` lá nunca casaria — o estado
+  // seria destruído do mesmo jeito. O trabalho de verdade vai na IIFE async
+  // logo abaixo.
+  panel.onMinuta((text, selecaoDoPainel, modelos, ato) => {
+    // `ocupadoJsf()` já escreve o motivo no status; o `busy` puro não escrevia
+    // nada, e uma recusa muda é indistinguível de um botão quebrado.
+    if (busy) {
+      panel.setStatus("Ainda estou respondendo — aguarde este turno terminar.");
+      return false;
+    }
+    if (ocupadoJsf()) return false;
     // Seleção EFETIVA, pelo mesmo motivo do chat: num processo retomado as rows
     // da timeline lazy podem não existir ainda, e a minuta recusaria peças que
     // o usuário vê marcadas na conversa.
     const selectedIds = selecaoEfetiva().length ? selecaoEfetiva() : selecaoDoPainel;
     if (selectedIds.length === 0) {
       panel.setStatus("Marque as peças que devem embasar a minuta.");
-      return;
+      return false;
     }
     busy = true;
     panel.lockInput(true);
+    // REDE DE SEGURANÇA, e não zelo: `busy = true` é posto AQUI, enquanto o
+    // `finally` que o zera vive dentro de `minutarAgora` — e as primeiras
+    // linhas de lá (moldura dos modelos, bolha do usuário) rodam ANTES do try
+    // interno. Uma exceção nesse trecho rejeitaria a Promise sem dono e
+    // deixaria `busy` preso em true para sempre: a extensão trava, e só
+    // recarregar a página resolve.
+    minutarAgora(text, selectedIds, modelos, ato).catch((e) => {
+      busy = false;
+      panel.lockInput(false);
+      panel.endPrep(true);
+      panel.setStatus("Erro: " + ((e && e.message) || e));
+    });
+    return true;
+  });
 
+  async function minutarAgora(text, selectedIds, modelos, ato) {
     const instrucao = (text && text.trim()) || INSTRUCAO_MINUTA_PADRAO;
     const molduraBloco = molduraModelos(modelos);
     const catModelos =
       molduraBloco && typeof MLIB !== "undefined"
         ? MLIB.rotuloCategoria(modelos[0].categoria)
         : "";
+    // A orientação aparece na bolha do usuário porque ela É a decisão dele: o
+    // transcript é o registro da conversa, e quem reabrir o caso precisa ver
+    // com que tese aquela minuta foi pedida (art. 19, §6º e art. 21, §2º).
+    const linhaAto = ato
+      ? "\n\n⚖️ " + ato.rotulo +
+        (ato.tese
+          ? " — " + (ato.regime === "tese" ? "tese e dispositivo" : "determinação") +
+            ": " + ato.tese
+          : "")
+      : "";
     panel.addMessage(
       "user",
       "📝 Gerar minuta: " +
         instrucao +
+        linhaAto +
         (molduraBloco
           ? "\n\n📚 Seguindo " + modelos.length + " modelo(s) de referência" +
             (catModelos ? " — " + catModelos : "")
@@ -4558,7 +4676,6 @@
       }
 
       panel.setStatus("Redigindo a minuta a partir das peças marcadas…", true);
-      assistantEl = panel.addMessage("assistant", "");
 
       // Request ISOLADO, como o mapa mental: não entra em conversation nem em
       // pecasNaConversa — gerar uma minuta não altera a conversa em andamento.
@@ -4593,16 +4710,36 @@
                 text:
                   instrucao +
                   SUFIXO_MINUTA +
+                  regraDaOrientacao(ato) +
                   reforcoModelo +
                   " Peças anexadas, use exatamente estes ids: " +
                   dl.ok.map((id) => metaDe(id).titulo).join("; ") +
-                  ".",
+                  "." +
+                  blocoOrientacao(ato),
               },
             ],
           },
         ],
         null
       );
+
+      // Busca de jurisprudência: a minuta ia SEM as tools mesmo com o toggle
+      // aceso — "Jurisprudência ligada + Gerar minuta" produzia uma minuta sem
+      // busca nenhuma, e nada na tela dizia isso. O mesmo `opts` vai ao pré-voo,
+      // senão a conta de tokens não é a do request que sai.
+      const optsMinuta = optsDoTurno();
+
+      // Pré-voo: a minuta não tinha nenhum — autos grandes somados a até 12
+      // peças-modelo voltavam como erro cru da API em vez da mensagem que diz
+      // o que fazer. `guardaPaginas` acima cobre só o teto de páginas de PDF.
+      // `estimarContexto` LANÇA acima de 90% da janela (com `err.ctxCheio`); o
+      // catch abaixo trata, como no chat.
+      //
+      // A bolha do assistente nasce DEPOIS daqui de propósito: um turno barrado
+      // pelo pré-voo não deve deixar bolha vazia na conversa. (O catch ainda
+      // remove `assistantEl` se ele existir — a falha pode vir do stream.)
+      await estimarContexto(messages, optsMinuta);
+      assistantEl = panel.addMessage("assistant", "");
 
       const fimMinuta = await stream(messages, {
         onDelta(delta) {
@@ -4631,7 +4768,7 @@
             true
           );
         },
-      });
+      }, optsMinuta);
       registrarCusto(fimMinuta);
 
       const md = limparMarkdownMinuta(acc);
@@ -4641,7 +4778,12 @@
         return;
       }
 
-      const url = await guardarMinuta(md, tituloDaMinuta(md));
+      const url = await guardarMinuta(md, tituloDaMinuta(md), {
+        ato,
+        modelo: (modelInfo && modelInfo.model) || "",
+        modelosCategoria: catModelos || "",
+        modelosQtd: modelos && modelos.length ? modelos.length : 0,
+      });
       const idProc = PJE.getIdProcesso();
       const nomeMd = ("minuta" + (idProc ? "-processo-" + idProc : "") + ".md").replace(
         /[^\w.\-]+/g,
@@ -4662,6 +4804,12 @@
     } catch (e) {
       panel.endPrep(true);
       panel.setStatus("Erro: " + (e && e.message ? e.message : e));
+      // contexto cheio: o pré-voo agora existe também aqui, e o usuário precisa
+      // AGIR (desmarcar peças, mandar menos modelos ou recomeçar)
+      if (e && e.ctxCheio) {
+        ultimaChaveEst = "";
+        panel.setAlerta(ALERTA_CTX_CHEIO);
+      }
       if (assistantEl && !acc) panel.removeMessage(assistantEl);
     } finally {
       busy = false;
@@ -4673,7 +4821,7 @@
       // (a fila `pecasSujas` também sai daqui).
       salvarCasoAgora();
     }
-  });
+  }
 
   // --- Rascunhos de minuta -----------------------------------------------
   // Ficam em chrome.storage.local — e não em session, como o mapa — porque o
@@ -4683,7 +4831,7 @@
   const MAX_MINUTAS = 10;
   const VALIDADE_MINUTA_MS = 7 * 24 * 60 * 60 * 1000;
 
-  function guardarMinuta(md, titulo) {
+  function guardarMinuta(md, titulo, ctx) {
     return new Promise((resolve, reject) => {
       const id = String(Date.now()) + "-" + Math.random().toString(36).slice(2, 8);
       const chave = "minuta:" + id;
@@ -4691,6 +4839,25 @@
       try {
         processo = PJE.getNumeroProcesso() || "";
       } catch (e) {}
+      // A ORIGEM da minuta vai ao disco junto com ela: espécie, a orientação
+      // verbatim e o modelo de IA usado. É o registro que os arts. 19, §6º e
+      // 21, §2º da Resolução CNJ 615 pedem — e, na prática, é o que permite a
+      // quem revisa dias depois saber com que tese aquele texto foi pedido.
+      // Registros ANTERIORES a esta versão não têm o campo: quem lê precisa
+      // tolerar a ausência (`d.origem || null`).
+      const ato = ctx && ctx.ato;
+      const origem = ato
+        ? {
+            especie: ato.especie,
+            rotulo: ato.rotulo,
+            regime: ato.regime,
+            tese: ato.tese || "",
+            modelo: (ctx && ctx.modelo) || "",
+            modelosCategoria: (ctx && ctx.modelosCategoria) || "",
+            modelosQtd: (ctx && ctx.modelosQtd) || 0,
+            em: Date.now(),
+          }
+        : null;
       const registro = {
         // Guarda o Markdown CRU: a página do editor (src/editor.html) o converte
         // com o MinutaMd — parser dedicado que faz listas aninhadas, tabelas com
@@ -4699,6 +4866,7 @@
         md,
         titulo: titulo || "Minuta",
         processo,
+        origem,
         criadoEm: Date.now(),
         atualizadoEm: Date.now(),
       };
@@ -4799,16 +4967,34 @@
     " imagens, HTML, fórmulas, numeração de tópicos nem blocos de aviso do tipo" +
     " \"> [!ALERTA]\" (o mapa é feito de nós; um bloco de citação não vira nó).";
 
-  panel.onMapa(async (text, selecaoDoPainel) => {
-    if (busy || ocupadoJsf()) return;
+  // Guardas SÍNCRONAS e `false` na recusa, pelo mesmo motivo da minuta: o
+  // painel só limpa o campo e desliga o modo depois do aceite (ver a nota do
+  // `onMinuta` sobre por que este handler não pode ser `async` no topo).
+  panel.onMapa((text, selecaoDoPainel) => {
+    if (busy) {
+      panel.setStatus("Ainda estou respondendo — aguarde este turno terminar.");
+      return false;
+    }
+    if (ocupadoJsf()) return false;
     const selectedIds = selecaoEfetiva().length ? selecaoEfetiva() : selecaoDoPainel;
     if (selectedIds.length === 0) {
       panel.setStatus("Marque as peças que devem embasar o mapa mental.");
-      return;
+      return false;
     }
     busy = true;
     panel.lockInput(true);
+    // idem minuta: sem este catch, uma exceção antes do try interno deixaria
+    // `busy` preso e travaria a extensão
+    mapearAgora(text, selectedIds).catch((e) => {
+      busy = false;
+      panel.lockInput(false);
+      panel.endPrep(true);
+      panel.setStatus("Erro: " + ((e && e.message) || e));
+    });
+    return true;
+  });
 
+  async function mapearAgora(text, selectedIds) {
     const instrucao = (text && text.trim()) || INSTRUCAO_MAPA_PADRAO;
     panel.addMessage(
       "user",
@@ -4835,7 +5021,6 @@
       }
 
       panel.setStatus("Montando o mapa mental a partir das peças marcadas…", true);
-      assistantEl = panel.addMessage("assistant", "");
 
       // Request ISOLADO, como a minuta: não entra em conversation nem em
       // pecasNaConversa — o anexo incremental e o histórico do chat seguem
@@ -4869,6 +5054,14 @@
         null
       );
 
+      // Idem minuta: sem `opts` o mapa saía sem as tools de busca mesmo com o
+      // toggle Jurisprudência aceso, e nada na tela dizia isso. E a bolha do
+      // assistente nasce só depois do pré-voo, para um turno barrado não
+      // deixar bolha vazia na conversa.
+      const optsMapa = optsDoTurno();
+      await estimarContexto(messages, optsMapa);
+      assistantEl = panel.addMessage("assistant", "");
+
       const fimMapa = await stream(messages, {
         onDelta(delta) {
           acc += delta;
@@ -4896,7 +5089,7 @@
             true
           );
         },
-      });
+      }, optsMapa);
       registrarCusto(fimMapa);
 
       const md = limparMarkdownMapa(acc);
@@ -4932,6 +5125,10 @@
     } catch (e) {
       panel.endPrep(true);
       panel.setStatus("Erro: " + (e && e.message ? e.message : e));
+      if (e && e.ctxCheio) {
+        ultimaChaveEst = "";
+        panel.setAlerta(ALERTA_CTX_CHEIO);
+      }
       if (assistantEl && !acc) panel.removeMessage(assistantEl);
     } finally {
       busy = false;
@@ -4940,7 +5137,7 @@
       // e o download das peças que ele acabou de fazer também.
       salvarCasoAgora();
     }
-  });
+  }
 
   // Tira a cerca ``` que alguns modelos colocam em volta do markdown, mesmo
   // instruídos a não fazê-lo, e o preâmbulo antes do primeiro título.

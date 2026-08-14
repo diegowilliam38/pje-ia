@@ -90,7 +90,7 @@
     <div class="page">
       <h1 class="serif">O que mudou na extensão</h1>
       <p class="lead">
-        Da primeira versão (19 de julho de 2026) até hoje foram <strong>64 versões</strong>. Esta
+        Da primeira versão (19 de julho de 2026) até hoje foram <strong>65 versões</strong>. Esta
         página agrupa o que foi feito <strong>por recurso</strong> — é assim que se usa a
         extensão, não versão a versão. O
         <a class="link" href="#historico">histórico completo</a>, com data e uma linha por
@@ -99,7 +99,68 @@
 
       <div class="card destaque">
         <p class="eyebrow" style="color: rgba(255,255,255,0.7)">A novidade mais recente</p>
-        <h2><span class="v novo">v0.41.0</span> Dá para conversar só com um arquivo anexado — inclusive de outro processo</h2>
+        <h2><span class="v novo">v0.42.0</span> A minuta de sentença agora pede a sua tese — e a Resolução CNJ 615 é o motivo</h2>
+        <p>
+          Ao ligar o modo <strong>Minutar</strong>, você escolhe a <strong>espécie do
+          ato</strong>. Se ela decide alguma coisa — sentença, decisão, acórdão ou despacho
+          —, a extensão pede a <strong>tese e o dispositivo</strong> (no despacho, o que
+          determinar) <em>antes</em> de gerar. <strong>Ofício, mandado, alvará e ata seguem
+          direto</strong>, como sempre.
+        </p>
+        <p>
+          Não é burocracia: é o que muda a <strong>classificação de risco</strong> do que
+          você está fazendo. O Anexo da <strong>Resolução CNJ 615/2025</strong> separa a
+          <em>“formulação de juízos conclusivos sobre a aplicação da norma jurídica”</em>
+          (item AR4, <strong>alto risco</strong>) da <em>“produção de textos de apoio para
+          facilitar a confecção de atos judiciais”</em> — e esta segunda só vale como baixo
+          risco <em>“com base nas instruções do magistrado, especialmente as decisões acerca
+          das preliminares e questões de mérito”</em>. Ou seja: a decisão de mérito tem de
+          vir de você. Como a extensão usa a <strong>sua chave</strong> de uma API comercial,
+          vale ainda o art. 19, §3º, V, que <strong>veda</strong> usar solução privada ou
+          externa ao Judiciário para finalidades de alto risco.
+        </p>
+        <p>
+          A instrução padrão mudou por causa disso. Ela pedia <em>“a minuta do ato
+          cabível… com dispositivo”</em>, o que entregava ao modelo a escolha do ato
+          <strong>e</strong> do resultado. Agora ela cuida só da forma.
+        </p>
+        <p>
+          Se alguma peça <strong>contrariar</strong> a sua tese, o assistente não muda o
+          dispositivo nem esconde o problema: registra o ponto como
+          <code>[COMPLETAR: divergência — …]</code> no corpo do ato, para você resolver
+          antes de assinar. E se você <strong>ainda não formou a tese</strong>, um botão
+          leva a pergunta para o chat comum e devolve um <strong>estudo</strong> do que é
+          cabível — com as origens e as ressalvas —, nunca um ato pronto para assinar.
+        </p>
+        <p>
+          Cada minuta passa a guardar a <strong>orientação que a gerou</strong> e o modelo
+          de IA usado; ao reabri-la no editor, isso aparece numa faixa acima da folha (fora
+          do que vai ao PJe). O guia ganhou uma seção explicando a resolução, a tabela de
+          alto e baixo risco e <strong>onde cada recurso da extensão se encaixa</strong> —
+          inclusive o que continua sendo dever de quem assina.
+        </p>
+        <p>
+          A tela <strong>Minhas minutas</strong> foi refeita: filtros por espécie e por
+          processo, ordenação, busca que agora alcança o <strong>texto</strong> da minuta, e
+          — o mais importante — o <strong>prazo</strong> à vista. As minutas somem em 7 dias
+          e só as 10 mais recentes ficam guardadas; antes nada disso aparecia, e uma minuta
+          a poucas horas de ser apagada tinha a mesma cara das outras.
+        </p>
+        <p>
+          Correções desta versão: <strong>Jurisprudência ligada</strong> agora vale também
+          na minuta e no mapa (a busca era ignorada em silêncio); num processo
+          <strong>retomado da memória</strong>, minutar e mapear deixaram de recusar as
+          peças que estavam marcadas na tela; quando o PJe está ocupado, o pedido não perde
+          mais o que você digitou; a categoria de <strong>peças-modelo</strong> deixou de
+          grudar de uma minuta para a outra e passa a acompanhar o que você escreve; um
+          modelo muito grande não bloqueia mais os menores; e a minuta ganhou a
+          <strong>medição de contexto</strong> que só o chat tinha.
+        </p>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">Antes disso</p>
+        <h2><span class="v">v0.41.0</span> Dá para conversar só com um arquivo anexado — inclusive de outro processo</h2>
         <p>
           Anexar um documento pelo <strong>📎</strong> e perguntar sobre ele, sem marcar
           peça nenhuma, agora funciona <strong>do começo ao fim da conversa</strong>. Antes,
@@ -140,7 +201,6 @@
       </div>
 
       <div class="card">
-        <p class="eyebrow">Antes disso</p>
         <h2><span class="v">v0.40.1</span> Nos modelos Gemini, a resposta deixa de esperar uma ida e volta perdida</h2>
         <p>
           O Google <strong>retirou da API</strong> um ajuste que a extensão enviava junto
@@ -1250,6 +1310,7 @@
             <tr><th>Versão</th><th>Data</th><th>O que mudou</th></tr>
           </thead>
           <tbody>
+            <tr class="marco"><td><span class="v">0.42.0</span></td><td>14/08/2026</td><td><span class="dot-marco"></span><strong>A minuta de ato decisório passa a exigir a sua tese (Resolução CNJ 615/2025).</strong> Ao ligar o modo Minutar você escolhe a <em>espécie do ato</em>; sentença, decisão, acórdão e despacho pedem a <strong>tese e o dispositivo</strong> antes de gerar — ofício, mandado, alvará e ata seguem direto. O Anexo da resolução classifica como <strong>alto risco</strong> (AR4) a “formulação de juízos conclusivos sobre a aplicação da norma jurídica”, e só admite como baixo risco (BR4) o texto de apoio produzido “com base nas instruções do magistrado, especialmente as decisões acerca das preliminares e questões de mérito”; como a extensão usa uma API privada, o art. 19, §3º, V ainda <strong>veda</strong> o uso de alto risco. A instrução padrão deixou de pedir “o ato cabível”. Peça que contraria a tese vira <code>[COMPLETAR: divergência — …]</code>, sem alterar o dispositivo; quem ainda não tem a tese pode pedir um <strong>estudo do que é cabível</strong> pelo chat. Cada minuta guarda a orientação que a gerou, e o guia ganhou a seção sobre a resolução. A tela <strong>Minhas minutas</strong> foi refeita (filtros por espécie e processo, ordenação, busca no texto e o <strong>prazo de validade à vista</strong>). Correções: Jurisprudência era ignorada na minuta e no mapa; processo retomado da memória recusava as peças marcadas; recusa por PJe ocupado perdia o texto digitado; a categoria de peças-modelo grudava entre minutas; modelo grande bloqueava os menores; e a minuta ganhou pré-voo de contexto</td></tr>
             <tr class="marco"><td><span class="v">0.41.0</span></td><td>14/08/2026</td><td><span class="dot-marco"></span><strong>Dá para conversar só com um arquivo anexado, inclusive de outro processo.</strong> Antes, a primeira pergunta sobre um anexo era respondida e a segunda era recusada com “Marque uma peça…”, com o arquivo visível na tela: a extensão contava só os anexos <em>ainda não enviados</em>, e depois do primeiro envio essa conta zerava. Agora vale o que está anexado <strong>agora</strong> — a mesma regra das peças. Sem peça marcada, o assistente também deixa de tratar o processo da tela como o assunto: ele passa a saber que o material é o arquivo anexado e que pode ser de <strong>outro processo</strong>, em vez de responder com uma lista de peças para marcar. Continua avisando uma vez quando o documento é de processo diferente. Marcar uma peça devolve tudo ao normal na hora; <strong>minutar e mapa mental seguem pedindo peças marcadas</strong>. Também nesta versão: a <strong>importação de vários .docx/.rtf</strong> voltou a aparecer em <strong>Modelos</strong> (quem não tinha nenhum modelo caía direto no formulário e nunca via o botão), e o botão que <strong>leva da peça até ela no PJe</strong> deixou de ficar invisível até o mouse passar por cima</td></tr>
             <tr><td><span class="v">0.40.1</span></td><td>13/08/2026</td><td>Nos modelos <strong>Gemini</strong>, a resposta deixou de gastar uma ida e volta perdida antes de começar. O Google retirou da API um ajuste que a extensão enviava (o que afrouxa o filtro de conteúdo — necessário porque autos falam de crime e violência); a extensão já se recuperava sozinha reenviando sem ele, mas <strong>reaprendia isso a cada pergunta</strong>, porque o serviço interno do Chrome que faz os envios é desligado após ~30 s parado. Agora a descoberta vale por <strong>sessão do navegador</strong>. Se o Google voltar a aceitar o ajuste, a extensão volta a usá-lo sozinha</td></tr>
             <tr class="marco"><td><span class="v">0.40.0</span></td><td>13/08/2026</td><td><span class="dot-marco"></span><strong>Gemini 3.7 Flash entra na lista, e a extensão passa a vir configurada no GPT-5.6 Luna.</strong> Quem já usa não é afetado — o modelo salvo continua o mesmo; a troca vale para instalações novas. O Luna custa <strong>US$ 0,20 por milhão de tokens de entrada</strong> contra US$ 1,50 do Gemini Flash, e é o único dos dois em que a busca de jurisprudência pode ser <strong>restringida aos domínios oficiais</strong> pelo servidor do provedor — no Gemini isso é só um pedido no texto, que o modelo já ignorou em teste. O <strong>Gemini 3.7 Flash</strong> passa a ser o Gemini recomendado (mesma janela de 1M e as mesmas 1.000 páginas do 3.6); o 3.6 e o 3.5 Flash-Lite continuam na lista</td></tr>

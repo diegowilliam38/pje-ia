@@ -521,12 +521,132 @@
         não enxerga nem gerencia a sua pasta de downloads.</p>
       </div>
 
+      <h1 class="serif" id="resolucao615">A Resolução CNJ 615/2025 e por que a extensão pede a tese</h1>
+      <p class="lead">O uso de IA no Judiciário é regulado. Esta seção explica a regra, mostra
+      onde cada recurso da extensão se encaixa e diz o que continua sendo seu.</p>
+
+      <div class="card">
+        <div class="head"><span class="num">1</span><h2>O que a resolução faz</h2></div>
+        <p>A <strong>Resolução CNJ nº 615, de 11 de março de 2025</strong> substituiu a
+        Resolução 332/2020 e passou a valer <strong>120 dias após a publicação</strong>
+        (publicada em 14/03/2025, em vigor desde 14/07/2025). Ela classifica os usos de IA
+        por <strong>risco</strong> e impõe governança, transparência e supervisão humana.</p>
+        <p>O Anexo lista, com códigos, o que é de <strong>alto risco</strong> (AR) e o que é
+        de <strong>baixo risco</strong> (BR). Dois itens decidem tudo o que vem a seguir:</p>
+        <table>
+          <tr><th>Código</th><th>Atividade</th></tr>
+          <tr>
+            <td><strong>AR4</strong><br><em>alto risco</em></td>
+            <td>“formulação de juízos conclusivos sobre a aplicação da norma jurídica ou
+            precedentes a um conjunto determinado de fatos concretos, inclusive para a
+            quantificação ou a qualificação de danos…”</td>
+          </tr>
+          <tr>
+            <td><strong>BR4</strong><br><em>baixo risco</em></td>
+            <td>“produção de textos de apoio para facilitar a confecção de atos judiciais,
+            <strong>desde que a supervisão e a versão final do documento sejam realizadas pelo
+            magistrado e com base em suas instruções, especialmente as decisões acerca das
+            preliminares e questões de mérito</strong>”</td>
+          </tr>
+        </table>
+        <p>Repare no que o próprio BR4 exige: para o texto gerado ser de baixo risco, as
+        <strong>decisões de mérito têm de vir de você</strong>. Não é interpretação — é o
+        texto da norma. Um pedido do tipo <em>“elabore a minuta do ato cabível”</em> entrega
+        a escolha do resultado ao modelo, e isso é AR4.</p>
+      </div>
+
+      <div class="card">
+        <div class="head"><span class="num">2</span><h2>Por que aqui a diferença é decisiva</h2></div>
+        <p>Esta extensão usa a <strong>sua</strong> chave de uma API comercial (Anthropic,
+        Google ou OpenAI). Ou seja: é uma solução <strong>privada e externa ao Judiciário</strong>,
+        contratada diretamente por você — a hipótese do art. 19, §2º. E para essas soluções a
+        resolução não diz “tome cuidado”; ela <strong>proíbe</strong>:</p>
+        <p class="warn-box"><strong>Art. 19, §3º, V</strong> — “é vedado o uso de LLMs e sistemas
+        de IA generativa de natureza privada ou externos ao Judiciário para as finalidades
+        previstas nesta Resolução como de risco excessivo ou de <strong>alto risco</strong>”.</p>
+        <p>Some-se o <strong>art. 19, §3º, II</strong>, que veda o uso “como instrumento autônomo
+        de tomada de decisões judiciais sem a devida <strong>orientação</strong>, interpretação,
+        verificação e revisão por parte do magistrado, <strong>que permanecerá integralmente
+        responsável</strong>”. Note a ordem das palavras: <em>orientação</em> vem antes de
+        <em>revisão</em>. O dever não é só conferir depois — é orientar antes.</p>
+        <p>É por isso que, ao minutar uma <strong>sentença, decisão ou acórdão</strong>, a
+        extensão pede a <strong>tese e o dispositivo</strong> antes de gerar; e num
+        <strong>despacho</strong>, o que determinar. Com a sua orientação, o modelo redige uma
+        conclusão que já é humana: sai do AR4 e entra no BR4. <strong>A tese não é
+        burocracia — é o que muda a classificação de risco do que você está fazendo.</strong></p>
+        <p><strong>Ofício, mandado, alvará e ata não pedem nada</strong>: são expediente
+        (BR1/BR4), e exigir justificativa ali gastaria o gesto onde ele não protege nada.</p>
+        <p>Se você ainda não tem a tese formada, o botão <strong>Analisar o que é cabível</strong>
+        leva a pergunta para o chat comum: a resposta vem com as origens e as ressalvas, como um
+        estudo — e não como um ato pronto para assinar.</p>
+      </div>
+
+      <div class="card">
+        <div class="head"><span class="num">3</span><h2>Onde cada recurso se encaixa</h2></div>
+        <table>
+          <tr><th>Recurso</th><th>Classificação</th></tr>
+          <tr><td>Chat sobre as peças, resumo, linha do tempo, mapa mental</td>
+              <td>BR3 / BR4 — apoio à decisão</td></tr>
+          <tr><td>Escolher com IA (triagem), <em>Baixar .zip</em>, pacote de carta precatória</td>
+              <td>BR1 — organização e atos ordinatórios</td></tr>
+          <tr><td>Minuta de ofício, mandado, alvará ou ata</td>
+              <td>BR1 / BR4 — expediente</td></tr>
+          <tr><td>Minuta de sentença, decisão ou acórdão <strong>com a sua tese</strong></td>
+              <td>BR4 — texto de apoio sob as suas instruções</td></tr>
+          <tr><td><strong>Minuta de sentença ou decisão sem tese</strong></td>
+              <td><strong>AR4 — alto risco, e vedado em solução privada</strong><br>
+              <em>por isso a extensão não gera</em></td></tr>
+        </table>
+        <p>Nenhum recurso da extensão faz o que o <strong>art. 10</strong> proíbe em definitivo
+        (avaliar personalidade para prever crime, ranquear pessoas, reconhecer emoções): ela
+        lê as peças que <em>você</em> marcou e escreve texto a partir delas.</p>
+      </div>
+
+      <div class="card">
+        <div class="head"><span class="num">4</span><h2>O que continua sendo seu</h2></div>
+        <p>A extensão cuida de uma parte. Estes deveres são de quem usa:</p>
+        <ul>
+          <li><strong>Revisar e assinar.</strong> A minuta é uma sugestão de trabalho.
+          Você permanece <em>integralmente responsável</em> pela decisão e pelas informações
+          nela contidas (art. 19, §3º, II; art. 20, IV).</li>
+          <li><strong>Segredo de justiça e dados sigilosos.</strong> O art. 19, §3º, IV veda
+          usar IA privada ou externa para processar documentos sigilosos ou em segredo de
+          justiça, <em>salvo</em> anonimização na origem ou mecanismos técnicos e procedimentais
+          que garantam a proteção. A extensão manda as peças que você marcar direto para a API
+          do provedor — a decisão sobre o que marcar é sua.</li>
+          <li><strong>Informar o seu tribunal.</strong> Pelo art. 19, §7º, quem contrata uma
+          solução de mercado para usar nas atividades funcionais deve prestar informações ao
+          tribunal, na forma do regulamento. Isso vale para esta extensão.</li>
+          <li><strong>Capacitação.</strong> O art. 19, §3º, I condiciona o uso a treinamento
+          sobre limites, riscos e uso ético dessas ferramentas.</li>
+          <li><strong>Mencionar o uso, se quiser.</strong> Pelo art. 19, §6º, o emprego de IA
+          generativa na redação de um ato <em>poderá</em> ser mencionado no corpo da decisão, a
+          critério do magistrado. A extensão guarda, junto de cada minuta, a espécie, a sua
+          orientação e o modelo usado — é o que permite reconstituir depois como aquele texto
+          nasceu.</li>
+        </ul>
+        <p class="nota">Esta seção é um resumo para orientar o uso da extensão; ela não
+        substitui a leitura da norma. O texto oficial está em
+        <a class="link" href="https://atos.cnj.jus.br/atos/detalhar/6001" target="_blank" rel="noopener">atos.cnj.jus.br/atos/detalhar/6001</a>.
+        Verifique também os atos do seu próprio tribunal, que podem ser mais restritivos.</p>
+      </div>
+
       <h1 class="serif">Editar e entregar a minuta</h1>
       <div class="card">
         <p>O botão <strong><svg class="ic-in" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20h14"/><path d="M15 4l5 5-9 9H6v-5z"/></svg>Minutar</strong> pede ao modelo o texto de um ato e o abre num
         editor próprio, em nova aba, com a formatação forense já pronta (A4, margens 3/2 cm,
         Times 12, entrelinha 1,5, parágrafos justificados). Toda resposta longa do chat também
         traz um botão <strong>Abrir no editor</strong>, para o mesmo destino.</p>
+        <p>Ao ligar o modo minuta você escolhe a <strong>espécie do ato</strong>. Se ela decide
+        alguma coisa — sentença, decisão, acórdão ou despacho —, a extensão pede a
+        <strong>tese e o dispositivo</strong> (ou, no despacho, o que determinar) antes de
+        gerar, e o modelo redige o ato que implementa a <em>sua</em> decisão em vez de escolher
+        o resultado. Ofício, mandado, alvará e ata seguem direto. O porquê está em
+        <a class="link" href="#resolucao615">A Resolução CNJ 615/2025 e por que a extensão pede
+        a tese</a>.</p>
+        <p>Se alguma peça <strong>contrariar</strong> a sua tese, o modelo não muda o
+        dispositivo nem esconde o problema: ele registra o ponto no corpo do ato como
+        <code>[COMPLETAR: divergência — …]</code>, para você resolver antes de assinar.</p>
         <p>No editor você:</p>
         <ul>
           <li><strong>edita à vontade</strong> — negrito, títulos, listas, tabelas;</li>

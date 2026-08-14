@@ -879,6 +879,19 @@ var PjePanel = (function () {
               <div class="minutabar" hidden>
                 <span class="docxbar-t">${SVG.minuta} <b>Modo minuta ligado</b> — revise a instrução abaixo e clique em <b>Gerar minuta</b>: a resposta abre num editor, em nova aba, pronta para revisar e levar ao PJe.</span>
                 <button class="minutabar-x" title="Cancelar a geração da minuta (Esc)">${SVG.x}</button>
+                <div class="minuta-ato">
+                  <span class="ma-lab">Espécie do ato:</span>
+                  <select class="minuta-ato-sel" aria-label="Espécie do ato a minutar" title="A espécie define se a extensão precisa da sua orientação antes de redigir: atos que decidem exigem a tese; expediente, não."></select>
+                </div>
+                <div class="minuta-tese" hidden>
+                  <label class="mt-lab">
+                    <span class="mt-txt"></span>
+                    <button class="mt-info" type="button" aria-label="Por que a extensão pede isto" title="Por que a extensão pede isto — Resolução CNJ 615/2025">${SVG.info}</button>
+                  </label>
+                  <textarea class="mt-txtarea" rows="2" spellcheck="true"></textarea>
+                  <span class="mt-nota" hidden></span>
+                  <button class="mt-analise" type="button" hidden title="Faz a pergunta no chat comum: a resposta é um estudo do que é cabível, com as origens e as ressalvas — não um ato pronto para assinar.">Analisar o que é cabível (no chat)</button>
+                </div>
                 <div class="minuta-modelo" hidden>
                   <span class="mm-lab">Seguir modelos:</span>
                   <select class="minuta-modelo-sel" aria-label="Categoria de peças-modelo que a minuta deve seguir" title="Escolha uma categoria: o assistente recebe as suas peças-modelo daquela espécie e segue a estrutura e o estilo da mais adequada ao caso — os fatos continuam vindo só das peças do processo."></select>
@@ -1363,13 +1376,7 @@ var PjePanel = (function () {
       // `abrirTour` lê `tourInst` NO CLIQUE — quando este handler é registrado a
       // instância ainda não existe (ver a nota da zona morta temporal acima).
       if (btnTour) btnTour.addEventListener("click", abrirTour);
-      hintEl.querySelector(".hint-help").addEventListener("click", () => {
-        try {
-          window.open(chrome.runtime.getURL("src/help.html"), "_blank", "noopener");
-        } catch {
-          /* fora da extensão (harness de teste) */
-        }
-      });
+      hintEl.querySelector(".hint-help").addEventListener("click", () => abrirAjuda(""));
       msgs.appendChild(hintEl);
       ft.classList.add("novato"); // atalhos de teclado visíveis para quem chega agora
     }
@@ -1775,13 +1782,193 @@ var PjePanel = (function () {
     // cliques no mesmo botão": todo mundo aperta Enviar.)
     // Como o mapa mental, o turno é um chat comum — sem skill, sem execução de
     // código —, então funciona em QUALQUER modelo, Claude ou Gemini.
+    // A instrução padrão NÃO pede mais "o ato cabível… e dispositivo". Pedir o
+    // ato E o resultado é encomendar ao modelo a "formulação de juízos
+    // conclusivos sobre a aplicação da norma jurídica" — o item AR4 do Anexo da
+    // Resolução CNJ 615/2025, classificado como ALTO RISCO. Quem diz a espécie
+    // agora é o seletor abaixo, e quem diz o resultado é a tese do usuário; o
+    // que sobra para a instrução é a FORMA. (Duplicada em content.js — ao
+    // mudar uma, mudar a outra.)
     const INSTRUCAO_MINUTA_PADRAO =
-      "Elabore a minuta do ato cabível neste momento do processo, com relatório, " +
-      "fundamentação e dispositivo, indicando a origem de cada afirmação.";
+      "Redija a minuta seguindo a praxe forense, indicando a origem de cada afirmação.";
     const btnMinuta = $(".btn-minuta");
     const minutabar = $(".minutabar");
     let minutaCb = null;
     let minutaMode = false;
+
+    // ---- Orientação obrigatória (Resolução CNJ 615/2025) --------------------
+    // O Anexo da resolução separa a "formulação de juízos conclusivos sobre a
+    // aplicação da norma jurídica" (AR4, ALTO risco) da "produção de textos de
+    // apoio para facilitar a confecção de atos judiciais" (BR4, baixo) e dos
+    // "atos processuais ordinatórios" (BR1, baixo). A diferença entre os dois
+    // primeiros não está no texto que sai: está em QUEM decidiu o resultado.
+    // Com a tese informada antes, a IA redige uma conclusão que já é humana —
+    // é isso que rebaixa o risco da ferramenta, e é por isso que o campo é
+    // obrigatório em vez de sugerido. O art. 19, §3º, II veda o uso autônomo
+    // "sem a devida ORIENTAÇÃO, interpretação, verificação e revisão": a
+    // orientação vem antes da revisão no próprio texto normativo.
+    //
+    // TRÊS regimes, e o grupo do <optgroup> NÃO é o regime — quem manda é a
+    // espécie. O grupo separa "a sua decisão entra no ato" de "não entra"; o
+    // rótulo e o placeholder do campo é que distinguem tese de sentido.
+    const ESPECIES_ATO = [
+      { valor: "sentenca", rotulo: "Sentença", regime: "tese", decide: true },
+      { valor: "decisao", rotulo: "Decisão interlocutória / tutela", regime: "tese", decide: true },
+      { valor: "acordao", rotulo: "Acórdão / voto", regime: "tese", decide: true },
+      { valor: "despacho", rotulo: "Despacho", regime: "sentido", decide: true },
+      { valor: "oficio", rotulo: "Ofício", regime: "livre", decide: false },
+      { valor: "mandado", rotulo: "Mandado / alvará", regime: "livre", decide: false },
+      { valor: "ata", rotulo: "Ata de audiência", regime: "livre", decide: false },
+      { valor: "outro", rotulo: "Outro", regime: "livre", decide: false },
+    ];
+    // Mínimo de existência, não de qualidade: barra o campo vazio e o "a"
+    // digitado só para destravar o botão. A extensão exige que a tese EXISTA e
+    // não julga se ela é boa — julgar seria, ela própria, formular o juízo
+    // conclusivo que a regra existe para impedir. Um só número para os dois
+    // regimes: dois pediriam duas justificativas.
+    const TESE_MIN = 12;
+    const TEXTO_REGIME = {
+      tese: {
+        rotulo: "Tese e dispositivo",
+        ph:
+          "Ex.: Procedência parcial. Prescrição afastada (art. 206, §3º, V, CC — marco em " +
+          "12/03/2023). Dano moral de R$ 8.000,00; dano material improcedente por falta de prova.",
+        falta:
+          "Informe a tese e o dispositivo: a Resolução CNJ 615 não admite que a IA " +
+          "decida o sentido do ato.",
+      },
+      sentido: {
+        rotulo: "O que determinar",
+        ph: "Ex.: Expeça-se carta precatória para oitiva da testemunha X, em Fortaleza.",
+        falta:
+          "Diga o que determinar: a Resolução CNJ 615 não admite que a IA decida o " +
+          "sentido do ato.",
+      },
+    };
+    const minutaAtoSel = $(".minuta-ato-sel");
+    const minutaTeseWrap = $(".minuta-tese");
+    const minutaTeseTxt = $(".mt-txtarea");
+    const minutaTeseLab = $(".mt-txt");
+    const minutaTeseNota = $(".mt-nota");
+    const minutaTeseAlt = $(".mt-analise");
+    // A saída para quem ainda NÃO sabe a tese. Bloquear sem alternativa
+    // empurraria o usuário a escrever qualquer coisa no campo só para
+    // destravar o botão — o oposto do que a exigência existe para conseguir.
+    // Aqui a pergunta vai pelo CHAT comum, e a resposta volta com citações,
+    // ressalvas e o inventário das peças não anexadas: um ESTUDO, que não se
+    // confunde com um ato pronto para assinar. Não toca no content.js.
+    const PERGUNTA_CABIVEL =
+      "Analise as peças marcadas e indique qual é o ato cabível neste momento do " +
+      "processo. Para cada caminho possível, diga em que ele se apoia nos autos, o " +
+      "que ele levaria a decidir e o que ainda falta para decidir com segurança. " +
+      "Não redija a peça — quero o estudo para depois definir a tese.";
+    // Escolha MANUAL da espécie: a partir dela a detecção automática pela
+    // instrução para de sobrescrever o que o usuário decidiu.
+    let atoTocado = false;
+    // O mesmo para a CATEGORIA de peças-modelo. Sem distinguir escolha manual
+    // de auto-seleção, o valor anterior do <select> vencia a detecção e nunca
+    // era limpo: quem gerava uma sentença e depois pedia um despacho recebia,
+    // calado, os modelos de sentença. Declarada aqui (e não no bloco do MLIB,
+    // ~2 mil linhas abaixo) porque `setMinutaMode` a escreve.
+    let catModeloTocada = false;
+
+    // Estado do botão Enviar: DUAS fontes independentes o desabilitam — o turno
+    // em andamento (lockInput) e a falta de orientação. Sem um ponto único,
+    // quem escrevesse por último venceria: sair do modo minuta reabilitaria o
+    // botão no meio de um turno, e o fim de um turno reabilitaria o botão sem a
+    // tese preenchida.
+    let inputTravado = false;
+    let gateMinuta = false;
+    function aplicarEstadoSend() {
+      sendBtn.disabled = inputTravado || gateMinuta;
+    }
+
+    function especieDe(valor) {
+      return ESPECIES_ATO.find((e) => e.valor === valor) || null;
+    }
+
+    // Fonte ÚNICA da regra, lida pelo doSend, pelo gate do botão e pela nota.
+    // Devolve null quando falta o obrigatório — quem explica o motivo é a nota.
+    function atoDaMinuta() {
+      const esp = especieDe(minutaAtoSel ? minutaAtoSel.value : "");
+      if (!esp) return null;
+      const tese = minutaTeseTxt ? minutaTeseTxt.value.trim() : "";
+      if (esp.regime !== "livre" && tese.length < TESE_MIN) return null;
+      return {
+        especie: esp.valor,
+        rotulo: esp.rotulo,
+        regime: esp.regime,
+        tese: esp.regime === "livre" ? "" : tese,
+      };
+    }
+
+    // Mostra/esconde a linha da tese conforme a espécie, troca rótulo e
+    // placeholder, e recalcula o gate. Chamada na troca de espécie, a cada
+    // tecla da tese e ao ligar/desligar o modo.
+    function atualizarLinhaTese() {
+      if (!minutaTeseWrap) return;
+      const esp = especieDe(minutaAtoSel ? minutaAtoSel.value : "");
+      const regime = esp ? esp.regime : null;
+      const t = regime && TEXTO_REGIME[regime];
+      minutaTeseWrap.hidden = !t;
+      if (t) {
+        minutaTeseLab.textContent = t.rotulo;
+        minutaTeseTxt.placeholder = t.ph;
+      }
+      // Sem espécie escolhida o botão também fica travado: a espécie é o que
+      // decide se há orientação a exigir, e "não escolhi" não é "não exige".
+      gateMinuta = minutaMode && !atoDaMinuta();
+      let nota = "";
+      if (minutaMode && !esp) nota = "Escolha a espécie do ato para continuar.";
+      else if (minutaMode && t && !atoDaMinuta()) nota = t.falta;
+      setTeseNota(nota);
+      // A alternativa só aparece quando há orientação a dar e ela falta: com a
+      // tese preenchida ela seria um convite a jogar fora o que foi escrito.
+      if (minutaTeseAlt) minutaTeseAlt.hidden = !(minutaMode && t && !atoDaMinuta());
+      aplicarEstadoSend();
+    }
+
+    function setTeseNota(txt) {
+      if (!minutaTeseNota) return;
+      minutaTeseNota.textContent = "";
+      if (!txt) {
+        minutaTeseNota.hidden = true;
+        return;
+      }
+      minutaTeseNota.appendChild(document.createTextNode(txt + " "));
+      const a = document.createElement("button");
+      a.type = "button";
+      a.className = "mt-como";
+      a.textContent = "Como funciona →";
+      a.addEventListener("click", () => abrirAjuda("resolucao615"));
+      minutaTeseNota.appendChild(a);
+      minutaTeseNota.hidden = false;
+    }
+
+    function popularSeletorAto() {
+      if (!minutaAtoSel || minutaAtoSel.options.length) return; // uma vez só
+      const vazio = document.createElement("option");
+      vazio.value = "";
+      vazio.textContent = "— escolha a espécie —";
+      minutaAtoSel.appendChild(vazio);
+      const grupos = [
+        { rotulo: "Atos que dependem da sua decisão", decide: true },
+        { rotulo: "Expediente (segue sem orientação)", decide: false },
+      ];
+      for (const g of grupos) {
+        const og = document.createElement("optgroup");
+        og.label = g.rotulo;
+        for (const e of ESPECIES_ATO) {
+          if (e.decide !== g.decide) continue;
+          const op = document.createElement("option");
+          op.value = e.valor;
+          op.textContent = e.rotulo;
+          og.appendChild(op);
+        }
+        minutaAtoSel.appendChild(og);
+      }
+    }
+
     function setMinutaMode(on) {
       minutaMode = on;
       minutabar.hidden = !on;
@@ -1794,11 +1981,82 @@ var PjePanel = (function () {
         ? "Instrução da minuta — edite e clique em Gerar minuta…"
         : "Pergunte sobre as peças… (@ cita uma peça)";
       if (!on) statusEl.textContent = "";
+      if (on) {
+        popularSeletorAto();
+        // Pré-seleciona pela instrução já digitada, mas só enquanto o usuário
+        // não tiver escolhido à mão.
+        if (!atoTocado && minutaAtoSel && !minutaAtoSel.value) {
+          const cat = detectarCategoria(inEl.value);
+          if (cat && especieDe(cat)) minutaAtoSel.value = cat;
+        }
+      } else {
+        // Sair do modo zera a orientação: ela é de UM ato, e uma tese que
+        // sobrevivesse ao cancelamento voltaria calada no ato seguinte —
+        // exatamente o defeito que a categoria de modelos tinha.
+        atoTocado = false;
+        if (minutaAtoSel) minutaAtoSel.value = "";
+        if (minutaTeseTxt) minutaTeseTxt.value = "";
+        if (minutaModeloSel) minutaModeloSel.value = "";
+        catModeloTocada = false;
+      }
+      atualizarLinhaTese();
       atualizarSeletorMinuta(on); // popula/oculta o seletor de peça-modelo
+    }
+    if (minutaAtoSel) {
+      minutaAtoSel.addEventListener("change", () => {
+        atoTocado = true;
+        atualizarLinhaTese();
+      });
+    }
+    // Re-detecta espécie e categoria enquanto o usuário DIGITA a instrução.
+    // Antes a detecção rodava só ao ligar o modo, então quem ligava com o campo
+    // vazio (ou com um prompt salvo ativo, que suprime a instrução padrão) e só
+    // depois escrevia "sentença de improcedência" nunca via a pré-seleção
+    // acontecer. Debounce porque `input` dispara a cada tecla e
+    // `popularSeletorModelos` reconstrói o <select>.
+    let tDetectar = 0;
+    inEl.addEventListener("input", () => {
+      if (!minutaMode) return;
+      clearTimeout(tDetectar);
+      tDetectar = setTimeout(() => {
+        if (!minutaMode) return;
+        const cat = detectarCategoria(inEl.value);
+        if (!atoTocado && minutaAtoSel && cat && especieDe(cat)) {
+          minutaAtoSel.value = cat;
+          atualizarLinhaTese();
+        }
+        if (!catModeloTocada) atualizarSeletorMinuta(true);
+      }, 320);
+    });
+    if (minutaTeseAlt) {
+      minutaTeseAlt.addEventListener("click", () => {
+        const sel = selecaoEfetivaPainel();
+        if (!sel.length || !sendCb) return;
+        setMinutaMode(false); // sai do modo: o que vai é uma pergunta de chat
+        // A bolha do usuário quem monta é o content.js (com os anexos), como
+        // em qualquer envio de chat — daí só a chamada aqui.
+        sendCb(PERGUNTA_CABIVEL, sel);
+      });
+    }
+    if (minutaTeseTxt) {
+      minutaTeseTxt.addEventListener("input", atualizarLinhaTese);
+      // Esc no campo da tese cancela o modo minuta como em qualquer outro
+      // ponto da faixa; sem isto o Esc ficaria preso no textarea.
+      minutaTeseTxt.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          e.stopPropagation();
+          setMinutaMode(false);
+          inEl.focus();
+        }
+      });
     }
     btnMinuta.addEventListener("click", () => {
       if (minutaMode) return setMinutaMode(false); // segundo clique = cancelar
-      if (!getSelected().length) {
+      // Seleção EFETIVA (checkboxes + row lazy ainda não renderizada): num
+      // processo retomado da memória a timeline do PJe ainda não montou as
+      // rows, e recusar por `getSelected()` dizia "marque as peças" com os
+      // chips do contexto na tela mostrando as peças marcadas.
+      if (!selecaoEfetivaPainel().length) {
         statusEl.textContent =
           "Para gerar a minuta, primeiro marque as peças que devem embasá-la.";
         return;
@@ -1845,7 +2103,8 @@ var PjePanel = (function () {
     }
     btnMapa.addEventListener("click", () => {
       if (mapaMode) return setMapaMode(false); // segundo clique = cancelar
-      if (!getSelected().length) {
+      if (!selecaoEfetivaPainel().length) {
+        // idem minuta: a row lazy do processo retomado conta como marcada
         statusEl.textContent =
           "Para gerar o mapa mental, primeiro marque as peças que devem embasá-lo.";
         return;
@@ -1946,6 +2205,30 @@ var PjePanel = (function () {
     function getSelectedDocs() {
       const ids = new Set(getSelected());
       return allDocs.filter((d) => ids.has(d.id));
+    }
+    // Seleção EFETIVA: checkboxes marcados MAIS os ids que ainda esperam a row
+    // aparecer (`selPendente`). A timeline do PJe é lazy, então num processo
+    // retomado da memória boa parte das peças não existe no DOM — e as guardas
+    // de "marque ao menos uma peça" que liam só `getSelected()` recusavam o
+    // gesto com os chips do contexto na tela mostrando as peças marcadas. O
+    // content.js já tinha a defesa (`selecaoEfetiva`), mas nunca era alcançada:
+    // a recusa acontecia antes, aqui. É a mesma conta do `selecaoParaMemoria`,
+    // extraída para os três consumidores não divergirem.
+    function selecaoEfetivaPainel() {
+      const ids = getSelected();
+      if (selPendente && selPendente.size) ids.push(...selPendente);
+      return [...new Set(ids)];
+    }
+    // Abre o guia numa âncora. Ponto único: fora da extensão (harness de teste)
+    // `chrome.runtime.getURL` lança, e cada call site repetindo o try/catch já
+    // seria a terceira cópia.
+    function abrirAjuda(ancora) {
+      try {
+        const u = chrome.runtime.getURL("src/help.html") + (ancora ? "#" + ancora : "");
+        window.open(u, "_blank", "noopener");
+      } catch {
+        /* fora da extensão (harness de teste) */
+      }
     }
     function setDocChecked(id, on) {
       const c = doclist.querySelector('input[value="' + CSS.escape(id) + '"]');
@@ -3899,7 +4182,12 @@ var PjePanel = (function () {
         op.textContent = cat.rotulo + " (" + n + ")";
         minutaModeloSel.appendChild(op);
       }
-      if (anterior && comModelo.has(anterior)) minutaModeloSel.value = anterior;
+      // A escolha MANUAL vence a detecção; a auto-seleção, não. Enquanto os
+      // dois casos eram o mesmo `anterior`, o valor auto-selecionado numa
+      // minuta grudava e nunca era limpo: quem gerava uma sentença e depois
+      // pedia um despacho recebia, calado, os modelos de sentença.
+      if (catModeloTocada && anterior && comModelo.has(anterior))
+        minutaModeloSel.value = anterior;
       else if (preselCat && comModelo.has(preselCat)) minutaModeloSel.value = preselCat;
       // sem categoria detectada e só UMA categoria com modelos: pré-seleciona
       // essa — a feature "acontece" sem exigir um clique a mais (o usuário
@@ -3930,16 +4218,32 @@ var PjePanel = (function () {
       for (const m of doGrupo) {
         if (out.length >= MODELOS_MAX_ENVIO) break;
         const tam = String(m.texto).length;
-        if (out.length && chars + tam > MODELOS_TETO_CHARS) break;
+        // `continue` e não `break`: com `break`, o primeiro modelo que não
+        // coubesse encerrava a fila, e um modelo recente e gigante bloqueava
+        // todos os mais antigos que ainda cabiam — sem nada dizer por quê.
+        //
+        // A guarda `out.length &&` que existia aqui era uma SEGUNDA regra
+        // escondida na mesma linha ("o primeiro entra mesmo acima do teto").
+        // Inofensiva com `break`; com `continue` ela virava o próprio bug —
+        // a lista vem ordenada por recência, então um modelo gigante recente
+        // entrava primeiro, consumia os 180k sozinho e fazia todos os outros
+        // não caberem. As duas intenções são legítimas e foram separadas: aqui
+        // se pula quem não cabe, e o piso vem logo abaixo.
+        if (chars + tam > MODELOS_TETO_CHARS) continue;
         out.push(m);
         chars += tam;
       }
+      // Piso: se NENHUM coube (todos maiores que o teto), vai o mais recente
+      // assim mesmo — escolher uma categoria precisa fazer alguma coisa, e um
+      // envio silenciosamente sem modelo nenhum seria a feature não acontecer.
+      if (!out.length && doGrupo.length) out.push(doGrupo[0]);
       // "sem cap silencioso": avisa no console quando corta modelos da categoria
       if (doGrupo.length > out.length) {
         try {
           console.info(
-            "[PJe IA] minuta: enviando " + out.length + " de " + doGrupo.length +
-              " modelos da categoria (teto de contexto)."
+            "[PJe IA] minuta: " + out.length + " de " + doGrupo.length +
+              " modelos da categoria couberam no teto de contexto (" +
+              MODELOS_TETO_CHARS + " chars); os demais ficaram de fora."
           );
         } catch (e) {}
       }
@@ -3972,6 +4276,13 @@ var PjePanel = (function () {
     // Atalho do estado vazio: abre o gerenciador já no formulário — o caminho
     // até aqui (barra de ferramentas → Modelos → Novo) é justamente o que
     // ninguém percorre sem saber que existe.
+    // Escolha manual da categoria: a partir daqui a detecção pela instrução
+    // para de sobrescrevê-la (ver `catModeloTocada` no bloco do modo minuta).
+    if (minutaModeloSel) {
+      minutaModeloSel.addEventListener("change", () => {
+        catModeloTocada = true;
+      });
+    }
     if (minutaModeloAdd) {
       minutaModeloAdd.addEventListener("click", (e) => {
         e.preventDefault();
@@ -4787,15 +5098,33 @@ var PjePanel = (function () {
       // padrão, tratada pelo content script) — nunca viram mensagem de chat.
       if (minutaMode) {
         if (!minutaCb) return;
-        const sel = getSelected();
+        const sel = selecaoEfetivaPainel();
         if (!sel.length) {
           statusEl.textContent = "Marque as peças que devem embasar a minuta.";
           return;
         }
+        // Orientação obrigatória (Resolução CNJ 615): sem espécie, ou sem tese
+        // quando ela é exigida, não há o que gerar. A nota da faixa já diz o
+        // motivo e o botão está desabilitado — este é o cinto e suspensório
+        // para o Enter, que não passa pelo `disabled`.
+        const ato = atoDaMinuta();
+        if (!ato) {
+          atualizarLinhaTese();
+          if (minutaTeseTxt && !minutaTeseWrap.hidden) minutaTeseTxt.focus();
+          else if (minutaAtoSel) minutaAtoSel.focus();
+          return;
+        }
         // lê os modelos da categoria ANTES de desligar o modo (o seletor some)
         const modelos = modelosMinutaSelecionados();
+        // O estado só é destruído DEPOIS que o content aceita. O handler recusa
+        // de forma síncrona quando há turno em curso ou a sessão do PJe está
+        // ocupada; limpar antes fazia o usuário perder a instrução digitada, a
+        // categoria escolhida e — agora — a tese, com o modo desligado por
+        // cima. Recusa devolve `false` (o handler não pode ser `async` no
+        // topo: num `async`, `return false` viraria uma Promise e este teste
+        // nunca casaria).
+        if (minutaCb(t, sel, modelos, ato) === false) return;
         setMinutaMode(false);
-        minutaCb(t, sel, modelos);
         inEl.value = "";
         inEl.style.height = "auto";
         setPromptAtivo(null); // consumido no envio
@@ -4807,13 +5136,15 @@ var PjePanel = (function () {
       // mensagem de chat.
       if (mapaMode) {
         if (!mapaCb) return;
-        const sel = getSelected();
+        const sel = selecaoEfetivaPainel(); // idem minuta: cobre a row lazy
         if (!sel.length) {
           statusEl.textContent = "Marque as peças que devem embasar o mapa mental.";
           return;
         }
+        // idem minuta: só limpa depois do aceite (o handler recusa por turno em
+        // curso ou sessão do PJe ocupada)
+        if (mapaCb(t, sel) === false) return;
         setMapaMode(false);
-        mapaCb(t, sel);
         inEl.value = "";
         inEl.style.height = "auto";
         setPromptAtivo(null); // consumido no envio
@@ -6047,7 +6378,12 @@ var PjePanel = (function () {
       },
       lockInput(b) {
         inEl.disabled = b;
-        sendBtn.disabled = b;
+        // O `disabled` do Enviar tem DUAS fontes (turno em andamento e falta de
+        // orientação na minuta) e é `aplicarEstadoSend` quem as concilia —
+        // escrever direto aqui faria o fim de um turno reabilitar o botão sem
+        // a tese preenchida.
+        inputTravado = b;
+        aplicarEstadoSend();
         // trava também as ações — clicar durante uma resposta não faz nada,
         // e botão ativo-porém-morto confunde.
         tglSearch.disabled = b;

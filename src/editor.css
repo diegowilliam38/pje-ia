@@ -595,10 +595,438 @@ body {
   margin-bottom: 16px;
 }
 .lista-h {
-  font-family: Georgia, serif;
+  font-family: var(--ff-serif, Georgia, serif);
   font-size: var(--fs-lead);
-  color: #1a2730;
+  color: var(--ink, #1a2730);
   margin: 0 0 8px;
+}
+
+/* --------------------------------------------- origem da minuta (Res. 615)
+   Faixa acima da folha com a orientação que gerou o texto. Recolhida por
+   padrão e visualmente discreta: ela é REGISTRO, não conteúdo do ato — quem
+   abre a minuta vem para editar o texto, e a faixa só precisa estar ao alcance
+   de quem quer conferir com que tese ela foi pedida. Não é impressa nem
+   exportada. */
+.origem {
+  width: 100%;
+  max-width: var(--folha-w);
+  margin: 0 auto var(--sp-3, 10px);
+  background: var(--surface, #fff);
+  border: 1px solid var(--line-card, #e4ebee);
+  border-left: 3px solid var(--pje, #14607e);
+  border-radius: var(--r-md, 8px);
+  padding: var(--sp-2, 6px) var(--sp-3, 10px);
+  font-size: var(--fs-meta);
+  color: var(--muted, #6b7c85);
+}
+.origem[hidden] { display: none; }
+.origem summary {
+  cursor: pointer;
+  color: var(--text-2, #3e5561);
+  list-style-position: outside;
+}
+.origem summary b { color: var(--pje-2, #0e4459); }
+.origem .og-tese {
+  margin: var(--sp-2, 6px) 0 0;
+  padding-left: var(--sp-3, 10px);
+  border-left: 2px solid var(--line, #e2eaee);
+  color: var(--text, #0e323f);
+  font-style: italic;
+  line-height: 1.5;
+}
+.origem .og-meta {
+  margin: var(--sp-2, 6px) 0 0;
+  font-size: var(--fs-micro);
+  color: var(--muted-2, #74858e);
+  line-height: 1.45;
+}
+@media print {
+  .origem { display: none !important; }
+}
+
+/* ============================================================ MINHAS MINUTAS
+   A página do modo lista. Ela não é uma lista de arquivos: é uma lista de
+   coisas que estão MORRENDO — a poda apaga tudo em 7 dias e guarda no máximo
+   10. O desenho põe esse eixo à vista (barra de vida por item, grupo
+   "Expirando em breve" no topo, o teto dito na coluna), porque a versão
+   anterior escondia as duas coisas e a minuta sumia sem aviso.
+
+   Duas colunas acima de 900px: filtros à esquerda (sticky), lista à direita.
+   Abaixo disso a coluna vira uma faixa horizontal no topo. */
+
+.minutas-pg {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--sp-5, 20px);
+  align-items: start;
+  text-align: left;
+}
+@media (min-width: 900px) {
+  .minutas-pg { grid-template-columns: 258px minmax(0, 1fr); }
+  .minutas-pg .lista-aviso { grid-column: 1 / -1; }
+  .mp-filtros { position: sticky; top: var(--sp-3, 10px); }
+}
+/* O override para telas estreitas fica no FIM desta seção, depois de tudo que
+   ele sobrescreve — ver a nota da cascata lá embaixo. */
+
+/* ---- coluna de filtros ---- */
+.mp-filtros {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4, 14px);
+  background: var(--surface, #fff);
+  border: 1px solid var(--line-card, #e4ebee);
+  border-radius: var(--r-box, 10px);
+  padding: var(--sp-3b, 12px);
+  /* OBRIGATÓRIO: item de grid tem `min-width: auto`, isto é, recusa-se a
+     encolher abaixo do conteúdo. Sem isto, a faixa horizontal de chips das
+     telas estreitas esticava a coluna até ~1060px, arrastando o grid inteiro
+     e os cards junto — os cartões apareciam cortados na direita e o
+     `overflow-x: auto` dos grupos não continha nada, porque não havia largura
+     a conter. */
+  min-width: 0;
+}
+.mp-busca {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2, 6px);
+  border: 1px solid var(--line-input, #dae3e8);
+  border-radius: var(--r-ctrl, 9px);
+  padding: 0 var(--sp-2b, 8px);
+  background: var(--surface, #fff);
+}
+.mp-busca svg { color: var(--muted-3, #93a3ac); flex: none; }
+.mp-busca:focus-within {
+  border-color: var(--line-focus, #6fa5b9);
+  box-shadow: var(--ring, 0 0 0 3px rgba(46, 126, 156, 0.13));
+}
+.mp-busca-in {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: var(--fs-ui);
+  color: var(--text, #0e323f);
+  padding: 8px 0;
+}
+.mp-busca-in::-webkit-search-cancel-button { cursor: pointer; }
+.mp-grupo { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+/* eyebrow do DESIGN.md §3: micro, 600, uppercase, letter-spacing 1.4px */
+.mp-h {
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--muted-2, #74858e);
+  margin-bottom: var(--sp-1, 4px);
+}
+.mp-opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2, 6px);
+  width: 100%;
+  border: none;
+  background: transparent;
+  border-radius: var(--r-tight, 6px);
+  padding: 5px var(--sp-2, 6px);
+  font: inherit;
+  font-size: var(--fs-ui);
+  color: var(--text-2, #3e5561);
+  cursor: pointer;
+  text-align: left;
+  transition: background 120ms ease, color 120ms ease;
+}
+.mp-opt span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* o contador é numeral que o usuário COMPARA entre linhas → mono (§3) */
+.mp-opt b {
+  flex: none;
+  font-family: var(--ff-mono, monospace);
+  font-size: var(--fs-nano);
+  font-weight: 600;
+  color: var(--muted-2, #74858e);
+  background: var(--accent-bg, #dfeaee);
+  border-radius: var(--r-pill, 20px);
+  padding: 1px 7px;
+}
+.mp-opt:hover { background: var(--hover, #eff4f6); }
+.mp-opt.on { background: var(--accent-bg, #dfeaee); color: var(--pje-2, #0e4459); font-weight: 600; }
+.mp-opt.on b { background: var(--surface, #fff); color: var(--pje-2, #0e4459); }
+.mp-ordem {
+  font: inherit;
+  font-size: var(--fs-ui);
+  color: var(--text, #0e323f);
+  border: 1px solid var(--line-input, #dae3e8);
+  border-radius: var(--r-md, 8px);
+  padding: 6px 8px;
+  background: var(--surface, #fff);
+  cursor: pointer;
+}
+.mp-ordem:focus {
+  outline: none;
+  border-color: var(--line-focus, #6fa5b9);
+  box-shadow: var(--ring, 0 0 0 3px rgba(46, 126, 156, 0.13));
+}
+/* O teto responde "estou vendo tudo?" — a pergunta que a tela não respondia.
+   Não há paginação porque não pode haver mais de 10 itens. */
+.mp-teto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1, 4px);
+  border-top: 1px solid var(--line-2, #edf1f3);
+  padding-top: var(--sp-3, 10px);
+  font-size: var(--fs-micro);
+  color: var(--muted, #6b7c85);
+  line-height: 1.45;
+}
+.mp-teto b { color: var(--text-2, #3e5561); font-size: var(--fs-meta); }
+.mp-ajuda {
+  align-self: flex-start;
+  border: none;
+  background: transparent;
+  color: var(--pje-2, #0e4459);
+  font: inherit;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 0 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ---- lista ---- */
+.mp-lista { display: flex; flex-direction: column; gap: var(--sp-2b, 8px); min-width: 0; }
+.mp-sec {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2b, 8px);
+  margin: var(--sp-3, 10px) 0 2px;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--muted-2, #74858e);
+}
+.mp-sec::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line, #e2eaee);
+}
+.mp-sec b {
+  order: 3;
+  font-family: var(--ff-mono, monospace);
+  font-size: var(--fs-nano);
+  color: var(--muted-2, #74858e);
+  letter-spacing: 0;
+}
+.mp-sec.urgente { color: var(--warn-ink, #a96b14); }
+.mp-sec.urgente::after { background: var(--warn-line, #eeddba); }
+.mp-lista > .mp-sec:first-child { margin-top: 0; }
+
+.mcard {
+  position: relative;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line-card, #e4ebee);
+  border-radius: var(--r-box, 10px);
+  box-shadow: var(--sh-card, 0 1px 2px rgba(14, 50, 63, 0.04));
+  transition: border-color 140ms ease, box-shadow 140ms ease, opacity 170ms ease,
+    transform 170ms ease;
+}
+.mcard:hover { border-color: var(--pje, #14607e); }
+.mcard.saindo { opacity: 0; transform: translateX(-8px); }
+.mc-open {
+  display: block;
+  padding: var(--sp-3, 10px) var(--sp-3b, 12px);
+  padding-right: 44px; /* espaço do botão excluir */
+  text-decoration: none;
+  color: inherit;
+}
+.mc-open:focus-visible {
+  outline: 2px solid var(--pje, #14607e);
+  outline-offset: -2px;
+  border-radius: var(--r-box, 10px);
+}
+.mc-top { display: flex; align-items: center; gap: var(--sp-2b, 8px); }
+/* selo da espécie: a cor vem dos tokens SEMÂNTICOS de categoria (§2) */
+.mc-esp {
+  font-size: var(--fs-nano);
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--muted-2, #74858e);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.mc-esp::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--cat-outro, #b7c4cb);
+}
+.mc-esp.cat-decisao::before { background: var(--cat-decisao, #de8b2c); }
+.mc-esp.cat-audiencia::before { background: var(--cat-audiencia, #2f9268); }
+.mc-esp.cat-outro::before { background: var(--cat-outro, #b7c4cb); }
+/* o prazo restante — a informação que a tela não dava */
+.mc-vida {
+  margin-left: auto;
+  font-size: var(--fs-micro);
+  color: var(--muted-2, #74858e);
+  white-space: nowrap;
+}
+.mc-vida.n-aviso { color: var(--warn-ink, #a96b14); font-weight: 600; }
+.mc-vida.n-critico,
+.mc-vida.n-fim { color: var(--erro, #a5301f); font-weight: 600; }
+.mc-tit {
+  font-family: var(--ff-serif, Georgia, serif);
+  font-size: var(--fs-lg);
+  color: var(--ink, #0e323f);
+  margin: 3px 0 2px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mc-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2, 6px);
+  font-size: var(--fs-micro);
+  color: var(--muted, #6b7c85);
+}
+.mc-meta > * + *::before { content: "· "; }
+/* número do processo: numeral que o usuário COMPARA e COPIA → mono (§3) */
+.mc-proc {
+  font-family: var(--ff-mono, monospace);
+  font-size: var(--fs-nano);
+  color: var(--text-2, #3e5561);
+  letter-spacing: 0.02em;
+}
+.mc-ed { color: var(--ok, #2f9268); font-weight: 600; }
+.mc-previa {
+  margin-top: 5px;
+  font-size: var(--fs-meta);
+  color: var(--muted, #6b7c85);
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* barra de vida: quanto resta dos 7 dias. Neutra quase invisível enquanto
+   sobra tempo — ela só precisa gritar quando está acabando. */
+.mc-barra {
+  margin-top: var(--sp-2b, 8px);
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line-2, #edf1f3);
+  overflow: hidden;
+}
+.mc-barra i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--line-strong, #d8e2e6);
+  transition: width 200ms ease;
+}
+.mc-barra i.n-aviso { background: var(--warn, #de8b2c); }
+.mc-barra i.n-critico,
+.mc-barra i.n-fim { background: var(--erro, #a5301f); }
+.mc-del {
+  position: absolute;
+  top: var(--sp-2b, 8px);
+  right: var(--sp-2b, 8px);
+}
+.mp-vazio {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2b, 8px);
+  background: var(--surface, #fff);
+  border: 1px solid var(--line-card, #e4ebee);
+  border-radius: var(--r-box, 10px);
+  padding: var(--sp-5, 20px);
+  font-size: var(--fs-ui);
+  color: var(--muted, #6b7c85);
+}
+.mp-limpar {
+  border: 1px solid var(--line-strong, #d8e2e6);
+  background: var(--surface, #fff);
+  color: var(--text-2, #3e5561);
+  border-radius: var(--r-sm, 7px);
+  padding: 5px 10px;
+  font: inherit;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  cursor: pointer;
+}
+.mp-limpar:hover { background: var(--hover-2, #f5fafc); border-color: var(--pje, #14607e); }
+
+/* ---- telas estreitas: a coluna vira FAIXA ----
+   Empilhados como no desktop, os oito filtros de espécie mais os de processo
+   ocupavam a tela inteira e empurravam a primeira minuta para fora da
+   dobra — numa tela cujo conteúdo É a lista. Aqui os grupos deitam e rolam na
+   horizontal.
+
+   ATENÇÃO À CASCATA: este bloco tem de vir DEPOIS das regras que sobrescreve.
+   Media query não aumenta especificidade, e enquanto ele estava junto do
+   `@media (min-width: 900px)` lá em cima, o `.mp-grupo { flex-direction:
+   column }` declarado adiante vencia por ordem. O sintoma engana: as
+   propriedades NOVAS (position, mask) aplicavam e as sobrescritas não, o que
+   parece uma media query funcionando pela metade. */
+@media (max-width: 899px) {
+  .mp-filtros {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    gap: var(--sp-2b, 8px);
+    padding: var(--sp-2b, 8px) var(--sp-3, 10px);
+  }
+  .mp-grupo {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--sp-2, 6px);
+    overflow-x: auto;
+    scrollbar-width: thin;
+    /* o degradê à direita insinua que há mais chips fora da tela */
+    mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
+  }
+  .mp-h {
+    flex: none;
+    margin: 0 var(--sp-1, 4px) 0 0;
+    position: sticky;
+    left: 0;
+    background: var(--surface, #fff);
+    padding-right: var(--sp-2, 6px);
+  }
+  .mp-opt {
+    flex: none;
+    width: auto;
+    border: 1px solid var(--line-strong, #d8e2e6);
+    border-radius: var(--r-pill, 20px);
+    padding: 4px var(--sp-2b, 8px);
+    font-size: var(--fs-meta);
+  }
+  .mp-opt.on { border-color: var(--pje, #14607e); }
+  .mp-opt b { padding: 0 5px; }
+  /* Ordenar cabe ao lado do rótulo; o teto vira uma linha só. */
+  .mp-grupo:has(.mp-ordem) { overflow: visible; mask-image: none; }
+  .mp-ordem { flex: 1; min-width: 0; }
+  .mp-teto {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--sp-2, 6px);
+    padding-top: var(--sp-2b, 8px);
+  }
 }
 .lista-b {
   background: #fff;

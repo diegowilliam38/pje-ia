@@ -28,8 +28,14 @@
   --muted-2: #74858e;
   --muted-3: #93a3ac;
   --eyebrow: #a0aeb6;
+  /* `--surface` e `--hover` faltavam aqui — existem no DESIGN.md §2 e no
+     panel.css, e as telas satélites vinham escrevendo `#fff` na mão. Declarar
+     não muda pixel nenhum do que já existe; o que muda é a próxima tela não
+     precisar de literal. */
+  --surface: #ffffff;
   --surface-2: #fafcfc;
   --surface-card: #fcfdfd;
+  --hover: #eff4f6;
   --hover-2: #f5fafc;
   --accent-bg: #dfeaee;
   --accent-bg-2: #e4edf0;

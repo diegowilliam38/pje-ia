@@ -385,6 +385,28 @@ e até a v0.23 as dez fontes eram tratadas como equivalentes.
 
 ## Invariantes importantes
 
+- **`onMinuta` e `onMapa` NÃO são `async` no topo, e isso não é estilo.** As guardas de
+  entrada (`busy`, `ocupadoJsf()`, seleção vazia, orientação faltando) precisam devolver
+  **`false` de forma SÍNCRONA**, porque é assim que o painel sabe que a recusa aconteceu
+  e preserva a instrução digitada, a categoria de modelos e a tese. Num handler `async`,
+  `return false` vira `Promise.resolve(false)` e o teste `=== false` no `doSend` nunca
+  casa — o estado do usuário é destruído do mesmo jeito, em silêncio. O trabalho de
+  verdade vai em `minutarAgora`/`mapearAgora`, funções async chamadas depois das guardas.
+  Antes disso o `doSend` limpava o campo, soltava o chip e desligava o modo **antes** de
+  saber se o content aceitara: com o PJe ocupado, o usuário perdia tudo o que escreveu.
+  (`ocupadoJsf()` já escrevia o motivo no status; o defeito era a ORDEM. O `busy` puro,
+  esse sim, voltava mudo — agora escreve.)
+- **As guardas de "marque ao menos uma peça" usam `selecaoEfetivaPainel()`**
+  (checkboxes + `selPendente`), nunca `getSelected()` puro. A timeline do PJe é lazy:
+  num processo retomado da memória as rows não existem no DOM, e a guarda recusava o
+  gesto com os chips do contexto na tela mostrando as peças marcadas. O `content.js` já
+  tinha a defesa (`selecaoEfetiva`), mas ela nunca era alcançada — a recusa acontecia
+  antes, no painel. Vale para minuta **e** mapa, no botão e no envio.
+- **Minuta e mapa passam `optsDoTurno()` ao `stream` e ao pré-voo.** Sem isso,
+  "Jurisprudência ligada + Gerar minuta" produzia uma minuta **sem busca**, com o toggle
+  aceso e nada na tela dizendo. Os dois também chamam `estimarContexto` (que LANÇA acima
+  de 90% da janela, com `err.ctxCheio`): antes só o chat tinha pré-voo, e autos grandes
+  somados a até 12 peças-modelo voltavam como erro cru da API.
 - **Assistant no histórico é SEMPRE array de blocos** (`response.content` completo), nunca
   string: a API exige thinking assinado intacto e os blocos de ferramenta/citações nos
   turnos seguintes. Em fallback (sem blocos), texto puro com os placeholders de citação
@@ -2081,6 +2103,82 @@ ou pelas linhas de ação do próprio popup. Regras que não podem quebrar:
 - `PLIB` ausente (harness sem o content script) esconde o botão e desliga a feature
   em silêncio — nada quebra.
 
+## Orientação obrigatória na minuta (Resolução CNJ 615/2025)
+
+Minutar uma **sentença, decisão ou acórdão** exige que o usuário informe a **TESE e o
+dispositivo** antes de gerar; **despacho** exige o **SENTIDO** da determinação; **ofício,
+mandado, alvará e ata** não exigem nada. O botão "Gerar minuta" fica desabilitado até a
+orientação existir.
+
+**O fundamento é textual, não uma boa prática que inventamos.** O Anexo da Resolução
+separa **AR4** — *"formulação de juízos conclusivos sobre a aplicação da norma jurídica
+ou precedentes a um conjunto determinado de fatos concretos"* (**ALTO risco**) — de
+**BR4** — *"produção de textos de apoio para facilitar a confecção de atos judiciais,
+**desde que a supervisão e a versão final do documento sejam realizadas pelo magistrado
+e com base em suas instruções, especialmente as decisões acerca das preliminares e
+questões de mérito**"* (baixo risco). O próprio BR4 **condiciona** o baixo risco a que a
+decisão de mérito venha do humano.
+
+E o **art. 19, §3º, V** fecha a questão para esta extensão em particular: *"é vedado o
+uso de LLMs e sistemas de IA generativa de natureza privada ou externos ao Judiciário
+para as finalidades previstas nesta Resolução como de risco excessivo ou de alto
+risco"*. A extensão usa a chave de uma API comercial — é solução privada e externa
+(hipótese do art. 19, §2º). Logo, minutar uma sentença sem tese não é "arriscado": é
+**vedado**. Some-se o **art. 19, §3º, II** (vedado o uso autônomo *"sem a devida
+**orientação**, interpretação, verificação e revisão"* — orientação vem ANTES de revisão
+no texto normativo) e o **art. 32** (a IA não pode *"restringir ou substituir a
+autoridade final"*).
+
+Regras que não podem cair:
+
+- **A `INSTRUCAO_MINUTA_PADRAO` não pode voltar a pedir "o ato cabível".** A redação
+  antiga (*"Elabore a minuta do ato cabível… com relatório, fundamentação e
+  dispositivo"*) encomendava ao modelo o ato **e** o resultado — AR4 em estado puro, no
+  caminho mais usado do produto. Ela está **duplicada** em `content.js` e `panel.js`, e
+  um teste confere que as duas batem byte a byte.
+- **`ESPECIES_ATO` (panel.js) é a fonte única dos três regimes** (`tese`/`sentido`/
+  `livre`). Os dois `<optgroup>` separam "a sua decisão entra no ato" de "não entra"; o
+  **regime é da espécie**, não do grupo, e é o rótulo + placeholder do campo que
+  distinguem tese de sentido.
+- **`atoDaMinuta()` é o ponto ÚNICO** lido pelo `doSend`, pelo gate do botão e pela nota.
+  Devolve `null` quando falta o obrigatório.
+- **Mínimo de 12 caracteres, e a extensão NÃO julga a qualidade da tese.** Ela exige que
+  a tese EXISTA. Julgar se é boa seria, ela própria, formular o juízo conclusivo que a
+  regra existe para impedir.
+- **O gate do botão Enviar tem DUAS fontes** (`lockInput` e a falta de orientação) e
+  `aplicarEstadoSend()` as concilia. Escrever `sendBtn.disabled` direto em qualquer uma
+  delas faz o fim de um turno reabilitar o botão sem tese, ou sair do modo minuta
+  reabilitá-lo no meio de um turno.
+- **`regraDaOrientacao(ato)` fica FORA do `SUFIXO_MINUTA`.** Aquele é a regra de FORMA,
+  vale para toda minuta e é a maior superfície de regressão do fluxo; esta é condicional
+  e é concatenada depois dele. Regime `livre` devolve `""` — o request de um ofício sai
+  **byte a byte** como antes.
+- **`blocoOrientacao` vai no FIM do texto**, não no prefixo cacheado: a orientação muda a
+  cada request, ao contrário dos modelos, que são estáveis. Em XML pelo mesmo motivo da
+  `molduraModelos` — é texto livre do usuário, e a tag é a única fronteira que o modelo
+  não confunde com a resposta (o fechamento é removido do texto do usuário).
+- **Peça que CONTRARIA a tese vira `[COMPLETAR: divergência — …]`.** É o ponto mais
+  delicado do desenho: "corrigir" quem assina devolveria o modelo ao AR4; calar produziria
+  um ato fundamentado contra os próprios autos. Reusa o canal que o `SUFIXO_MINUTA` já
+  estabelece — **não criar um segundo marcador**, que brigaria com a proibição de blocos
+  de aviso no corpo do ato.
+- **A saída "Analisar o que é cabível" não é enfeite.** Bloquear sem alternativa empurra
+  o usuário a escrever qualquer coisa no campo só para destravar o botão — o oposto do
+  que a exigência existe para conseguir. Ela manda a pergunta pelo CHAT comum (`sendCb`),
+  onde a resposta volta com citações, ressalvas e inventário: um **estudo**, que não se
+  confunde com um ato pronto para assinar. Mora só no painel, não toca no content.js.
+- **A ORIGEM vai ao disco com a minuta** (`guardarMinuta(md, titulo, ctx)` → campo
+  `origem`) e aparece na faixa `.origem` do editor: é o registro dos arts. 19, §6º e 21,
+  §2º. Minutas anteriores a esta versão **não têm o campo** — ler como `d.origem || null`
+  e degradar. A faixa fica FORA da folha, não entra no "Copiar formatado"/`.docx` e é
+  `display:none` na impressão: o que vai ao PJe é o ato.
+- **O `onMinuta`/`onMapa` NÃO podem voltar a ser `async` no topo** — ver a regra da
+  recusa síncrona em "Invariantes importantes".
+- A explicação vive no **`help.html#resolucao615`** (a referência que envelhece mora lá,
+  o painel aponta). Ela também documenta os deveres que a extensão **não** cumpre por
+  ninguém: revisar e assinar, o art. 19, §3º, IV (segredo de justiça em IA externa), o
+  art. 19, §7º (informar o tribunal) e o §3º, I (capacitação).
+
 ## Minuta e editor de texto — página `src/editor.html`
 
 Substitui o antigo `.docx` por skill da Anthropic (removido: era a maior fonte de
@@ -2130,6 +2228,55 @@ comum** (sem tools/skills/`container`) — por isso funciona nos dois provedores
   (`vazioPaginaHtml`, com orientação e links), diferente do compacto do dropdown, e o
   texto do rodapé é reescrito: o padrão fala de "Descartar" e de conferir citações,
   instruções do editor que não existem numa tela que só lista.
+
+### A página "Minhas minutas" (modo-lista)
+
+**Ela não é uma lista de arquivos: é uma lista de coisas que estão MORRENDO.** A poda
+apaga tudo em 7 dias e guarda no máximo 10 (`MAX_MINUTAS`/`VALIDADE_MINUTA_MS`, em
+content.js), e a versão anterior escondia as duas coisas — a minuta sumia sem aviso.
+Layout de duas colunas acima de 900px (filtros sticky + lista agrupada por tempo).
+
+- **`linhaCompacta` (dropdown de 280px) e `linhaCartao` (página) são SEPARADAS.**
+  Enquanto as duas eram a mesma função, a página de tela cheia herdava o desenho pensado
+  para um menu estreito — **era essa partilha que a mantinha pobre**. Ao mexer numa,
+  conferir a outra: o teste cobre a regressão do dropdown.
+- **`tempoRestante(ts)` olha para FRENTE**, ao contrário de `tempoRelativo`. Sem ela, uma
+  minuta a 4 horas de ser apagada mostrava apenas "há 6 dias". **O verbo é obrigatório em
+  todos os degraus** ("expira em 6 dias"): um "6 dias" seco fica logo acima de "há 6
+  dias" na linha de meta, e sem o verbo os dois se leem como a mesma coisa.
+- **A barra de vida só aparece abaixo de 48 h.** Ela é elemento de ALERTA, e uma barra
+  quase cheia em todo card é o que o DESIGN.md §2 chama de "tudo alerta com a mesma
+  intensidade, nada alerta" — além de se ler como um separador do cartão. Efeito
+  colateral bom: o card urgente fica fisicamente maior que os calmos.
+- **NÃO há paginação, e isso é decisão.** O teto é 10; paginar daria sensação de
+  completude sem a informação. Quem responde "estou vendo tudo?" é o rodapé
+  ("N de 10 guardadas") mais o contador em cada opção de filtro. Acima do teto (estado
+  transitório entre podas) o texto troca — "12 de 10" seria aritmética estranha.
+- **`MAX_MINUTAS_UI`/`VALIDADE_MINUTA_MS_UI` são cópias declaradas** das constantes
+  privadas do content.js, com nota no código: divergir faria a tela mentir sobre quando a
+  minuta some, que é a informação que ela existe para dar.
+- **O filtro de ESPÉCIE vem de `origem.especie`**, gravado pela orientação obrigatória.
+  Minutas anteriores caem no grupo "Sem espécie registrada" — sem esse grupo elas sumiriam
+  da lista filtrada.
+- **A busca cobre o CORPO** (`textoBuscaMinuta`), não só título e processo. O campo fica
+  na coluna da ESQUERDA, fora do que é re-renderizado, e por isso não perde o foco durante
+  a digitação (era esse o motivo do antigo filtro por `row.hidden`).
+- **Hífen NÃO é marcação no meio do texto** (`tituloUtil`/`previaMinuta`): removê-lo do
+  texto inteiro transformava "Intime-se" em "Intimese" — justamente o vocabulário de um
+  despacho, que é o caso em que o título fraco mais aparece. Só no início da linha.
+- **`^#{1,6}[ \t]*.*$` e NUNCA `\s+`** ao remover títulos: `\s` casa `\n` (o `.` não),
+  então num markdown que comece com título VAZIO o `\s+` atravessava as quebras e o `.*$`
+  engolia o primeiro parágrafo — a prévia saía vazia nas minutas de título fraco.
+- **`min-width: 0` no `.mp-filtros` e no `.mp-grupo` é OBRIGATÓRIO.** Item de grid/flex
+  tem `min-width: auto` e se recusa a encolher abaixo do conteúdo: sem isso a faixa
+  horizontal de chips esticava a coluna até ~1060px numa viewport de 742px, arrastava o
+  grid e os cards apareciam cortados — e o `overflow-x: auto` não continha nada, porque
+  não havia largura a conter.
+- **O override de tela estreita vai no FIM do bloco CSS.** Media query não aumenta
+  especificidade: enquanto ele estava junto do `@media (min-width: 900px)` no topo, o
+  `.mp-grupo { flex-direction: column }` declarado adiante vencia por ordem. O sintoma
+  engana — as propriedades NOVAS aplicam e as sobrescritas não, o que parece uma media
+  query funcionando pela metade.
 - **Card no chat, aba no clique** (`panel.mostrarCardMinuta`, clone do `mostrarCardMapa`): a
   bolha vira card "Minuta gerada" com "Abrir no editor" (`window.open` no clique — a resposta
   demora e o gesto do "Gerar" já expirou; navegação de topo é imune à CSP do tribunal) e
@@ -2182,9 +2329,14 @@ irmão do `PLIB`, com diferenças de propósito:
   `TETO_BYTES` = 60000 (barreira de sanidade, não da API — local não tem cota por item).
 - **Gated a modelos de 1M tokens** (`setModelosHabilitado` no painel, chamado por
   `aplicarCapsNaUI` com `caps.contextTokens >= 1000000`): a minuta manda os autos
-  inteiros + vários modelos, o que só cabe nas janelas de 1M — no Haiku (200k) o botão
-  **📚 Modelos** e o seletor da minuta somem (a minuta comum segue funcionando). Ao vivo
-  na troca de modelo; fecha o modal se ele estiver aberto quando desabilita.
+  inteiros + vários modelos, o que só cabe nas janelas de 1M — no Haiku (200k) o
+  **seletor da minuta some** e o botão **📚 Modelos** fica **DESABILITADO com
+  tooltip** explicando por quê (não some: sumir deixaria o usuário sem saber que a
+  feature existe). A minuta comum segue funcionando. Ao vivo na troca de modelo;
+  fecha o modal se ele estiver aberto quando desabilita.
+  **O seletor de ESPÉCIE do ato e o campo de tese NÃO passam por este gate** — são
+  obrigação normativa (ver "Orientação obrigatória") e não podem sumir junto com uma
+  feature opcional. Coberto por teste.
 - **Seleção por CATEGORIA, não por modelo** (decisão de produto): o seletor da
   `.minutabar` escolhe uma espécie e `modelosMinutaSelecionados()` reúne TODOS os modelos
   daquela categoria (ordenados por recência) até dois tetos — `MODELOS_MAX_ENVIO` (12) e
