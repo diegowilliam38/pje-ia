@@ -1031,7 +1031,8 @@ o que não sabe que existe. **Sete dos treze passos são sobre marcar peças**, 
 ## Busca de peças e orientações (panel.js)
 
 - **"Carregar todas as peças" tenta TRÊS rotas, nesta ordem** (detalhes e
-  armadilhas em `docs/pje-tela-documentos.md`):
+  armadilhas em `docs/pje-tela-documentos.md`; o catálogo da família REST
+  inteira, com o que já foi validado em sessão real, em `docs/pje-api-rest.md`):
   0. **`PJE.listarPelaApi`** — `GET /{base}/seam/resource/rest/pje-legacy/
      processos/{idProcesso}/documentos`, da mesma família REST que a extensão já
      usa para baixar peça. Devolve um ARRAY puro de `{id, descricao, data,
@@ -1056,6 +1057,10 @@ o que não sabe que existe. **Sete dos treze passos são sobre marcar peças**, 
        ponto único que aplica qualquer lista: a fonte nova manda no que sabe e
        **cede** no que não sabe, senão a promoção por autor institucional, a
        coluna do índice e o sinal da triagem sumiriam em silêncio.
+       PISTA FALSA já investigada: a irmã `processos/{id}/atosProcessuais`
+       promete `nomeUsuarioJuntada` no DTO de 2019 — seria exatamente o
+       `juntadoPor` que falta —, mas no TJCE 2.9.7.0 ela responde 200 com
+       **array VAZIO** (medido em 13/08/2026). Não é substituta da grid.
      - O **aviso de risco** (`.gwarn`) migrou para ANTES da grid, e quem o
        dispara é o content.js (`panel.confirmarLeituraPesada()`): mostrá-lo no
        clique do ⟳ anunciaria um perigo que, no caminho normal, não existe.
@@ -1734,6 +1739,18 @@ novas**, contra um teto por sessão da ordem de 15. **Quem descobre o estrago é
 `link.click()` da ativação**, o primeiro postback seguinte — daí o erro aparecer
 no Enviar, e não no ⟳ que o causou.
 
+**Por que a rota REST não custa view — agora por MECANISMO, não só por medição**
+(fonte: `web.xml`/`components.xml` do PJe legacy; ver `docs/pje-api-rest.md`): o
+**Faces Servlet**, único que cria e despeja view state, está mapeado só em
+`*.seam`/`*.xhtml`. As rotas REST não passam por ele; o que elas recebem é o
+**Seam Filter**, mapeado em `*.seam` **e** `/seam/resource/rest/pje-legacy/*`, que
+dá o contexto de sessão — daí o cookie bastar e não haver token. Confirmado em
+sessão real (13/08/2026): ~60 requisições REST seguidas e a tela seguia viva,
+com `ViewState` no DOM. Corolário que vale como regra: **rota fora do prefixo
+`pje-legacy/` não recebe o Seam Filter** (`fluxo`, `informacaoSessao`,
+`monitoracao`, `miniPac`) — e na sondagem elas **penduraram**, que é pior que
+erro, porque prende o turno. Não chamar.
+
 - **`ocupadoJsf()` é a fila única** (content.js, ao lado de
   `bloqueadoPelaExportacao`). Envio, minuta, mapa, preview, prefetch,
   refinamento, exportação e leitura da grid cedem uns aos outros. A matriz
@@ -1898,6 +1915,52 @@ em `content.js`.
 - Anexos são da CONVERSA, não do processo: "Nova conversa" os solta (as peças, não —
   elas servem a todas as conversas daquele processo). Tetos: 10 por conversa, 32 MB por
   arquivo, antes do teto de b64 compartilhado com as peças.
+- **CONVERSAR SÓ COM O ANEXO, sem marcar peça, é caso de uso de primeira classe**
+  — o documento que chegou por e-mail, o contrato que a parte trouxe, a peça de
+  OUTRO processo que se quer comparar. Duas frentes, e as duas já custaram o
+  recurso inteiro:
+  - **As DUAS guardas do envio contam `anexos.size`, nunca `anexosNovos`.**
+    `anexosNovos` é o DELTA (o que ainda não subiu): no 1º turno ele é
+    não-vazio e tudo passa; do 2º em diante o mesmo arquivo já está no
+    histórico, o delta esvazia e o turno morria — primeiro na guarda de entrada
+    ("Marque uma peça, anexe um arquivo…") e, se ela passasse, no
+    `!idsNovosParaBlocos.length && !pecasNaConversa.size` lá dentro ("não há
+    peça marcada nem arquivo anexado para analisar"). As duas frases são falsas
+    com o chip do arquivo na tela. `anexos` é o **simétrico de
+    `pecasNaConversa`** para os arquivos do usuário: o que está no contexto
+    AGORA. Corrigir só uma delas não destrava nada — o ramo `else` que segue
+    "com o contexto já anexado" sempre esteve certo; faltava chegar nele.
+  - **`soAnexosNoContexto()` reescreve as premissas do system** (zero peças
+    marcadas, zero em `pecasNaConversa`, ≥ 1 anexo). Sem isso o system afirmava
+    "Processo em análise: X", o inventário listava as peças não marcadas, e o
+    modelo concluía que o usuário se enganara: respondia com uma cobrança para
+    marcar peças em vez da resposta. No modo, (a) o número e a ficha viram
+    "processo aberto na tela (contexto, NÃO o objeto desta conversa)" — a ficha
+    CONTINUA indo, é ela que permite dizer com precisão que o arquivo é de outro
+    processo; (b) entra o `PROMPT_SO_ANEXOS`; (c) `comInventario` não anexa o
+    inventário (era a fonte dos ids da cobrança, e são ~2 mil tokens por
+    mensagem numa conversa que não é sobre estes autos).
+  - **É um modo LIDO do estado, nunca um toggle na UI**: sai sozinho no instante
+    em que uma peça é marcada. Um interruptor pediria ao usuário que declarasse
+    o que a seleção já diz, e seria mais um estado para dessincronizar do
+    contexto que de fato vai à API.
+  - **O aviso de divergência PERMANECE** (o `[!ALERTA]` do `PROMPT_DESTAQUES`):
+    anexar o arquivo errado é erro caro e o usuário precisa saber. O que o modo
+    remove é a INSISTÊNCIA depois do aviso.
+  - Coberto por teste de integração em jsdom (content.js real, 2 turnos com o
+    mesmo anexo) que verifica os dois desbloqueios, o system do modo, a ausência
+    do inventário — e a REGRESSÃO: marcar uma peça devolve "Processo em análise"
+    e tira o trecho.
+  - **LACUNA CONHECIDA: só o CHAT aceita anexo sem peça.** `onMinuta` e
+    `onMapa` continuam com a guarda DURA `selectedIds.length === 0` ("Marque as
+    peças que devem embasar a minuta"), então minutar a partir de um anexo é
+    recusado. Estendê-los não é trocar a guarda: os dois montam blocos do zero a
+    partir de `dl.ok` e seriam ~8 pontos CADA (`baixarSelecionadas` com lista
+    vazia, o `if (!dl.ok.length) throw`, `guardaPaginas`, `subirAnexos`,
+    `montarBlocos`, `pecasTruncadas`, os `atts` da bolha) no fluxo mais delicado
+    do produto — o que sai daqui vai ao PJe. Some-se que o `SUFIXO_MINUTA` exige
+    `(Peça, id 123456, fl. 7)` e um anexo não tem id: o formato da citação teria
+    de ganhar um ramo. Se for fazer, fazer inteiro e com teste próprio.
 - **LACUNA CONHECIDA** (documentada em `subirAnexos`): anexo PDF já no histórico não é
   revalidado por `revalidarPecasDoHistorico` (o `ativos` dela é `selecaoEfetiva()`), então
   trocar a CHAVE da API no meio da conversa deixa um `file_id` de outra conta e o turno
@@ -2156,6 +2219,22 @@ irmão do `PLIB`, com diferenças de propósito:
   sobrescrito. Ela precisa de CSS próprio porque
   `.editor-act.destaque button` pinta TODO botão do bloco com o gradiente da
   ação principal — dois destaques disputariam o mesmo clique.
+- **O modal `.mlib` abre SEMPRE na LISTA — nunca direto no formulário.** O
+  botão da barra fazia `abrirMlib(modelosLib.length ? {} : {form:true})` para
+  poupar um clique de quem ainda não tinha modelo, e `mlibTela("form")` esconde
+  `Novo`/`Importar` de propósito (clicá-los com um lote em conferência
+  descartaria o trabalho). Cada decisão está certa sozinha; na INTERSEÇÃO delas,
+  quem tinha zero modelos nunca via o botão **Importar** — exatamente o público
+  da importação em lote de `.docx`/`.rtf`, e o defeito relatado pelo usuário. O
+  estado vazio da lista já era a tela de boas-vindas certa (nomeia os dois
+  caminhos) e ninguém o via; agora ele também OFERECE os dois como botões, que é
+  a regra da `.sel-nota` e da `.minutabar`: **conjunto vazio se explica e dá a
+  saída, não desaparece**. O atalho `{form:true}` continua válido onde a
+  promessa é cadastrar — o botão "Cadastrar modelo" da `.minutabar`.
+  `podeImportar` (`temDocx && !!impDrop`) é a fonte ÚNICA da condição, lida
+  pelos três pontos (botão do cabeçalho, atalho do estado vazio, registro do
+  handler); repetida em cada um, um deles ofereceria um caminho que outro não
+  atende — e o modo de falha é um botão que não faz nada.
 - **Testar a UI da biblioteca em jsdom exige `<script>` de verdade, nunca
   `w.eval()`**: `modelos.js` e `prompts.js` declaram `const MLIB`/`const PLIB`
   no topo, e uma declaração léxica dentro de um `eval` morre com ele — entre
@@ -2388,6 +2467,14 @@ que não podem quebrar:
   `chrome`…) e trate como falso positivo o `typeof module !== "undefined"` dos
   rodapés de teste e os IIFE `var X = (function(){…})()`, que são consumidos por
   outro arquivo. Não deixe o config no repo: o projeto não tem `package.json`.
+- **CSS não tem `node --check`, e comentário desbalanceado é SILENCIOSO.** Um
+  `/* … */` partido em duas metades (o segundo `*/` órfão) faz o parser entrar
+  em modo de erro e **descartar declarações até o próximo `;`** — dentro de um
+  bloco some a propriedade que vier depois, e entre regras some a REGRA
+  seguinte inteira. Nada aparece no console e a página continua de pé, com um
+  estilo a menos. Depois de editar `.css`, rodar um verificador descartável no
+  scratchpad que conte `/*`/`*/` e `{`/`}` nas folhas de `src/` — 30 linhas, e
+  é a única rede contra esse erro.
 - **NENHUM caractere de controle CRU no fonte — e o pior é o `NUL`.** A regra já
   valia para os placeholders PUA do `renderMd` e do mapa ("sempre como escapes
   ASCII no código"); aqui ela tem um custo maior, de FERRAMENTA. O git decide se

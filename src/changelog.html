@@ -90,7 +90,7 @@
     <div class="page">
       <h1 class="serif">O que mudou na extensão</h1>
       <p class="lead">
-        Da primeira versão (19 de julho de 2026) até hoje foram <strong>63 versões</strong>. Esta
+        Da primeira versão (19 de julho de 2026) até hoje foram <strong>64 versões</strong>. Esta
         página agrupa o que foi feito <strong>por recurso</strong> — é assim que se usa a
         extensão, não versão a versão. O
         <a class="link" href="#historico">histórico completo</a>, com data e uma linha por
@@ -99,7 +99,49 @@
 
       <div class="card destaque">
         <p class="eyebrow" style="color: rgba(255,255,255,0.7)">A novidade mais recente</p>
-        <h2><span class="v novo">v0.40.1</span> Nos modelos Gemini, a resposta deixa de esperar uma ida e volta perdida</h2>
+        <h2><span class="v novo">v0.41.0</span> Dá para conversar só com um arquivo anexado — inclusive de outro processo</h2>
+        <p>
+          Anexar um documento pelo <strong>📎</strong> e perguntar sobre ele, sem marcar
+          peça nenhuma, agora funciona <strong>do começo ao fim da conversa</strong>. Antes,
+          a primeira pergunta era respondida e a segunda era recusada com
+          <em>“Marque uma peça, anexe um arquivo…”</em> — com o arquivo ali, visível na
+          tela, e a conversa inteira sobre ele.
+        </p>
+        <p>
+          O motivo era interno: a extensão contava apenas os anexos <strong>ainda não
+          enviados</strong>. Depois do primeiro envio essa conta zerava, e o arquivo que
+          continuava no contexto passava a valer como se não existisse. Agora o que conta é
+          o que está <strong>anexado agora</strong> — a mesma regra que já valia para as
+          peças do processo.
+        </p>
+        <p>
+          Junto veio a outra metade do problema. Quando não há peça marcada, o assistente
+          deixa de tratar o processo aberto na tela como o assunto da conversa: ele passa a
+          saber que o material é <strong>o arquivo que você anexou</strong>, e que esse
+          arquivo pode ser de <strong>outro processo</strong> — ou nem ser peça judicial.
+          Antes ele concluía que você tinha se enganado e respondia com uma
+          <strong>lista de peças para marcar</strong> no lugar da resposta. Ele continua
+          avisando, uma vez, quando o documento é de processo diferente — isso é
+          informação útil, e some só a insistência depois dela.
+        </p>
+        <p>
+          <strong>Marcar uma peça devolve tudo ao normal</strong>, no mesmo instante: não há
+          botão para ligar nem desligar nada. E <strong>minutar</strong> e o
+          <strong>mapa mental</strong> continuam pedindo peças marcadas.
+        </p>
+        <p>
+          Nesta versão também: a <strong>importação de vários <em>.docx</em>/<em>.rtf</em></strong>
+          voltou a aparecer em <strong>Modelos</strong> — quem ainda não tinha nenhum modelo
+          cadastrado caía direto no formulário de digitação e nunca via o botão, justamente
+          quem mais precisava dele. E o botão que <strong>leva da peça até ela dentro do
+          PJe</strong> deixou de ser invisível: antes só aparecia quando o mouse passava
+          por cima da linha.
+        </p>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">Antes disso</p>
+        <h2><span class="v">v0.40.1</span> Nos modelos Gemini, a resposta deixa de esperar uma ida e volta perdida</h2>
         <p>
           O Google <strong>retirou da API</strong> um ajuste que a extensão enviava junto
           de cada pergunta — o que afrouxa o filtro de conteúdo do próprio Google, e que
@@ -130,7 +172,6 @@
       </div>
 
       <div class="card">
-        <p class="eyebrow">Antes disso</p>
         <h2><span class="v">v0.40.0</span> Chega o Gemini 3.7 Flash, e a extensão passa a vir configurada no GPT-5.6 Luna</h2>
         <p>
           <strong>Se você já usa a extensão, nada muda</strong>: o modelo que está salvo na
@@ -1209,6 +1250,7 @@
             <tr><th>Versão</th><th>Data</th><th>O que mudou</th></tr>
           </thead>
           <tbody>
+            <tr class="marco"><td><span class="v">0.41.0</span></td><td>14/08/2026</td><td><span class="dot-marco"></span><strong>Dá para conversar só com um arquivo anexado, inclusive de outro processo.</strong> Antes, a primeira pergunta sobre um anexo era respondida e a segunda era recusada com “Marque uma peça…”, com o arquivo visível na tela: a extensão contava só os anexos <em>ainda não enviados</em>, e depois do primeiro envio essa conta zerava. Agora vale o que está anexado <strong>agora</strong> — a mesma regra das peças. Sem peça marcada, o assistente também deixa de tratar o processo da tela como o assunto: ele passa a saber que o material é o arquivo anexado e que pode ser de <strong>outro processo</strong>, em vez de responder com uma lista de peças para marcar. Continua avisando uma vez quando o documento é de processo diferente. Marcar uma peça devolve tudo ao normal na hora; <strong>minutar e mapa mental seguem pedindo peças marcadas</strong>. Também nesta versão: a <strong>importação de vários .docx/.rtf</strong> voltou a aparecer em <strong>Modelos</strong> (quem não tinha nenhum modelo caía direto no formulário e nunca via o botão), e o botão que <strong>leva da peça até ela no PJe</strong> deixou de ficar invisível até o mouse passar por cima</td></tr>
             <tr><td><span class="v">0.40.1</span></td><td>13/08/2026</td><td>Nos modelos <strong>Gemini</strong>, a resposta deixou de gastar uma ida e volta perdida antes de começar. O Google retirou da API um ajuste que a extensão enviava (o que afrouxa o filtro de conteúdo — necessário porque autos falam de crime e violência); a extensão já se recuperava sozinha reenviando sem ele, mas <strong>reaprendia isso a cada pergunta</strong>, porque o serviço interno do Chrome que faz os envios é desligado após ~30 s parado. Agora a descoberta vale por <strong>sessão do navegador</strong>. Se o Google voltar a aceitar o ajuste, a extensão volta a usá-lo sozinha</td></tr>
             <tr class="marco"><td><span class="v">0.40.0</span></td><td>13/08/2026</td><td><span class="dot-marco"></span><strong>Gemini 3.7 Flash entra na lista, e a extensão passa a vir configurada no GPT-5.6 Luna.</strong> Quem já usa não é afetado — o modelo salvo continua o mesmo; a troca vale para instalações novas. O Luna custa <strong>US$ 0,20 por milhão de tokens de entrada</strong> contra US$ 1,50 do Gemini Flash, e é o único dos dois em que a busca de jurisprudência pode ser <strong>restringida aos domínios oficiais</strong> pelo servidor do provedor — no Gemini isso é só um pedido no texto, que o modelo já ignorou em teste. O <strong>Gemini 3.7 Flash</strong> passa a ser o Gemini recomendado (mesma janela de 1M e as mesmas 1.000 páginas do 3.6); o 3.6 e o 3.5 Flash-Lite continuam na lista</td></tr>
             <tr><td><span class="v">0.39.1</span></td><td>13/08/2026</td><td>O <strong>“Salvar configuração”</strong> deixou de ficar abaixo da dobra na tela de configuração: a linha com <strong>Testar chave</strong> e <strong>Salvar</strong> acompanha a rolagem, e um aviso de <strong>“Alterações não salvas”</strong> aparece assim que você mexe em algum campo. Antes, quem trocava o modelo fechava a janela achando que tinha terminado e perdia a mudança sem aviso</td></tr>

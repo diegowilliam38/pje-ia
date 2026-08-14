@@ -343,6 +343,17 @@ Legenda de categorias com dots de **6px**. Itens: checkbox 15px (`--r-xs`) + dot
 > A row alinha por `flex-start` (checkbox, dot, id e `.d-ver` acompanham a
 > PRIMEIRA linha do nome, não o centro da row).
 >
+> **O `.d-ver` (ir para a peça na linha do tempo do PJe) é VISÍVEL em repouso**,
+> em `--muted-2` a `opacity: .55` — não `opacity: 0` até o hover, como já foi.
+> Ação que só aparece depois de um gesto que ninguém tem motivo para fazer é
+> ação que ninguém descobre; foi a mesma falha das três affordances do "ocultar
+> peças". Mostrá-lo sempre não polui porque ele ocupa a MESMA posição em toda
+> row: o olho o lê como coluna. São três degraus — existe (repouso), é alvo
+> (hover da row: `opacity: 1` + `--pje-2`), vai ser clicado (hover do botão:
+> fundo `--accent-bg` + `scale(1.08)`, suprimido em `prefers-reduced-motion`).
+> O ícone é o **crosshair** de 13px: "localizar", e não a seta ↗ de abrir —
+> nada é aberto, a página que já está atrás do painel é que rola até a peça.
+>
 > **Nenhum outro campo divide a linha com o nome além do id.** Tipo oficial e data
 > de juntada vivem no `title` da row. A data já esteve na linha, em coluna própria,
 > e era o pior negócio da lista: ~60px dos 328px tirados do único campo por onde se

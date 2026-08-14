@@ -149,6 +149,30 @@
     "nunca para o conteúdo principal — um destaque que aparece em tudo deixa de",
     "destacar. Não use esses blocos dentro de tabelas.",
   ];
+  // MODO SÓ-ANEXOS — entra no system só quando `soAnexosNoContexto()` (ver lá o
+  // porquê do modo ser lido do estado, e não ligado na UI). Fora dele o prompt
+  // fica byte a byte o de sempre, nos três provedores.
+  //
+  // O aviso de divergência CONTINUA sendo desejado: se o arquivo é de outro
+  // processo, o usuário precisa saber — pode ter anexado o errado. É o
+  // [!ALERTA] do PROMPT_DESTAQUES e ele permanece. O que sai daqui é a
+  // INSISTÊNCIA depois do aviso: a lista de peças para marcar, que respondia
+  // uma pergunta que ninguém fez e deixava a verdadeira sem resposta.
+  const PROMPT_SO_ANEXOS = [
+    "NESTA conversa o material de análise são os ARQUIVOS ANEXADOS pelo usuário na",
+    "caixa de mensagem. Nenhuma peça dos autos abertos foi anexada, e isso é",
+    "intencional: responda com base nos arquivos anexados.",
+    "É legítimo que eles tratem de OUTRO processo, ou que nem sejam peça judicial —",
+    "o processo aberto na tela é apenas o contexto em que o usuário está",
+    "trabalhando, NÃO o objeto desta conversa.",
+    "Se o arquivo tratar de processo diferente do que está na tela, diga isso UMA",
+    "vez, num aviso em bloco, e siga respondendo o que foi perguntado.",
+    "NÃO peça ao usuário que marque peças e NÃO liste peças dos autos — só se ele",
+    "perguntar sobre o processo da tela, e aí oriente-o a marcá-las na lista à",
+    "esquerda do painel.",
+    "Estes documentos não têm id de peça: ao citar, use o NOME do arquivo no lugar",
+    "do id, com a folha quando conseguir identificá-la — ex.: '(contrato.pdf, fl. 3)'.",
+  ];
   const SYSTEM_PROMPT = PROMPT_INICIO.concat(
     [
       "As citações precisas de trechos são geradas automaticamente pelo sistema e já",
@@ -206,7 +230,7 @@
     "jurisdicao", "jurisdição", "competencia", "competência",
   ];
   let fichaCache; // undefined = ainda não lida; null = não há ficha nesta página
-  function resumoFicha() {
+  function resumoFicha(soAnexos) {
     if (fichaCache === undefined) {
       try {
         fichaCache = PJE.lerCabecalhoProcesso();
@@ -240,28 +264,55 @@
     if (a) partes.push(a);
     if (p) partes.push(p);
     if (!partes.length) return "";
+    // No modo só-anexos a ficha continua indo — é ela que permite ao modelo
+    // dizer COM PRECISÃO que o arquivo é de outro processo —, mas o rótulo não
+    // pode prometer que o teor virá "das peças anexadas": não há nenhuma, e a
+    // frase é justamente o que fazia o modelo cobrar a marcação.
+    if (soAnexos) {
+      return (
+        " Ficha do processo aberto na tela do PJe, para você reconhecer se os" +
+        " arquivos anexados são deste processo ou de outro: " + partes.join(". ") + "."
+      );
+    }
     return (
       " Ficha do processo, lida da tela do PJe (use para situar o caso; o teor" +
       " vem SEMPRE das peças anexadas): " + partes.join(". ") + "."
     );
   }
 
-  function contextoDoProcesso() {
+  // `soAnexos` vem de FORA (de `systemPromptAtual`, o único chamador) em vez de
+  // ser lido aqui: o predicado varre a seleção do painel, e lê-lo de novo aqui
+  // dobraria a varredura por montagem de prompt — que acontece duas vezes por
+  // turno (count_tokens + envio). Repassado, o rótulo do número e o da ficha
+  // também não têm como discordar entre si.
+  function contextoDoProcesso(soAnexos) {
     let s = "";
     try {
       const num = PJE.getNumeroProcesso();
-      if (num) s += " Processo em análise: " + num + ".";
+      if (num) {
+        s += soAnexos
+          ? " Processo aberto na tela do PJe (contexto de trabalho, NÃO é o objeto" +
+            " desta conversa): " + num + "."
+          : " Processo em análise: " + num + ".";
+      }
     } catch {
       /* página sem número identificável — segue sem ele */
     }
-    return s + resumoFicha() + " Hoje é " + new Date().toLocaleDateString("pt-BR") + ".";
+    return (
+      s + resumoFicha(soAnexos) + " Hoje é " + new Date().toLocaleDateString("pt-BR") + "."
+    );
   }
 
   function systemPromptAtual() {
+    const soAnexos = soAnexosNoContexto();
     const base =
       (modelCaps && modelCaps.citacoesNativas === false
         ? SYSTEM_PROMPT_CIT_TEXTUAL
-        : SYSTEM_PROMPT) + contextoDoProcesso();
+        : SYSTEM_PROMPT) +
+      contextoDoProcesso(soAnexos) +
+      // Depois do contexto do processo, para reescrever a premissa que ele
+      // acabou de estabelecer; antes do customPrompt, que segue por último.
+      (soAnexos ? " " + PROMPT_SO_ANEXOS.join(" ") : "");
     if (!customPrompt) return base;
     return (
       base +
@@ -649,6 +700,31 @@
   // disco na seguinte. Degrada para os checkboxes se o painel for antigo.
   function selecaoEfetiva() {
     return panel.selecaoParaMemoria ? panel.selecaoParaMemoria() : panel.getSelected();
+  }
+
+  // MODO SÓ-ANEXOS: o material desta conversa são APENAS os arquivos que o
+  // usuário soltou na caixa — nenhuma peça dos autos marcada e nenhuma no
+  // histórico. Não é um modo que se liga na UI: é uma LEITURA do estado, e sai
+  // sozinho no instante em que uma peça é marcada. Um toggle exigiria o usuário
+  // declarar o que a seleção já diz, e criaria um estado a mais para
+  // dessincronizar do contexto que de fato vai à API.
+  //
+  // Anexar documento de OUTRO processo é uso legítimo e frequente — a peça que
+  // chegou por e-mail, o contrato que a parte trouxe, a decisão que se quer
+  // comparar. O que quebrava eram as premissas do system ("Processo em
+  // análise: X") e o inventário das não marcadas: o modelo concluía que o
+  // usuário se enganara e devolvia uma cobrança para marcar peças no lugar da
+  // resposta.
+  //
+  // try/catch por construção: roda a partir de `systemPromptAtual`, que é
+  // chamada de vários pontos, e no boot parte deste estado ainda não existe.
+  // Falhar aqui é dizer "não é o modo", nunca derrubar a montagem do prompt.
+  function soAnexosNoContexto() {
+    try {
+      return anexos.size > 0 && !pecasNaConversa.size && selecaoEfetiva().length === 0;
+    } catch {
+      return false;
+    }
   }
   // Conversa ABERTA nesta aba e o carimbo do retrato dela. O carimbo vai em
   // toda gravação para o banco detectar que outra aba escreveu na mesma
@@ -2713,6 +2789,12 @@
   // uma cópia — por isso `conversation` nunca vê o inventário e ele não se
   // acumula no histórico.
   function comInventario(msgs, idsAnexados) {
+    // No modo só-anexos o inventário é contraproducente duas vezes: era ele que
+    // dava ao modelo os ids com que montava a cobrança ("marque a 109951875…"),
+    // e são ~2 mil tokens de lista repetidos em TODA mensagem de uma conversa
+    // que não é sobre estes autos. A capacidade não se perde: o system manda
+    // orientar quem perguntar do processo da tela a marcar as peças na lista.
+    if (soAnexosNoContexto()) return msgs;
     const txt = inventarioNaoMarcadas(idsAnexados);
     if (!txt || !msgs.length) return msgs;
     const i = msgs.length - 1;
@@ -3430,7 +3512,15 @@
     // digitava e levava um "marque ao menos uma peça" sobre um processo que ele
     // acabara de ver analisado. Um anexo no input também basta: dá para trabalhar
     // só com os arquivos anexados, sem marcar peça nenhuma.
-    if (selectedIds.length === 0 && !pecasNaConversa.size && !anexosNovos.length) {
+    // `anexos.size` e NÃO `anexosNovos.length`: `anexosNovos` é o DELTA (os que
+    // ainda não subiram). No 1º turno com anexo ele é não-vazio e a guarda
+    // passava; do 2º em diante o mesmo anexo já está no histórico, o delta
+    // esvazia e o envio era recusado com "Marque uma peça" — com o chip do
+    // arquivo visível na tela e uma conversa inteira sobre ele. `anexos` é o
+    // simétrico de `pecasNaConversa` para os arquivos do usuário: o que está no
+    // contexto AGORA. Removê-lo pelo ✕ do chip volta a valer a guarda, que é o
+    // certo — aí o contexto ficou de fato vazio.
+    if (selectedIds.length === 0 && !pecasNaConversa.size && !anexos.size) {
       panel.setStatus("Marque uma peça, anexe um arquivo (📎) ou digite @ para citar uma peça.");
       return;
     }
@@ -3498,7 +3588,14 @@
       // — nem histórico, nem anexo —; do contrário seguimos com o que existe e as
       // falhas viram relatório (o usuário não perde a pergunta que já digitou).
       const idsNovosParaBlocos = [...anexadas, ...anexosNovos];
-      if (!idsNovosParaBlocos.length && !pecasNaConversa.size) {
+      // `!anexos.size` fecha a SEGUNDA metade do bloqueio do turno só-de-anexo:
+      // no 2º turno não há nada NOVO (o arquivo já subiu) e `pecasNaConversa`
+      // está vazio, então mesmo passando a guarda lá de cima o turno morria
+      // aqui, com "não há peça marcada nem arquivo anexado para analisar" — uma
+      // frase falsa, com o chip do anexo na tela. O ramo `else` logo abaixo já
+      // fazia a coisa certa ("segue com o contexto já anexado"); faltava deixar
+      // chegar nele. Anexo no contexto é contexto, como as peças do histórico.
+      if (!idsNovosParaBlocos.length && !pecasNaConversa.size && !anexos.size) {
         // Caso degenerado: tudo falhou, sem histórico e sem anexo. O turno cai
         // aqui e o relatório detalhado abaixo (com o desmarcar) NÃO chega a
         // rodar — o throw vai direto ao catch. Ainda assim a peça que falhou
@@ -4082,7 +4179,12 @@
       "de peças de um processo — apenas metadados, você NÃO tem o conteúdo delas —, indica " +
       "quais precisam ser lidas para um objetivo. Responde SEMPRE apenas com o JSON pedido, " +
       "sem preâmbulo e sem cercas de código." +
-      contextoDoProcesso()
+      // `false` EXPLÍCITO: a triagem escolhe peças DOS AUTOS, então aqui o
+      // processo da tela é mesmo o objeto — o modo só-anexos não se aplica,
+      // mesmo que haja um anexo na caixa. Sem o literal, o `undefined` cairia
+      // no mesmo ramo por acaso, e a próxima leitura acharia que faltou o
+      // argumento.
+      contextoDoProcesso(false)
     );
   }
 

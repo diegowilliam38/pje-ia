@@ -323,7 +323,7 @@ var PjePanel = (function () {
     docshide: ic(P.docshide, 15, 1.8),
     docsshow: ic(P.docsshow, 15, 1.8),
     fold: ic(P.fold, 13, 2),
-    ver: ic(P.ver, 12, 1.8),
+    ver: ic(P.ver, 13, 1.8), // alvo/crosshair: a 12px o desenho fechava e lia-se como estrela
     close: ic(P.close, 15, 1.9),
     reset: ic(P.chatNovo, 15, 1.8),
     convs: ic(P.convs, 15, 1.8),
@@ -3837,6 +3837,11 @@ var PjePanel = (function () {
     // um `const` declarado depois lançaria pela zona morta temporal.
     const temMlib = typeof MLIB !== "undefined";
     const temDocx = typeof DocxImport !== "undefined";
+    // Fonte ÚNICA de "dá para importar": o botão do cabeçalho, o atalho do
+    // estado vazio e o registro do handler precisam concordar. Enquanto cada
+    // um repetia a própria condição, um deles podia oferecer um caminho que
+    // outro não atende — e o modo de falha é um botão que não faz nada.
+    const podeImportar = temDocx && !!impDrop;
     if (temMlib) {
       // popula o <select> de categoria do form uma única vez
       for (const c of MLIB.CATEGORIAS) {
@@ -4010,7 +4015,7 @@ var PjePanel = (function () {
       // um lote em conferência descartaria o trabalho sem aviso nenhum
       const naLista = qual === "lista";
       if (btnMlibNew) btnMlibNew.hidden = !naLista;
-      if (btnMlibImp) btnMlibImp.hidden = !naLista || !temDocx;
+      if (btnMlibImp) btnMlibImp.hidden = !naLista || !podeImportar;
     }
 
     function abrirMlib(opts) {
@@ -4097,12 +4102,26 @@ var PjePanel = (function () {
       mlibDelArm = null;
       mlibListEl.innerHTML = "";
       if (!modelosLib.length) {
+        // O texto NOMEIA os dois caminhos e a fileira os OFERECE. Os botões do
+        // cabeçalho ficam na periferia de quem abre a biblioteca pela primeira
+        // vez, e "Importar" só significa alguma coisa depois que o usuário sabe
+        // que dá para soltar vários .docx de uma vez — por isso o rótulo aqui
+        // diz o FORMATO, e não o verbo sozinho. Mesma razão do .mm-add na barra
+        // da minuta: conjunto vazio se explica e oferece a saída, não desaparece.
         mlibListEl.innerHTML =
           '<div class="plib-empty">Nenhum modelo cadastrado ainda.<br>' +
-          (temDocx
-            ? "Use <b>Importar</b> para trazer vários arquivos <b>.docx</b> ou <b>.rtf</b> de uma vez, ou <b>Novo</b> para colar o texto"
-            : "Clique em <b>Novo</b> para cadastrar sua primeira peça-modelo") +
-          " — depois, ao gerar uma minuta, escolha a categoria em <b>Seguir modelos</b>.</div>";
+          (podeImportar
+            ? "Traga vários arquivos <b>.docx</b> ou <b>.rtf</b> de uma vez — você confere tudo antes de cadastrar."
+            : "Cole o texto de uma peça sua para cadastrar a primeira.") +
+          " Depois, ao gerar uma minuta, escolha a categoria em <b>Seguir modelos</b>." +
+          '<div class="mempty-acts">' +
+          (podeImportar
+            ? '<button class="mempty-imp plib-save" title="Importar peças-modelo de arquivos .docx ou .rtf — pode escolher vários de uma vez, e você confere tudo antes de cadastrar">' +
+              SVG.importar +
+              "Importar .docx ou .rtf</button>"
+            : "") +
+          '<button class="mempty-new plib-new">' + SVG.novo + "Colar o texto</button>" +
+          "</div></div>";
         return;
       }
       for (const m of modelosLib) {
@@ -4125,8 +4144,14 @@ var PjePanel = (function () {
     // ações DELEGADAS na lista (as rows são recriadas a cada render)
     mlibListEl.addEventListener("click", (e) => {
       const btn = e.target.closest("button");
+      if (!btn) return;
+      // Atalhos do estado vazio (fora de .plib-row, por isso vêm antes da guarda
+      // de linha). `abrirImportar` é declaração de função — o hoisting no escopo
+      // do mount cobre a chamada, que só acontece no clique.
+      if (btn.classList.contains("mempty-imp")) return abrirImportar();
+      if (btn.classList.contains("mempty-new")) return abrirMlibForm(null);
       const row = e.target.closest(".plib-row");
-      if (!btn || !row) return;
+      if (!row) return;
       const m = modelosLib.find((x) => x.id === row.dataset.id);
       if (!m) return;
       if (btn.classList.contains("mlib-edit")) {
@@ -4277,7 +4302,7 @@ var PjePanel = (function () {
     }
 
     function abrirImportar() {
-      if (!temDocx || !temMlib) return;
+      if (!podeImportar || !temMlib) return; // a função termina em impDrop.focus()
       impFichas = [];
       impFalhas = [];
       impFichasEl.textContent = "";
@@ -4613,7 +4638,7 @@ var PjePanel = (function () {
       abrirMlibForm(f.modelo, { novo: true });
     }
 
-    if (temMlib && temDocx && impDrop) {
+    if (temMlib && podeImportar) {
       btnMlibImp.addEventListener("click", abrirImportar);
 
       const escolher = () => {
@@ -4717,9 +4742,15 @@ var PjePanel = (function () {
         if (!mlibForm.hidden) fecharMlibForm();
         else sairDoMlib();
       });
-      btnMlib.addEventListener("click", () =>
-        abrirMlib(modelosLib.length ? {} : { form: true })
-      );
+      // O botão da barra abre a BIBLIOTECA, e a lista — mesmo vazia — é a única
+      // tela onde "Importar" e "Novo" existem (`mlibTela("form")` os esconde de
+      // propósito, para um lote em conferência não ser descartado sem aviso).
+      // Pular para o formulário com a biblioteca vazia parecia poupar um clique
+      // e escondia a importação em lote de .docx/.rtf justamente de quem nunca
+      // cadastrou nada — o público para quem ela foi feita. Duas decisões certas
+      // sozinhas, erradas na interseção. O estado vazio da lista é a tela de
+      // boas-vindas: nomeia os dois caminhos e oferece os dois botões.
+      btnMlib.addEventListener("click", () => abrirMlib());
     }
 
     inEl.addEventListener("input", () => {

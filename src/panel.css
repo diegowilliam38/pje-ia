@@ -719,16 +719,31 @@ button > svg { flex: none; }
 .docrow.cat-peticao .d-nm,
 .docrow.cat-prova .d-nm { font-weight: 600; color: var(--ink); }
 
-/* Botão "ver na timeline" da row: só aparece no hover, para não poluir. */
+/* Botão "ver na timeline" da row — leva o olho da peça até ela dentro do PJe.
+   Em REPOUSO ele tem presença BAIXA, nunca zero. Enquanto era `opacity: 0`, o
+   caminho de volta aos autos só existia depois de um hover que ninguém tinha
+   motivo para fazer: recurso pronto e invisível, a mesma falha que já custou as
+   três affordances do "ocultar peças". Como fica na MESMA posição em todas as
+   rows, o olho o lê como coluna e não como ruído — é isso que permite mostrá-lo
+   sempre sem competir com o nome da peça, que é por onde se escolhe.
+   `--muted-2` e não o `--muted-3` de "ícone inativo": aqui ele não está
+   inativo, é ação disponível o tempo todo — e no cinza mais claro o desenho
+   sumia contra o `--surface-2` da coluna. */
 .d-ver {
   flex: none; border: none; background: transparent; cursor: pointer;
-  color: var(--muted-3); width: 20px; height: 20px; border-radius: var(--r-sm);
+  width: 22px; height: 22px; border-radius: var(--r-sm);
   display: flex; align-items: center; justify-content: center; padding: 0;
-  margin-top: -1px; /* centra os 20px do botão na linha de 17px do nome */
-  opacity: 0; transition: opacity 0.12s, background 0.12s, color 0.12s;
+  margin-top: -2px; /* centra os 22px do botão na linha de 17px do nome */
+  color: var(--muted-2); opacity: 0.55;
+  transition: opacity 0.12s, background 0.12s, color 0.12s, transform 0.12s;
 }
-.docrow:hover .d-ver, .d-ver:focus-visible { opacity: 1; }
-.d-ver:hover { background: var(--line-strong); color: var(--pje-2); }
+/* três degraus: existe (repouso) → é alvo (hover da row) → vai ser clicado */
+.docrow:hover .d-ver, .d-ver:focus-visible { opacity: 1; color: var(--pje-2); }
+.d-ver:hover { background: var(--accent-bg); color: var(--pje); transform: scale(1.08); }
+.d-ver:active { transform: scale(0.94); }
+@media (prefers-reduced-motion: reduce) {
+  .d-ver, .d-ver:hover, .d-ver:active { transition: none; transform: none; }
+}
 
 .empty { color: var(--muted); padding: 8px 4px; font-size: var(--fs-meta); }
 /* O PJe DESTA página fala outro dialeto (o KZ, frontend novo) e a extensão
@@ -2248,6 +2263,19 @@ button > svg { flex: none; }
 .plib-empty {
   padding: 24px 16px; text-align: center; color: var(--muted);
   font-size: var(--fs-meta); line-height: 1.6;
+}
+/* Fileira de ações do estado vazio da biblioteca de modelos. Repete os DOIS
+   caminhos do cabeçalho no centro do olhar — quem abre a biblioteca pela
+   primeira vez não varre a periferia do card atrás de um botão cujo nome ainda
+   não significa nada. Sem token novo: reusa .plib-save/.plib-new e só resolve o
+   alinhamento do ícone e o ritmo vertical. Quebra em duas linhas no estreito. */
+.mempty-acts {
+  display: flex; flex-wrap: wrap; gap: var(--sp-2b);
+  justify-content: center; margin-top: var(--sp-4);
+}
+.mempty-acts button {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  font-size: var(--fs-meta);
 }
 .plib-form { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; }
 .plib-form input, .plib-form textarea {
