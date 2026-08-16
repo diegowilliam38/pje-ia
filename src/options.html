@@ -236,7 +236,9 @@
             <span>As peças selecionadas são enviadas à API do provedor do modelo escolhido
             (Anthropic, Google ou OpenAI). Processos podem conter <b>dados pessoais ou
             sigilosos</b> — use conforme as normas do seu tribunal.
-            <a href="https://github.com/marcosmarf27/pje-ia/blob/main/PRIVACY.md" target="_blank" rel="noopener">Política de privacidade</a>.</span>
+            <a href="https://github.com/marcosmarf27/pje-ia/blob/main/PRIVACY.md" target="_blank" rel="noopener">Política de privacidade</a>.
+            Em segredo de justiça, a Resolução CNJ 615 pede <b>anonimização na origem</b> —
+            <a href="help.html#sigilo" target="_blank">veja como fazer →</a></span>
           </p>
           <p class="priv-l net">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4.5 13.5H11l-1 8.5L19.5 10H13z"/></svg>
@@ -247,6 +249,38 @@
             <a href="help.html#rede" target="_blank">Por que a sua conexão importa tanto →</a></span>
           </p>
         </div>
+
+        <!-- Anonimização na origem: vem LOGO DEPOIS da caixa de privacidade
+             porque é ali que a pergunta nasce ("as peças vão à API, e processos
+             podem conter dados sigilosos"). Até aqui a extensão enunciava o
+             dever do art. 19, §3º, IV e não apontava caminho nenhum.
+
+             Reusa o cartão `.lib` (ícone + título + descrição + seta) sem CSS
+             novo. Não entra na seção "Suas bibliotecas" logo abaixo: aquelas são
+             coleções que o usuário CONSTRÓI dentro da extensão; esta é uma
+             ferramenta separada, que ele instala fora dela — daí a seta ↗ em vez
+             da →, e a seção própria.
+
+             O destino é o GUIA, não o GitHub: o instalador tem ~660 MB, só roda
+             em Windows x64 e baixa mais 1,7 GB na primeira execução. Quem
+             descobre isso depois do download descobriu tarde. -->
+        <h2 class="sec-tit serif">Antes de enviar dados sigilosos</h2>
+        <div class="libs">
+          <a class="lib" href="help.html#sigilo" target="_blank">
+            <span class="ic" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7.5 3v5.6c0 4.5-3.2 8-7.5 8.9-4.3-.9-7.5-4.4-7.5-8.9V6z"/><path d="M9 12.2l2.1 2.1 4-4.2"/></svg></span>
+            <span class="tx">
+              <b>TecJustiça Sigilo — anonimizar no seu computador</b>
+              <i>Mascara nomes, CPF, endereços e número do processo antes que o documento saia
+              daqui; o arquivo anonimizado volta pelo clipe de anexo. Programa gratuito e
+              separado, 100% local.</i>
+            </span>
+            <span class="arrow" aria-hidden="true">↗</span>
+          </a>
+        </div>
+        <p class="libs-nota">
+          Em processo em <b>segredo de justiça</b>, a Resolução CNJ 615 (art. 19, §3º, IV) veda
+          usar IA privada ou externa <b>salvo</b> anonimização na origem.
+        </p>
 
         <!-- Bibliotecas: as duas coleções que o usuário constrói ao longo do
              tempo e que, até aqui, só eram alcançáveis de dentro de uma aba de
@@ -286,15 +320,30 @@
              versão com as explicações longas, e quem a abriu já parou para ler. -->
         <div class="apoio">
           <p><b>A extensão é gratuita e de código aberto</b>, e recebe melhorias toda
-          semana — o que custa tempo de desenvolvimento e tokens de API nos testes com
-          processos reais. Nenhum recurso é pago: você usa tudo com a sua própria chave.</p>
-          <p>Se ela está sendo útil, a forma de apoiar os próximos projetos é assinar o
-          <b>TecJustiça</b> no Substack, por <b>R$ 10 mensais</b>.</p>
+          semana — o que custa horas de trabalho e tokens de API nos testes com processos
+          reais. Nenhum recurso é pago: você usa tudo com a sua própria chave.</p>
+          <p>Se ela está sendo útil, dá para retribuir de duas formas:</p>
+          <div class="pix">
+            <img class="pix-qr" src="../icons/pix-qr.svg" width="108" height="108"
+                 alt="QR Code do PIX para Marcos Antonio Rafael da Fonseca, Nubank">
+            <div class="pix-tx">
+              <p class="pix-t"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.6 2.5h4.8"/><path d="M10.4 2.5v3.6L7.9 9.4a4 4 0 0 0-.8 2.4V20a1.5 1.5 0 0 0 1.5 1.5h6.8a1.5 1.5 0 0 0 1.5-1.5v-8.2a4 4 0 0 0-.8-2.4l-2.5-3.3V2.5"/><path d="M7.1 12.6h9.8"/><path d="M9.6 15.4h4.8"/></svg>Me pague uma Heineken</p>
+              <p class="pix-m">Um apoio de uma vez só, no valor que você achar justo.<br>
+              PIX · Nubank · Marcos Antonio Rafael da Fonseca<br>
+              chave <span class="pix-k">(88) 99365-0420</span></p>
+              <button type="button" class="pix-copy" data-pix="00020101021126360014br.gov.bcb.pix0114+55889936504205204000053039865802BR5921MARCOS A R DA FONSECA6009FORTALEZA62070503***6304D296"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 5H6a2 2 0 0 0-2 2v9"/></svg><span class="lbl">Copiar código PIX</span></button>
+            </div>
+          </div>
+          <p>Ou assine o <b>TecJustiça</b> no Substack, por <b>R$ 10 mensais</b>, apoiando
+          os próximos projetos de forma contínua.</p>
           <a class="assinar" href="https://tecjustica.substack.com/" target="_blank" rel="noopener">Assinar o TecJustiça — R$ 10/mês ↗</a>
         </div>
       </div>
     </div>
 
     <script src="popup.js"></script>
+    <!-- Só o botão "Copiar código PIX" da caixa de apoio; o popup.html não o
+         carrega porque lá não há caixa de apoio, só o link do rodapé. -->
+    <script src="apoio.js"></script>
   </body>
 </html>

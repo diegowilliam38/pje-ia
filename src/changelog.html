@@ -99,7 +99,58 @@
 
       <div class="card destaque">
         <p class="eyebrow" style="color: rgba(255,255,255,0.7)">A novidade mais recente</p>
-        <h2><span class="v novo">v0.42.0</span> A minuta de sentença agora pede a sua tese — e a Resolução CNJ 615 é o motivo</h2>
+        <h2><span class="v novo">v0.43.0</span> Processo em segredo de justiça: agora há um caminho — e o “ver na peça” voltou a funcionar</h2>
+        <p>
+          O guia já dizia que o <strong>art. 19, §3º, IV</strong> da Resolução CNJ 615 veda
+          usar IA privada ou externa em documento sigiloso <em>salvo</em>
+          <strong>anonimização na origem</strong> — e parava aí, sem apontar como fazer
+          isso. Agora aponta: o <strong>TecJustiça Sigilo</strong>, um programa separado e
+          gratuito que mascara nomes, CPF, CNPJ, número do processo, OAB, endereço e conta
+          bancária <strong>no seu próprio computador</strong>, sem mandar nada para servidor
+          nenhum. Ele grava um <code>.txt</code> anonimizado, e esse arquivo entra aqui pelo
+          <strong>clipe de anexo</strong> — com um anexo e nenhuma peça marcada, a conversa
+          passa a ser sobre aquele arquivo.
+        </p>
+        <p>
+          O convite aparece no <strong>estado vazio do painel</strong> e nas telas de
+          configuração, e leva ao guia — não direto ao download: o instalador tem
+          <strong>~660 MB</strong>, só roda em <strong>Windows x64</strong> e baixa mais
+          ~1,7 GB de modelo na primeira execução. Nada disso é detalhe para descobrir
+          depois. A ferramenta também <strong>não é infalível</strong> (precisão de ~91% em
+          texto jurídico): a tela de revisão dela é parte do trabalho, não formalidade.
+        </p>
+        <p>
+          <strong>Correção importante — “ver na linha do tempo”.</strong> O botão que leva
+          da lista até a peça no PJe funcionava em algumas peças e falhava em outras, e a
+          mensagem mandava usar o <strong>⟳ Carregar tudo</strong>, que não resolvia: desde
+          a v0.38 esse botão lê a <em>lista</em> oficial do processo por uma via rápida que
+          <strong>não carrega a linha do tempo da tela</strong>. Quem clicava voltava ao
+          mesmo aviso, com razão para achar que a extensão tinha tudo e o PJe não. Agora o
+          próprio botão <strong>rola a linha do tempo até encontrar a peça</strong> — e para
+          assim que a encontra, sem varrer o processo inteiro. Se ela realmente não estiver
+          lá, a extensão diz isso e indica o <strong>preview</strong>, que não depende da
+          linha do tempo.
+        </p>
+        <p>
+          <strong>Ícones do cabeçalho refeitos.</strong> O de “painel largo” eram duas setas
+          <em>↔</em>, que se leem como <em>redimensionar</em>; o de “painel lateral” era
+          quase idêntico ao de ocultar a lista; e o da <strong>janela livre</strong> não
+          dizia que aquela janela sai do lugar. Cada um ganhou uma silhueta própria. E,
+          dentro do modo de janela livre, apareceram duas marcas que faltavam: uma
+          <strong>pega</strong> no alto do cabeçalho (arraste por aqui) e uma
+          <strong>alça</strong> no canto inferior direito (redimensione por aqui).
+        </p>
+        <p>
+          Por fim, quem quiser retribuir agora encontra como: além da assinatura do
+          TecJustiça, há um <strong>PIX</strong> com QR Code e “copia e cola” na
+          configuração, no guia e nesta página. A extensão continua inteira e gratuita para
+          todo mundo, com ou sem apoio.
+        </p>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">Antes disso</p>
+        <h2><span class="v">v0.42.0</span> A minuta de sentença agora pede a sua tese — e a Resolução CNJ 615 é o motivo</h2>
         <p>
           Ao ligar o modo <strong>Minutar</strong>, você escolhe a <strong>espécie do
           ato</strong>. Se ela decide alguma coisa — sentença, decisão, acórdão ou despacho
@@ -1310,6 +1361,7 @@
             <tr><th>Versão</th><th>Data</th><th>O que mudou</th></tr>
           </thead>
           <tbody>
+            <tr class="marco"><td><span class="v">0.43.0</span></td><td>16/08/2026</td><td><span class="dot-marco"></span><strong>Segredo de justiça ganha um caminho, e o “ver na linha do tempo” volta a funcionar.</strong> O guia enunciava o art. 19, §3º, IV da Res. CNJ 615 (vedado usar IA privada em documento sigiloso, <em>salvo</em> anonimização na origem) sem dizer como cumpri-lo; agora aponta o <strong>TecJustiça Sigilo</strong>, programa separado e gratuito que mascara nomes, CPF, número do processo e endereços <strong>no seu computador</strong> e devolve um <code>.txt</code> que entra pelo clipe de anexo. O convite leva ao guia, não ao download: são ~660 MB, só Windows x64, e a anonimização não é infalível (~91%). <strong>Correção:</strong> o botão que leva da lista até a peça no PJe falhava em parte das peças e mandava usar o ⟳ Carregar tudo, que desde a v0.38 lê a lista por uma via rápida e <strong>não carrega a linha do tempo</strong> — o clique não mudava nada e o aviso voltava. Agora o próprio botão rola a linha do tempo até achar a peça, e para assim que acha. Os <strong>ícones do cabeçalho</strong> foram refeitos (o “painel largo” eram setas ↔, que liam como redimensionar; o lateral era gêmeo do ocultar-peças; a janela livre não dizia que se arrasta), e o modo de janela livre ganhou <strong>pega</strong> no cabeçalho e <strong>alça</strong> no canto. Também: apoio ao projeto por <strong>PIX</strong> (QR e copia-e-cola) na configuração, no guia e nas novidades</td></tr>
             <tr class="marco"><td><span class="v">0.42.0</span></td><td>14/08/2026</td><td><span class="dot-marco"></span><strong>A minuta de ato decisório passa a exigir a sua tese (Resolução CNJ 615/2025).</strong> Ao ligar o modo Minutar você escolhe a <em>espécie do ato</em>; sentença, decisão, acórdão e despacho pedem a <strong>tese e o dispositivo</strong> antes de gerar — ofício, mandado, alvará e ata seguem direto. O Anexo da resolução classifica como <strong>alto risco</strong> (AR4) a “formulação de juízos conclusivos sobre a aplicação da norma jurídica”, e só admite como baixo risco (BR4) o texto de apoio produzido “com base nas instruções do magistrado, especialmente as decisões acerca das preliminares e questões de mérito”; como a extensão usa uma API privada, o art. 19, §3º, V ainda <strong>veda</strong> o uso de alto risco. A instrução padrão deixou de pedir “o ato cabível”. Peça que contraria a tese vira <code>[COMPLETAR: divergência — …]</code>, sem alterar o dispositivo; quem ainda não tem a tese pode pedir um <strong>estudo do que é cabível</strong> pelo chat. Cada minuta guarda a orientação que a gerou, e o guia ganhou a seção sobre a resolução. A tela <strong>Minhas minutas</strong> foi refeita (filtros por espécie e processo, ordenação, busca no texto e o <strong>prazo de validade à vista</strong>). Correções: Jurisprudência era ignorada na minuta e no mapa; processo retomado da memória recusava as peças marcadas; recusa por PJe ocupado perdia o texto digitado; a categoria de peças-modelo grudava entre minutas; modelo grande bloqueava os menores; e a minuta ganhou pré-voo de contexto</td></tr>
             <tr class="marco"><td><span class="v">0.41.0</span></td><td>14/08/2026</td><td><span class="dot-marco"></span><strong>Dá para conversar só com um arquivo anexado, inclusive de outro processo.</strong> Antes, a primeira pergunta sobre um anexo era respondida e a segunda era recusada com “Marque uma peça…”, com o arquivo visível na tela: a extensão contava só os anexos <em>ainda não enviados</em>, e depois do primeiro envio essa conta zerava. Agora vale o que está anexado <strong>agora</strong> — a mesma regra das peças. Sem peça marcada, o assistente também deixa de tratar o processo da tela como o assunto: ele passa a saber que o material é o arquivo anexado e que pode ser de <strong>outro processo</strong>, em vez de responder com uma lista de peças para marcar. Continua avisando uma vez quando o documento é de processo diferente. Marcar uma peça devolve tudo ao normal na hora; <strong>minutar e mapa mental seguem pedindo peças marcadas</strong>. Também nesta versão: a <strong>importação de vários .docx/.rtf</strong> voltou a aparecer em <strong>Modelos</strong> (quem não tinha nenhum modelo caía direto no formulário e nunca via o botão), e o botão que <strong>leva da peça até ela no PJe</strong> deixou de ficar invisível até o mouse passar por cima</td></tr>
             <tr><td><span class="v">0.40.1</span></td><td>13/08/2026</td><td>Nos modelos <strong>Gemini</strong>, a resposta deixou de gastar uma ida e volta perdida antes de começar. O Google retirou da API um ajuste que a extensão enviava (o que afrouxa o filtro de conteúdo — necessário porque autos falam de crime e violência); a extensão já se recuperava sozinha reenviando sem ele, mas <strong>reaprendia isso a cada pergunta</strong>, porque o serviço interno do Chrome que faz os envios é desligado após ~30 s parado. Agora a descoberta vale por <strong>sessão do navegador</strong>. Se o Google voltar a aceitar o ajuste, a extensão volta a usá-lo sozinha</td></tr>
@@ -1397,9 +1449,21 @@
         <p><b>Gratuita, de código aberto e mantida toda semana.</b> Cada uma dessas
         versões custou tempo de desenvolvimento e tokens de API — os recursos são testados
         em processos reais antes de chegar aqui.</p>
-        <p>Se a extensão está sendo útil, apoie os próximos projetos assinando o
-        <b>TecJustiça</b> no Substack, por <b>R$ 10 mensais</b>. A extensão continua
-        inteira e gratuita para todo mundo, com ou sem assinatura.</p>
+        <p>Se a extensão está sendo útil, dá para retribuir de duas formas. A extensão
+        continua inteira e gratuita para todo mundo, com ou sem apoio.</p>
+        <div class="pix">
+          <img class="pix-qr" src="../icons/pix-qr.svg" width="108" height="108"
+               alt="QR Code do PIX para Marcos Antonio Rafael da Fonseca, Nubank">
+          <div class="pix-tx">
+            <p class="pix-t"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.6 2.5h4.8"/><path d="M10.4 2.5v3.6L7.9 9.4a4 4 0 0 0-.8 2.4V20a1.5 1.5 0 0 0 1.5 1.5h6.8a1.5 1.5 0 0 0 1.5-1.5v-8.2a4 4 0 0 0-.8-2.4l-2.5-3.3V2.5"/><path d="M7.1 12.6h9.8"/><path d="M9.6 15.4h4.8"/></svg>Me pague uma Heineken</p>
+            <p class="pix-m">Um apoio de uma vez só, no valor que você achar justo.<br>
+            PIX · Nubank · Marcos Antonio Rafael da Fonseca<br>
+            chave <span class="pix-k">(88) 99365-0420</span></p>
+            <button type="button" class="pix-copy" data-pix="00020101021126360014br.gov.bcb.pix0114+55889936504205204000053039865802BR5921MARCOS A R DA FONSECA6009FORTALEZA62070503***6304D296"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 5H6a2 2 0 0 0-2 2v9"/></svg><span class="lbl">Copiar código PIX</span></button>
+          </div>
+        </div>
+        <p>Ou assine o <b>TecJustiça</b> no Substack, por <b>R$ 10 mensais</b>, e apoie
+        os próximos projetos de forma contínua.</p>
         <a class="assinar" href="https://tecjustica.substack.com/" target="_blank" rel="noopener">Assinar o TecJustiça — R$ 10/mês ↗</a>
       </div>
 
@@ -1407,5 +1471,7 @@
         <a class="link" href="help.html">← Ajuda, modelos e preços</a>
       </p>
     </div>
+    <!-- Só o botão "Copiar código PIX" (CSP da extensão veta script inline). -->
+    <script src="apoio.js"></script>
   </body>
 </html>

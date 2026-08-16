@@ -1182,12 +1182,54 @@
 
   // "Ver na timeline": rola a página do PJe até a peça com destaque temporário
   // (PJE.scrollAte não clica em nada — zero efeito JSF, zero download).
-  panel.onVerNaTimeline((id) => {
-    if (!PJE.scrollAte(id)) {
-      panel.setStatus(
-        'A peça "' + metaDe(id).titulo +
-          '" ainda não está na linha do tempo — use "⟳ Carregar tudo" (abaixo da lista) e tente de novo.'
+  // Reentrada do PRÓPRIO gesto. Não usa `carregandoTimeline` de propósito: essa
+  // flag é a da fila JSF e faria o envio ser recusado com "Lendo a lista oficial
+  // de documentos", frase que aqui seria FALSA — rolar a timeline não fala com o
+  // JSF (é o mesmo gesto que o usuário faria com o dedo, a qualquer hora).
+  let procurandoNaTimeline = false;
+  panel.onVerNaTimeline(async (id) => {
+    if (PJE.scrollAte(id)) return;
+    // A peça está na LISTA e não está na LINHA DO TEMPO — e desde que o
+    // "⟳ Carregar tudo" passou a resolver pela rota REST (v0.38), esse é o caso
+    // COMUM, não a exceção: a rota devolve os documentos todos em uma requisição
+    // e não injeta nó nenhum na timeline. A mensagem antiga mandava clicar
+    // justamente naquele botão, então o usuário repetia o gesto que não muda
+    // nada e voltava ao mesmo aviso — laço sem saída, e a impressão correta de
+    // que "a extensão tem tudo, mas o PJe não".
+    //
+    // Quem popula a timeline é UMA rota só: a rolagem. Então é ela que roda
+    // aqui, e para assim que a peça aparece (`temNaTimeline`) em vez de varrer
+    // os autos inteiros — numa peça do meio, segundos em vez do teto de 90 s.
+    if (procurandoNaTimeline) {
+      panel.setStatus("Já estou procurando na linha do tempo — um instante.");
+      return;
+    }
+    procurandoNaTimeline = true;
+    const nome = metaDe(id).titulo;
+    try {
+      panel.setStatus('Procurando "' + nome + '" na linha do tempo do PJe…');
+      await PJE.carregarTimelineCompleta(
+        (n) => panel.setStatus("Carregando a linha do tempo do PJe… " + n + " peça(s)."),
+        () => PJE.temNaTimeline(id)
       );
+      if (PJE.scrollAte(id)) {
+        panel.setStatus("");
+        return;
+      }
+      // Chegou ao fim da timeline e a peça não está lá. Não é falha de
+      // carregamento: ela veio da lista oficial (REST/grid), que é um
+      // SUPERCONJUNTO da timeline. Dizer isso é melhor que mandar tentar de
+      // novo — o usuário pode abrir a peça pelo preview, que não depende do DOM
+      // da timeline.
+      panel.setStatus(
+        'A peça "' + nome + '" está na lista oficial do processo, mas o PJe não a ' +
+          "mostra na linha do tempo desta tela. Passe o mouse sobre ela na lista para ver o conteúdo."
+      );
+    } catch (e) {
+      console.warn("[PJe IA] ver na timeline:", e);
+      panel.setStatus("Não foi possível percorrer a linha do tempo: " + ((e && e.message) || e));
+    } finally {
+      procurandoNaTimeline = false;
     }
   });
 

@@ -83,6 +83,15 @@ Dados (Lei nº 13.709/2018) e eventuais sigilos, na condição de usuário/contr
 tratamento que iniciar. A extensão exibe avisos sobre isso na configuração e na página
 de ajuda.
 
+Em processo **sob segredo de justiça**, o art. 19, §3º, IV da Resolução CNJ 615/2025 veda
+usar solução de IA privada ou externa — como esta — **salvo** anonimização na origem. O
+caminho para isso é anonimizar o documento antes de enviá-lo, com uma ferramenta que rode
+na sua máquina; a extensão indica o
+[TecJustiça Sigilo](https://github.com/marcosmarf27/tecjustica-sigilo), programa separado
+e gratuito, e aceita o arquivo anonimizado pelo clipe de anexo. Ele é **de terceiros em
+relação a este documento**: não é parte da extensão, não recebe dado nenhum dela e tem a
+própria licença e o próprio funcionamento — a política aqui descrita não o alcança.
+
 ## 5. Armazenamento, segurança e retenção
 
 - Todos os dados persistentes (chaves e preferências) ficam no `chrome.storage.local`

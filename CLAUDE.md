@@ -1120,7 +1120,10 @@ o que não sabe que existe. **Sete dos treze passos são sobre marcar peças**, 
   `busy`); a rolagem programática dispara o evento scroll nativo que o lazy
   load escuta. Feedback pela própria dica (`panel.setTimelineTip({texto,
   carregando})`); reentrada bloqueada em content.js (`carregandoTimeline`).
-  A mensagem de falha do "ver na timeline" aponta para este botão.
+  **O "ver na timeline" NÃO aponta mais para este botão** — e essa nota, que
+  dizia o contrário, é o registro de uma regressão SEMÂNTICA: ela estava certa
+  quando o ⟳ ERA a rota por scroll, e virou falsa quando a rota REST entrou na
+  frente (v0.38). Ver "Lista completa ≠ linha do tempo carregada", abaixo.
 - **Busca na lista de peças** (`.docsearch`/`filtrarDocs`): filtra por título **e pelo
   tipo oficial** sem acentos (`row.dataset.busca = textoBusca(d)`), só esconde/mostra
   linhas (`row.hidden` — depende da regra global `[hidden]{display:none !important}` do
@@ -1988,6 +1991,153 @@ em `content.js`.
   trocar a CHAVE da API no meio da conversa deixa um `file_id` de outra conta e o turno
   seguinte leva 400. "Nova conversa" resolve. Se for tratar: os bytes do anexo estão
   sempre em memória, basta re-subir e reescrever o `file_id` no bloco — sem download.
+
+## Anonimização na origem — o ponteiro para o TecJustiça Sigilo
+
+O `help.html` já ENUNCIAVA o art. 19, §3º, IV da Res. CNJ 615 (vedado usar IA privada ou
+externa em documento sigiloso, **salvo anonimização na origem**) e terminava em "a decisão
+sobre o que marcar é sua" — um dever sem caminho. O caminho é o
+[TecJustiça Sigilo](https://github.com/marcosmarf27/tecjustica-sigilo): programa Electron
+separado, 100% local, que mascara PII e grava um `.txt`; o `.txt` volta pelo 📎, que já o
+aceita e já sabe conversar **sem peça marcada** (`soAnexosNoContexto`).
+
+**Nenhuma linha do caminho de dados mudou** — a rodada inteira é DESCOBERTA, em três
+camadas: `.hint-sigilo` no estado vazio do painel, cartão na página de opções + linha na
+`.privacy` das duas telas de config, e a seção `#sigilo` do guia. Regras:
+
+- **O clique leva ao GUIA, nunca direto ao GitHub.** O instalador tem ~660 MB, só roda em
+  Windows x64 e baixa mais ~1,7 GB de modelo na primeira execução. Quem descobre isso
+  depois do download descobriu tarde — é o mesmo erro do `.gwarn`, que existe para avisar
+  ANTES do gesto caro. O botão de baixar mora no fim do card que explica os requisitos.
+- **O painel só aponta**; o que envelhece (tamanho, formatos, entidades detectadas,
+  precisão) mora no `help.html`, como a tabela de modelos e preços.
+- **O ponto de descoberta é o ESTADO VAZIO**, não a `.toolbar` (vive no limite em 484px)
+  nem a `.docs-tip` (escopo "lista inteira"), e nunca a `.inrow` — faixa que muda de
+  altura numa linha com botões é o bug do 📎 que "só abria na terceira vez". Ele some com
+  a primeira mensagem, como o resto do bloco: nada pode entrar entre a pergunta e a
+  resposta.
+- **`.hint-tour` e `.hint-sigilo` dividem a regra de CSS** (irmãs, como
+  `.tip-load, .tip-zip, .tip-ia`) e vivem numa **fileira** `.hint-acoes` com `wrap` — duas
+  pílulas de mesmo desenho empilhadas leem-se como menu. Medido: 473px em fileira única
+  nos modos largos; em 420px quebra em duas, centrada e sem vazamento. A margem que separa
+  do `<details>` vive no wrapper, não no botão — no botão ela empurraria só a primeira
+  linha quando a fileira quebrasse.
+- **O selo `.hs-sel` usa `--ok-*`, não `--accent-bg-2` do `.ht-dur`**: o do tour responde
+  "quanto isto me custa?" (1 min); este responde à objeção que nasce junto com a ideia
+  ("o documento vai para outro servidor?"), e "não" é confirmação, não custo.
+- **A ressalva de precisão não é rodapé.** ~91% em texto jurídico é bom para uma primeira
+  passada e insuficiente para confiar de olhos fechados; o que escapa vai INTEIRO para a
+  API. Anonimizador que se anuncia infalível é pior que nenhum, porque produz confiança
+  onde deveria produzir revisão.
+- Dito no guia, porque muda o trabalho: **um `.txt` é citado por TRECHO, não por folha**
+  (o bloco vai como `document` com `source.type:"text"` e `citations:{enabled:true}` —
+  `char_location`, sem página).
+- **BUG PRÉ-EXISTENTE corrigido de carona**: `.ic-in` (ui.css) fixa `color: var(--pje)`
+  porque nasceu para viver DENTRO DE UMA FRASE (DESIGN.md §5). Dentro do `.num` — círculo
+  cujo fundo é esse mesmo `--pje` — o ícone ficava **azul sobre azul**, invisível e sem
+  erro nenhum, em CINCO cards publicados; passava por "marcador redondo". A regra
+  `.card .num .ic-in { color: inherit; margin-right: 0 }` conserta os cinco. Só uma
+  captura de pixel mostra esse tipo de falha — `getComputedStyle` reporta tudo vivo e
+  correto, como no `box-shadow` da caixa 0×0 do tour.
+
+## Lista completa ≠ linha do tempo carregada (o laço do "ver na timeline")
+
+**São dois DOMs, e só uma das três rotas do ⟳ mexe no segundo.** A lista do painel
+vem de `listarDocumentos()` + `aplicarListaOficial`; a linha do tempo é o
+`#divTimeLine` da PÁGINA. `listarPelaApi` (rota 1, REST) e `listarPelaGrid`
+(rota 2, iframe) preenchem a LISTA sem injetar um nó sequer na timeline — só
+`carregarTimelineCompleta` (rota 3, scroll) o faz, e desde a v0.38 ela é o
+FALLBACK: no caminho normal ela nunca roda.
+
+Consequência sentida pelo usuário e relatada como bug: `scrollAte`/`acharLink`
+procuram em `#divTimeLine a`, então o "ver na timeline" funcionava nas peças do
+trecho já rolado e falhava no resto — *"para alguns aparece, outros não"*. E a
+mensagem de falha mandava usar o **⟳ Carregar tudo**, que resolve pela REST e
+deixa a timeline exatamente como estava: o usuário clicava, nada mudava, e voltava
+ao mesmo aviso. Laço sem saída, com a impressão — correta — de que *"na extensão
+tem tudo, no PJe não"*.
+
+- **A correção é o handler fazer o trabalho, não instruir o usuário a repeti-lo**:
+  falhou o `scrollAte`, roda `carregarTimelineCompleta` e tenta de novo.
+- **`pararQuando` (2º parâmetro, opcional) encerra a rolagem assim que a peça
+  aparece.** Este gesto não quer a lista inteira, quer UMA peça; numa peça do meio
+  são segundos contra o teto de 90 s. Sem o parâmetro o comportamento é byte a
+  byte o de antes, e o campo `achou` **não** aparece no retorno de quem não
+  perguntou. Ao parar cedo, a rolagem NÃO é restaurada — quem pediu vai rolar até
+  o alvo em seguida, e restaurar produziria dois saltos na tela.
+- **`PJE.temNaTimeline(id)` é público por isso**: "está na timeline?" é pergunta
+  diferente de "está na lista?", e confundi-las é a origem do defeito. Mesmo eixo
+  do par `precisaBaixar`/`temBytes`.
+- **A flag de reentrada é PRÓPRIA (`procurandoNaTimeline`), nunca
+  `carregandoTimeline`**: esta última é a da fila JSF e faria o envio ser recusado
+  com "Lendo a lista oficial de documentos" — frase falsa aqui, porque rolar não
+  fala com o JSF (é o gesto que o usuário faria com o dedo).
+- **Quando a peça não está mesmo na timeline, a mensagem diz a VERDADE** (a lista
+  oficial é superconjunto da timeline) e oferece o preview, que não depende
+  daquele DOM. Mandar "tentar de novo" seria repetir o laço.
+- **O MESMO defeito atinge `ativarPeca`** (ela também depende de `acharLink`), e
+  ali o efeito é falha de DOWNLOAD em peça que só a lista oficial conhece — hoje
+  tratada como falha tolerada. Se for corrigir, é a mesma técnica; é caminho
+  crítico, então com teste próprio.
+- Coberto por dois testes: `carregarTimelineCompleta` com lazy load simulado em
+  jsdom (parada antecipada, retrocompatibilidade, peça inexistente) e o handler
+  real do content.js por monkeypatch no `mount`.
+
+## Apoio por PIX (`apoio.js` + `icons/pix-qr.svg` + a caixa `.apoio`)
+
+Irmão do botão de assinatura do Substack, não substituto: a assinatura é recorrente
+e sustenta os próximos projetos; o PIX é o gesto de quem quer retribuir UMA vez pelo
+que já usou. Vive nos MESMOS três lugares da `.apoio` (ajuda, novidades, opções) e
+como **uma linha** no guia recolhido do painel — a regra de nunca pedir apoio no
+fluxo de trabalho não afrouxa por ser um valor menor.
+
+- **O POPUP é a exceção, e ela foi paga com um relato.** Ele ficou de fora na
+  primeira versão ("600px de altura são para configurar a chave") e o resultado
+  foi que **nem o autor do projeto achou o recurso**: o popup é a única tela que o
+  usuário abre por vontade própria e que não é fluxo de trabalho, e ali o apoio
+  era UM link de texto entre sete no rodapé. Medido: a caixa estava a 87% da
+  página de opções, 96% do guia, 98% das novidades — e ausente justamente onde se
+  procura. Hoje há a faixa `.apoiar` (versão de uma linha, QR em `<details>`
+  recolhido), e ela **nasce `hidden`**: o `popup.js` só a revela quando há chave
+  salva, espelhando o `#firstRun`, que aparece só enquanto NÃO há. Pedir apoio a
+  quem ainda está configurando é pedir antes de ter entregado qualquer coisa.
+- **O que continua intocado é o PAINEL** — lá se trabalha, e lá o apoio é uma
+  linha dentro do guia recolhido. Teste cobre: nenhum QR e nenhum payload em
+  `panel.js`.
+
+- **O QR é um arquivo ESTÁTICO** (`icons/pix-qr.svg`, ~2,9 KB, `<path>` único), não
+  um gerador em runtime. O payload é fixo (chave, sem valor), então gerar no cliente
+  seria vendorizar uma biblioteca de QR para produzir sempre a mesma imagem — mesmo
+  argumento que manteve o JSZip fora do projeto. Fica em `icons/` porque é imagem, e
+  `icons/` já entra no pacote.
+- **O payload é BR Code (EMV MPM) e o CRC16 é obrigatório.** Chave de **telefone vai
+  em E.164** (`+5588993650420`): com 11 dígitos crus o app do banco a lê como CPF e
+  procura outro titular. Campo 59 tem teto de 25 caracteres (o nome completo não
+  cabe) e o 60, de 15. Sem campo 54 — quem apoia escolhe quanto.
+- **O que se copia é o payload INTEIRO, não a chave**: é o "PIX Copia e Cola", que
+  cola direto em qualquer banco. A chave crua continua VISÍVEL ao lado, e o QR ao
+  lado dela: três caminhos independentes (ler de outro aparelho, colar, digitar), e
+  nenhum exige o outro.
+- **O payload aparece em QUATRO lugares** (três `data-pix` + o QR). Um typo ali não
+  dá erro em lugar nenhum — gera um QR que o banco recusa, ou pior, uma chave de
+  outra pessoa. O teste **recalcula o payload do zero**, confere as três cópias,
+  revalida o CRC de cada uma, confirma que `icons/pix-qr.svg` é byte a byte o QR
+  desse payload e o **decodifica com jsQR** (leitor independente — escritor
+  conferido pelo próprio escritor não prova nada, como o `zipfile` sobre o `ZipW`).
+- **`apoio.js` é arquivo, não `<script>` inline**: a CSP da extensão é
+  `script-src 'self'` e o inline não executaria — em silêncio. Ele sai na primeira
+  linha se não houver `[data-pix]` na página.
+- **Falha de cópia é DITA.** Clipboard API → `execCommand` → e, se as duas falharem,
+  o rótulo manda usar o QR (que está na tela) e o código vai para o `title`. Um botão
+  mudo faz o usuário colar um clipboard vazio no aplicativo do banco. O rótulo troca
+  no `<span class="lbl">`, nunca no botão — `textContent` apagaria o `<svg>`.
+- **Marca de terceiro: o nome no texto, nunca o logo.** "Heineken" escrito é uso
+  nominativo; reproduzir o wordmark ou a estrela numa extensão publicada na Web
+  Store é uso não autorizado. O ícone é uma garrafa de desenho próprio.
+- **`empacotar.ps1` copia `src/` INTEIRA e sem filtro** — descoberto nesta rodada ao
+  criar um `.local.html` ali para o QR relativo resolver. `*.local.html` é ignorado
+  pelo git, então o arquivo não aparece em `git status` e **iria calado para o ZIP da
+  Store**. Laboratório fica no scratchpad ou na raiz, nunca em `src/`.
 
 ## Peça citada como faltante vira um clique (`pecasCitadasFaltantes` + `panel.sugerirPecas`)
 

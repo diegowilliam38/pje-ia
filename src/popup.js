@@ -65,6 +65,15 @@ const kstateA = document.getElementById("kstateA");
 const kstateG = document.getElementById("kstateG");
 const kstateO = document.getElementById("kstateO");
 const firstRun = document.getElementById("firstRun");
+// Só existe no popup (a página de opções tem a caixa `.apoio` completa, sempre
+// visível): como todo elemento exclusivo de uma das duas telas, é opcional.
+const apoiarBox = document.getElementById("apoiarBox");
+// O espelho do #firstRun: os passos aparecem SÓ enquanto não há chave salva, e o
+// pedido de apoio SÓ depois que há. Quem ainda está configurando não usou a
+// ferramenta — pedir antes de entregar valor é o pior momento possível.
+function mostrarApoio(temChave) {
+  if (apoiarBox) apoiarBox.hidden = !temChave;
+}
 const abrirOpcoes = document.getElementById("abrirOpcoes");
 // Layout "provedor em primeiro plano"
 const provCount = document.getElementById("provCount");
@@ -225,6 +234,7 @@ chrome.storage.local.get(
     // O critério é o que está SALVO (não o que está sendo digitado) — sumir no
     // meio da digitação seria um salto de layout no meio da tarefa.
     if (firstRun && (v.apiKey || v.geminiApiKey || v.openaiApiKey)) firstRun.hidden = true;
+    mostrarApoio(!!(v.apiKey || v.geminiApiKey || v.openaiApiKey));
   }
 );
 
@@ -386,6 +396,7 @@ saveBtn.addEventListener("click", () => {
     limparPendente();
     // salvou a primeira chave: os passos de primeiro uso cumpriram seu papel
     if (firstRun && (apiKey || geminiApiKey || openaiApiKey)) firstRun.hidden = true;
+    mostrarApoio(!!(apiKey || geminiApiKey || openaiApiKey));
     const temChaveDoModelo = temChaveDigitada(campoDoProvedor(provedorDoModelo()));
     saveStatus.textContent = temChaveDoModelo
       ? "Configuração salva ✓"

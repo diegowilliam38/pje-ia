@@ -318,9 +318,56 @@ button > svg { flex: none; }
   max-width: 96vw;
   max-height: 96vh;
 }
-.wrap.livre .hd { cursor: move; touch-action: none; }
+/* `position: relative` é o que ancora a pega (::before) no CABEÇALHO. Sem ele o
+   pseudo-elemento se resolveria contra o `.panel` e só funcionaria por
+   coincidência — o cabeçalho é o primeiro filho, então hoje cairia no lugar
+   certo e sairia dele no dia em que algo entrasse antes. */
+.wrap.livre .hd { cursor: move; touch-action: none; position: relative; }
 .wrap.livre .hd button { cursor: pointer; }
 .wrap.livre .docs { max-height: 32vh; }
+
+/* AS DUAS AFFORDANCES DO MODO LIVRE.
+   O `cursor: move` acima já existia e não basta: ele só se revela DEPOIS que o
+   ponteiro entra no cabeçalho, isto é, para quem já desconfiava. Quem não sabe
+   que a janela sai do lugar não passa o mouse ali para descobrir — é a mesma
+   falha do `.d-ver` invisível até o hover e das três affordances do "ocultar
+   peças". Nenhum dos dois desenhos custa espaço de layout: são pseudo-elementos
+   sobre o que já existe. */
+
+/* (1) PEGA no topo, a convenção de "arraste por aqui" (gaveta/bottom sheet).
+   Fica sobre o cabeçalho, centralizada, em branco translúcido. `pointer-events:
+   none` porque quem trata o arrasto é o `.hd` inteiro — a pega só ANUNCIA. */
+.wrap.livre .hd::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  width: 34px;
+  height: 3px;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.3);
+  pointer-events: none;
+}
+/* (2) ALÇA de redimensionar no canto. O `resize: both` do navegador desenha um
+   triangulozinho cinza que some sobre o branco do painel; estas duas diagonais
+   são o sinal clássico e ficam visíveis. Também `pointer-events: none`: o alvo
+   de arraste continua sendo a alça NATIVA, que fica exatamente aqui — desenhar
+   por cima dela sem liberar o ponteiro mataria o redimensionamento. */
+.wrap.livre .panel::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 13px;
+  height: 13px;
+  pointer-events: none;
+  background-image:
+    linear-gradient(135deg, transparent 44%, var(--muted-3) 44%, var(--muted-3) 56%, transparent 56%),
+    linear-gradient(135deg, transparent 69%, var(--muted-3) 69%, var(--muted-3) 81%, transparent 81%);
+}
+/* Quem pediu menos movimento não pediu menos INFORMAÇÃO: os dois sinais são
+   estáticos, então nada a suprimir aqui. */
 /* Janela livre LARGA (classe .livre-wide posta pelo JS acima do limiar de
    740px de largura DO PAINEL — media query mede a viewport, não o painel):
    a lista de peças vira coluna lateral, como no expandido. Estas regras vêm
@@ -3050,20 +3097,43 @@ button > svg { flex: none; }
    ESPAÇO (a margem abaixo), PESO (--fs-ui e 600 contra --fs-micro e o cinza do
    summary) e o SELO de duração, que responde "quanto tempo isto me custa?" —
    a pergunta que decide se alguém aceita um tour. */
-.hint-tour {
+/* FILEIRA das pílulas de descoberta (tour e anonimização), não pilha: dois
+   botões de desenho idêntico empilhados leem-se como lista de menu — a mesma
+   confusão que a nota acima descreve entre o tour e o <details>. A margem que
+   separa do acordeão vive AQUI e não nos botões: no botão ela empurraria só a
+   primeira linha quando a fileira quebrasse em duas no painel estreito. */
+.hint-acoes {
+  display: flex; flex-wrap: wrap; justify-content: center;
+  gap: var(--sp-2); margin-bottom: var(--sp-4);
+}
+/* As duas são IRMÃS e dividem a regra de propósito — mesmo motivo de
+   `.tip-load, .tip-zip, .tip-ia` na faixa da lista: regras separadas para o
+   mesmo componente divergem com o tempo. O que as distingue é o ícone, o
+   rótulo e a natureza do selo. */
+.hint-tour, .hint-sigilo {
   display: inline-flex; align-items: center; gap: var(--sp-2);
   border: 1px solid var(--pje-soft); background: var(--surface);
   border-radius: var(--r-pill); padding: 7px var(--sp-4) 7px var(--sp-3b);
-  cursor: pointer; margin-bottom: var(--sp-4);
+  cursor: pointer;
   font-family: inherit; font-size: var(--fs-ui); font-weight: 600;
   color: var(--pje-2); transition: 140ms ease;
 }
-.hint-tour:hover { background: var(--hover-2); border-color: var(--pje); }
-.hint-tour svg { color: var(--pje); }
+.hint-tour:hover, .hint-sigilo:hover { background: var(--hover-2); border-color: var(--pje); }
+.hint-tour svg, .hint-sigilo svg { color: var(--pje); flex: none; }
 /* Duração como PÍLULA, não como parêntese no rótulo: o texto do botão é a ação
    ("Ver como funciona") e precisa continuar sendo o que se lê primeiro. */
 .ht-dur {
   font-size: var(--fs-nano); font-weight: 600; letter-spacing: 0.02em;
   color: var(--pje); background: var(--accent-bg-2);
+  border-radius: var(--r-pill); padding: 2px var(--sp-2);
+}
+/* Mesmo formato do `.ht-dur`, outra NATUREZA de informação — e por isso outra
+   cor. O selo do tour responde "quanto isto me custa?" (1 min); este responde à
+   objeção que nasce junto com a ideia de anonimizar num programa de fora: "o
+   documento vai parar em outro servidor?". A resposta é não, e "não" é
+   confirmação, não custo — daí o trio `--ok-*` (DESIGN.md §2). */
+.hs-sel {
+  font-size: var(--fs-nano); font-weight: 600; letter-spacing: 0.02em;
+  color: var(--ok-ink); background: var(--ok-bg);
   border-radius: var(--r-pill); padding: 2px var(--sp-2);
 }

@@ -255,10 +255,25 @@ var PjePanel = (function () {
     copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 5H6a2 2 0 0 0-2 2v9"/>',
     fold: '<path d="M13 7l-5 5 5 5"/><path d="M19 7l-5 5 5 5"/>',
     // modos de layout — o retângulo é o painel; a divisória diz onde ele encosta
-    side: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M14 5v14"/>',
+    // Painel lateral: DOIS blocos separados — a página do tribunal, larga, e o
+    // painel encostado na borda. Era um retângulo com uma divisória interna,
+    // quase idêntico ao de ocultar peças (`docshide`), e o DESIGN.md já
+    // registrava que os dois se confundiam. Separar os blocos resolve por
+    // silhueta, que é o que o olho lê a 15px.
+    side: '<rect x="2.5" y="4.5" width="11.5" height="15" rx="2"/><rect x="16.5" y="4.5" width="5" height="15" rx="1.5"/>',
     sideL: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 5v14"/>',
-    split: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/>',
-    expand: '<path d="M8 8L4 12l4 4"/><path d="M16 8l4 4-4 4"/><path d="M4 12h16"/>',
+    // Janela livre (a que se arrasta e redimensiona): DUAS janelas sobrepostas,
+    // a convenção universal de "janela solta/restaurar". O desenho antigo era
+    // uma janela única com barra de título — correto e mudo: descrevia um
+    // painel qualquer, e nada nele dizia que aquele sai do lugar.
+    split:
+      '<rect x="2.5" y="7.5" width="13" height="12" rx="2"/>' +
+      '<path d="M7.5 7.5V5.5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/>',
+    // Painel largo (modal central com a lista em coluna). ERA um par de setas
+    // "↔", que lê como REDIMENSIONAR largura — não como "abrir grande com a
+    // lista ao lado". O desenho novo mostra o que o modo entrega: uma coluna à
+    // esquerda e o texto à direita.
+    expand: '<rect x="2.5" y="4.5" width="19" height="15" rx="2"/><path d="M9 4.5v15"/><path d="M12 9h6M12 12h6"/>',
     fs: '<path d="M14 4h6v6"/><path d="M10 20H4v-6"/><path d="M20 4l-7 7"/><path d="M4 20l7-7"/>',
     fsOff: '<path d="M9 4H4v5"/><path d="M15 20h5v-5"/><path d="M4 4l6 6"/><path d="M20 20l-6-6"/>',
     // a lista recolhe/expande: o chevron DENTRO do retângulo dá o sentido da
@@ -290,6 +305,13 @@ var PjePanel = (function () {
     malote: '<path d="M3 8h18v12H3z"/><path d="M3 8l9 6 9-6"/><path d="M9 8V5a3 3 0 0 1 6 0v3"/>',
     // caret para baixo — abre o menu do split button de download
     caret: '<path d="M6 9l6 6 6-6"/>',
+    // escudo com check — anonimização antes do envio (TecJustiça Sigilo). Escudo
+    // e não cadeado: cadeado já é o ícone de "a chave fica neste navegador" no
+    // popup, e são garantias diferentes (uma guarda o segredo, a outra protege
+    // o documento antes de ele sair).
+    escudo:
+      '<path d="M12 3l7.5 3v5.6c0 4.5-3.2 8-7.5 8.9-4.3-.9-7.5-4.4-7.5-8.9V6z"/>' +
+      '<path d="M9 12.2l2.1 2.1 4-4.2"/>',
   };
   // px = lado do ícone; w = stroke-width (a escala do DESIGN.md §5).
   function ic(paths, px, w) {
@@ -360,6 +382,7 @@ var PjePanel = (function () {
     malote: ic(P.malote, 14, 1.9),
     caret: ic(P.caret, 11, 2.2),
     play: '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5l10 7-10 7z"/></svg>',
+    escudo: ic(P.escudo, 14, 1.8),
   };
 
   // Título curto da peça (sem o prefixo numérico do id) para chips e menções.
@@ -1258,6 +1281,17 @@ var PjePanel = (function () {
     // para desenhar o convite); `tourInst` é preenchido lá embaixo, e o handler
     // do clique só o lê quando o usuário clica, quando já existe.
     const temTour = typeof PjeTour !== "undefined";
+    // Declarado AQUI, junto do `temTour`, e não lá embaixo com os outros
+    // helpers: `showEmptyHint()` roda poucas linhas adiante e lê os dois. Um
+    // `const` depois dela lançaria "Cannot access before initialization" dentro
+    // do `setDocs`, derrubando o resto do content script em silêncio (a zona
+    // morta temporal descrita no CLAUDE.md).
+    let urlApoio = "";
+    try {
+      urlApoio = chrome.runtime.getURL("src/help.html") + "#apoiar";
+    } catch {
+      /* fora da extensão (harness de teste) — a frase sai sem o link */
+    }
     let tourInst = null;
     function abrirTour() {
       if (tourInst) tourInst.iniciar();
@@ -1295,11 +1329,32 @@ var PjePanel = (function () {
         // pelo mesmo motivo do resto do bloco: descoberta é assunto de quem
         // ainda não começou, e nada disso pode aparecer entre a pergunta e a
         // resposta.
+        // As duas pílulas de descoberta vivem numa FILEIRA (wrap), não empilhadas:
+        // dois botões de mesmo desenho um sob o outro leem-se como lista de menu,
+        // que é a confusão que a nota do .hint-tour descreve. A margem que separa
+        // do <details> migrou para o wrapper — no botão ela empurraria só a
+        // primeira linha quando a fileira quebrasse no painel estreito.
+        '<div class="hint-acoes">' +
         (temTour
           ? '<button type="button" class="hint-tour" title="Visita guiada pelos recursos do painel — cerca de um minuto, sem alterar nada no seu processo">' +
             SVG.play +
             'Ver como funciona<span class="ht-dur">1 min</span></button>'
           : "") +
+        // Anonimização na origem (art. 19, §3º, IV da Res. CNJ 615): a extensão
+        // manda as peças marcadas direto à API de um provedor privado, e o
+        // guia já ENUNCIA esse dever sem oferecer caminho nenhum. O caminho é o
+        // TecJustiça Sigilo — programa separado, 100% local — e o arquivo que
+        // ele produz volta pelo 📎, que já aceita .txt e já sabe conversar sem
+        // peça marcada (`soAnexosNoContexto`). Nada muda no caminho de dados:
+        // o que faltava era DESCOBERTA.
+        //
+        // O clique abre o guia, não o GitHub: o instalador é de ~660 MB, só
+        // Windows x64, e baixa mais 1,7 GB de modelo na primeira execução —
+        // avisar depois do download é avisar depois do estrago.
+        '<button type="button" class="hint-sigilo" title="Processo em segredo de justiça? O TecJustiça Sigilo mascara nomes, CPF, endereços e números de processo no seu próprio computador; o arquivo anonimizado entra aqui pelo clipe de anexo. Programa gratuito e separado — abre o guia">' +
+        SVG.escudo +
+        'Anonimizar dados sigilosos<span class="hs-sel">no seu PC</span></button>' +
+        "</div>" +
         '<details class="guia"' +
         (guiaAberta ? " open" : "") +
         // O summary nomeia a VELOCIDADE de propósito: o parágrafo sobre rede é
@@ -1349,8 +1404,18 @@ var PjePanel = (function () {
         // na ajuda, nas novidades e na configuração.
         "<p><b>Gratuita e de código aberto.</b> Se estiver sendo útil, você pode apoiar " +
         'os próximos projetos assinando o <a href="https://tecjustica.substack.com/" ' +
-        'target="_blank" rel="noopener">TecJustiça</a> — R$ 10 por mês. Nenhum recurso ' +
-        "daqui é pago.</p>" +
+        'target="_blank" rel="noopener">TecJustiça</a> — R$ 10 por mês' +
+        // O PIX é uma LINHA aqui, e o QR mora nas telas satélites: este
+        // parágrafo já é o limite do que se pode pedir dentro da ferramenta de
+        // trabalho (ver a regra da `.apoio` em ui.css). Sem a URL — harness de
+        // teste, contexto invalidado — a frase degrada para texto sem link, e
+        // nada quebra.
+        (urlApoio
+          ? ' — ou <a href="' +
+            escapeHtml(urlApoio) +
+            '" target="_blank" rel="noopener">uma Heineken por PIX</a>, de uma vez só'
+          : "") +
+        ". Nenhum recurso daqui é pago.</p>" +
         "</details>" +
         '<button type="button" class="hint-help">Guia completo, modelos e preços →</button>';
       // exemplos: PREENCHEM o campo (não enviam — sem peça marcada o envio
@@ -1376,6 +1441,8 @@ var PjePanel = (function () {
       // `abrirTour` lê `tourInst` NO CLIQUE — quando este handler é registrado a
       // instância ainda não existe (ver a nota da zona morta temporal acima).
       if (btnTour) btnTour.addEventListener("click", abrirTour);
+      const btnSig = hintEl.querySelector(".hint-sigilo");
+      if (btnSig) btnSig.addEventListener("click", () => abrirAjuda("sigilo"));
       hintEl.querySelector(".hint-help").addEventListener("click", () => abrirAjuda(""));
       msgs.appendChild(hintEl);
       ft.classList.add("novato"); // atalhos de teclado visíveis para quem chega agora

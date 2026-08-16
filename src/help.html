@@ -21,6 +21,13 @@
         background: var(--pje); color: #fff; font-weight: 600;
         display: flex; align-items: center; justify-content: center;
       }
+      /* O `.ic-in` do ui.css nasceu para viver DENTRO DE UMA FRASE (DESIGN.md §5)
+         e por isso fixa `color: var(--pje)`. Dentro do `.num` — círculo cujo fundo
+         é esse mesmo `--pje` — o ícone ficava azul sobre azul: invisível, sem erro
+         nenhum, e passando por "marcador redondo" em CINCO cards já publicados.
+         Aqui ele HERDA o branco que o `.num` já declara, e perde a margem lateral
+         de 5px, que o descentralizava no círculo. */
+      .card .num .ic-in { color: inherit; margin-right: 0; }
       .card h2 { font-family: var(--ff-serif); font-size: var(--fs-lead); margin: 0; color: var(--ink); }
       .card p { margin: 8px 0; font-size: var(--fs-lg); }
       .card ul { margin: 8px 0 0; padding-left: 20px; font-size: var(--fs-lg); }
@@ -254,7 +261,7 @@
       <div class="card" id="anexos">
         <div class="head"><div class="num"><svg class="ic-in" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11l-8.5 8.5a4 4 0 0 1-5.7-5.7l8.5-8.5a2.5 2.5 0 0 1 3.5 3.5l-8 8a1 1 0 0 1-1.4-1.4l7.3-7.3"/></svg></div><h2>Nem tudo que interessa está nos autos</h2></div>
         <p>
-          O <strong>clipe 📎</strong>, ao lado do campo de mensagem, anexa arquivos
+          O <strong><svg class="ic-in" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11l-8.5 8.5a4 4 0 0 1-5.7-5.7l8.5-8.5a2.5 2.5 0 0 1 3.5 3.5l-8 8a1 1 0 0 1-1.4-1.4l7.3-7.3"/></svg>clipe</strong>, ao lado do campo de mensagem, anexa arquivos
           <strong>seus</strong> à conversa: <strong>PDF, Word (.docx), RTF, TXT e
           Markdown</strong>. Serve para o parecer que chegou por e-mail, a minuta do colega,
           o contrato que a parte mandou fora do processo — e você pode usá-lo
@@ -267,11 +274,123 @@
           si não sai daqui.
         </p>
         <p>
+        <p>
+          É também por aqui que entra o <strong>documento anonimizado</strong> de um processo em
+          segredo de justiça — o caminho inteiro está em
+          <a class="link" href="#sigilo">Segredo de justiça: anonimizar antes de enviar</a>.
+        </p>
+        <p>
           Os anexos valem <strong>para aquela conversa</strong>: eles
           <strong>não ficam gravados no computador</strong>, o ✕ do chip solta um deles,
           “Nova conversa” solta todos, e uma conversa retomada de outro dia volta sem eles
           (com um aviso na tela). É diferente das peças do processo, que a extensão pode
           buscar de novo no tribunal — um arquivo seu, não.
+        </p>
+      </div>
+
+      <h1 class="serif" id="sigilo">Segredo de justiça: anonimizar antes de enviar</h1>
+      <p class="lead">
+        A extensão manda as peças que você marcar <strong>direto para a API de um provedor
+        privado</strong> (Anthropic, Google ou OpenAI). Em processo sigiloso, a norma do CNJ
+        não deixa isso ao critério de cada um — e a saída que ela própria aponta é
+        <strong>anonimizar na origem</strong>. É para isso que existe o
+        <strong>TecJustiça Sigilo</strong>, um programa separado, gratuito e que roda
+        <strong>no seu computador</strong>.
+      </p>
+
+      <div class="card">
+        <div class="head"><div class="num"><svg class="ic-in" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7.5 3v5.6c0 4.5-3.2 8-7.5 8.9-4.3-.9-7.5-4.4-7.5-8.9V6z"/><path d="M9 12.2l2.1 2.1 4-4.2"/></svg></div><h2>Por que isto não é só uma boa prática</h2></div>
+        <p>
+          O <strong>art. 19, §3º, IV</strong> da Resolução CNJ 615/2025 <strong>veda</strong>
+          usar solução de IA privada ou externa para processar documentos sigilosos ou em
+          segredo de justiça — <em>salvo</em> quando há <strong>anonimização na origem</strong>
+          ou mecanismos técnicos e procedimentais que garantam a proteção dos dados.
+        </p>
+        <p>
+          Esta extensão é solução privada e externa: ela usa a <em>sua</em> chave de uma API
+          comercial. Então, num processo em segredo de justiça, marcar as peças e enviar não é
+          "arriscado": é o que a regra proíbe. Anonimizar o documento antes de ele sair do seu
+          computador é o que reabre o caminho. O quadro completo da resolução está em
+          <a class="link" href="#resolucao615">A Resolução CNJ 615/2025 e por que a extensão
+          pede a tese</a>.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="head"><div class="num">1</div><h2>O que o TecJustiça Sigilo faz</h2></div>
+        <p>
+          Você arrasta o arquivo para dentro dele e ele <strong>mascara os dados pessoais</strong>
+          antes que qualquer coisa saia da máquina: <strong>nomes</strong>, CPF, CNPJ, RG,
+          PIS/PASEP, <strong>número do processo</strong>, OAB, telefone, e-mail, endereço, CEP,
+          cidade, data de nascimento e conta bancária. Os documentos (CPF, CNPJ, processo) são
+          conferidos pelo <strong>dígito verificador</strong>, e os nomes são reconhecidos por um
+          modelo treinado em <strong>jurisprudência brasileira</strong> — é o que evita o
+          festival de falsos positivos das ferramentas genéricas.
+        </p>
+        <p>
+          Você escolhe <strong>como</strong> mascarar: marcador (<code>[PESSOA_1]</code>,
+          <code>[CPF_1]</code>, que preserva quem é quem no texto), máscara parcial
+          (<code>J**** d* S****</code>) ou cobertura total. Antes de salvar, uma
+          <strong>tela de revisão</strong> mostra cada trecho tarjado, com o grau de confiança;
+          o cursor sobre a tarja revela o valor original, e um botão marca o que
+          <strong>não</strong> é dado pessoal.
+        </p>
+        <p>
+          Ele lê <strong>PDF, Word, Excel, PowerPoint, imagens, TXT, Markdown e RTF</strong>, e
+          grava um <strong>.txt anonimizado ao lado do original</strong>. Roda
+          <strong>100% local</strong>: nenhuma parte do documento vai para servidor nenhum — nem
+          para o nosso, que não existe. Código aberto, licença MIT, gratuito.
+        </p>
+        <a class="gobtn" href="https://github.com/marcosmarf27/tecjustica-sigilo" target="_blank" rel="noopener">
+          Baixar o TecJustiça Sigilo no GitHub ↗
+        </a>
+      </div>
+
+      <div class="card">
+        <div class="head"><div class="num">2</div><h2>Do documento sigiloso à análise, em quatro passos</h2></div>
+        <ol>
+          <li><strong>Tire o documento do PJe</strong> como você já faz — pelo botão de
+          download da peça, ou pelo <strong><svg class="ic-in" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="M7 11l5 5 5-5"/><path d="M5 20h14"/></svg>Baixar .zip</strong> da própria extensão, que
+          salva as peças marcadas numa pasta.</li>
+          <li><strong>Arraste para o TecJustiça Sigilo</strong>, confira a tela de revisão e
+          salve. Sai um <code>nome_anonimizado.txt</code>.</li>
+          <li><strong>Anexe o .txt aqui</strong>, pelo <strong><svg class="ic-in" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11l-8.5 8.5a4 4 0 0 1-5.7-5.7l8.5-8.5a2.5 2.5 0 0 1 3.5 3.5l-8 8a1 1 0 0 1-1.4-1.4l7.3-7.3"/></svg>clipe</strong> ao lado do campo
+          de mensagem. Ele aceita TXT desde sempre — <a class="link" href="#anexos">é o mesmo
+          caminho de qualquer arquivo seu</a>.</li>
+          <li><strong>Pergunte sem marcar peça nenhuma.</strong> Com um anexo e nenhuma peça
+          marcada, a extensão entende que a conversa é sobre <em>aquele arquivo</em> e para de
+          pedir que você marque peças — o que vai à API é só o texto já anonimizado.</li>
+        </ol>
+        <p>
+          As citações continuam funcionando, mas mudam de forma: um <strong>.txt é citado por
+          trecho</strong>, não por folha, porque a paginação se perde na conversão. Se a folha
+          importa para o seu trabalho, guarde o PDF original aberto ao lado para conferir.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="head"><div class="num">3</div><h2>Antes de baixar, e depois de usar</h2></div>
+        <p class="warn-box">
+          <strong>O instalador é grande e é só para Windows.</strong> Windows 10/11 <b>x64</b>,
+          instalador de <b>~660 MB</b>, e na <b>primeira execução</b> ele baixa mais
+          <b>~1,7 GB</b> de modelo de linguagem — só nessa vez, e daí em diante funciona sem
+          internet. Esse tamanho é o preço de trazer tudo embutido em vez de mandar o seu
+          documento para a nuvem de alguém. Para macOS e Linux há apenas o modo de
+          desenvolvimento, no próprio repositório.
+        </p>
+        <p>
+          <strong>Anonimizador nenhum é infalível, e este avisa que não é.</strong> A precisão
+          medida é de cerca de <strong>91%</strong> em textos jurídicos reais — muito boa para
+          uma primeira passada, insuficiente para confiar de olhos fechados. É por isso que a
+          tela de revisão existe: <strong>ela é parte do trabalho, não uma formalidade</strong>.
+          Um apelido, uma inicial, o nome de uma testemunha escrito de forma incomum, o endereço
+          num carimbo digitalizado — tudo isso pode escapar, e o que escapa vai inteiro para a
+          API junto com o resto.
+        </p>
+        <p>
+          Nada disso transfere a responsabilidade: a decisão de usar IA externa naquele processo
+          continua sendo sua, e o seu tribunal pode ter regra própria, mais restritiva que a do
+          CNJ. Confira antes.
         </p>
       </div>
 
@@ -613,7 +732,9 @@
           usar IA privada ou externa para processar documentos sigilosos ou em segredo de
           justiça, <em>salvo</em> anonimização na origem ou mecanismos técnicos e procedimentais
           que garantam a proteção. A extensão manda as peças que você marcar direto para a API
-          do provedor — a decisão sobre o que marcar é sua.</li>
+          do provedor — a decisão sobre o que marcar é sua. Para o caminho da anonimização na
+          origem, veja <a class="link" href="#sigilo">Segredo de justiça: anonimizar antes de
+          enviar</a>.</li>
           <li><strong>Informar o seu tribunal.</strong> Pelo art. 19, §7º, quem contrata uma
           solução de mercado para usar nas atividades funcionais deve prestar informações ao
           tribunal, na forma do regulamento. Isso vale para esta extensão.</li>
@@ -695,14 +816,26 @@
         <a class="link" href="https://github.com/marcosmarf27/pje-ia/blob/main/PRIVACY.md" target="_blank" rel="noopener">política de privacidade</a>.
       </div>
 
-      <div class="apoio">
+      <div class="apoio" id="apoiar">
         <p><b>Esta extensão é gratuita e de código aberto</b>, e continua recebendo
-        melhorias toda semana — cada recurso é escrito e testado em processos reais, o que
-        custa tempo de desenvolvimento e tokens de API.</p>
-        <p>Se ela está sendo útil no seu trabalho, a maneira de apoiar os próximos projetos
-        é assinar o <b>TecJustiça</b> no Substack, por <b>R$ 10 mensais</b>. Nada na
-        extensão muda com isso: não há recurso pago, nem limite para quem não assina — o
-        apoio é o que viabiliza a próxima ferramenta.</p>
+        melhorias toda semana — cada recurso é escrito e <b>testado em processos reais</b>
+        antes de chegar até você, o que custa horas de trabalho e tokens de API.</p>
+        <p>Se ela está sendo útil no seu trabalho, há duas maneiras de retribuir — e
+        nenhuma delas muda nada na extensão: não há recurso pago nem limite para quem não
+        apoia.</p>
+        <div class="pix">
+          <img class="pix-qr" src="../icons/pix-qr.svg" width="108" height="108"
+               alt="QR Code do PIX para Marcos Antonio Rafael da Fonseca, Nubank">
+          <div class="pix-tx">
+            <p class="pix-t"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.6 2.5h4.8"/><path d="M10.4 2.5v3.6L7.9 9.4a4 4 0 0 0-.8 2.4V20a1.5 1.5 0 0 0 1.5 1.5h6.8a1.5 1.5 0 0 0 1.5-1.5v-8.2a4 4 0 0 0-.8-2.4l-2.5-3.3V2.5"/><path d="M7.1 12.6h9.8"/><path d="M9.6 15.4h4.8"/></svg>Me pague uma Heineken</p>
+            <p class="pix-m">Um apoio de uma vez só, no valor que você achar justo.<br>
+            PIX · Nubank · Marcos Antonio Rafael da Fonseca<br>
+            chave <span class="pix-k">(88) 99365-0420</span></p>
+            <button type="button" class="pix-copy" data-pix="00020101021126360014br.gov.bcb.pix0114+55889936504205204000053039865802BR5921MARCOS A R DA FONSECA6009FORTALEZA62070503***6304D296"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 5H6a2 2 0 0 0-2 2v9"/></svg><span class="lbl">Copiar código PIX</span></button>
+          </div>
+        </div>
+        <p>Ou, se preferir apoiar de forma contínua, assine o <b>TecJustiça</b> no
+        Substack por <b>R$ 10 mensais</b> — é o que viabiliza a próxima ferramenta.</p>
         <a class="assinar" href="https://tecjustica.substack.com/" target="_blank" rel="noopener">Assinar o TecJustiça — R$ 10/mês ↗</a>
       </div>
 
@@ -711,5 +844,8 @@
         cada versão trouxe, agrupado por recurso.
       </p>
     </div>
+    <!-- Só o botão "Copiar código PIX". Em arquivo, e não inline, porque a CSP
+         da extensão é `script-src 'self'`: inline não executaria, e em silêncio. -->
+    <script src="apoio.js"></script>
   </body>
 </html>

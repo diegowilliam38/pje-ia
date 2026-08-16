@@ -236,7 +236,8 @@
         </p>
         <p class="priv-l warn">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18.5a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9.5v4"/><path d="M12 17.2h.01"/></svg>
-          <span>As peças marcadas vão à API do provedor escolhido — processos podem conter <b>dados sigilosos</b>.</span>
+          <span>As peças marcadas vão à API do provedor escolhido — processos podem conter
+          <b>dados sigilosos</b>. <a href="help.html#sigilo" target="_blank">Anonimizar antes →</a></span>
         </p>
         <p class="priv-l net">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4.5 13.5H11l-1 8.5L19.5 10H13z"/></svg>
@@ -265,6 +266,32 @@
         </div>
       </div>
 
+      <!-- Apoio: aqui, e não só no fim da página de opções. Esta é a única tela
+           da extensão que o usuário abre por VONTADE PRÓPRIA e que não é fluxo de
+           trabalho — e enquanto o pedido era um link de texto no rodapé, entre
+           outros seis, nem o autor do projeto o encontrava. Fica DEPOIS do
+           #firstRun: quem ainda está configurando a chave não usou a ferramenta,
+           e pedir apoio antes de entregar valor é o pior momento possível — por
+           isso o popup.js também o esconde enquanto não há chave salva. -->
+      <div class="apoiar" id="apoiarBox" hidden>
+        <p class="ap-h"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.6 2.5h4.8"/><path d="M10.4 2.5v3.6L7.9 9.4a4 4 0 0 0-.8 2.4V20a1.5 1.5 0 0 0 1.5 1.5h6.8a1.5 1.5 0 0 0 1.5-1.5v-8.2a4 4 0 0 0-.8-2.4l-2.5-3.3V2.5"/><path d="M7.1 12.6h9.8"/><path d="M9.6 15.4h4.8"/></svg>Está sendo útil?</p>
+        <p class="ap-t">São horas de trabalho e testes em processos reais. Se ajudou,
+        <b>me pague uma Heineken</b> — PIX <span class="pix-k">(88) 99365-0420</span>,
+        Nubank.</p>
+        <div class="ap-acts">
+          <button type="button" class="pix-copy" data-pix="00020101021126360014br.gov.bcb.pix0114+55889936504205204000053039865802BR5921MARCOS A R DA FONSECA6009FORTALEZA62070503***6304D296"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 5H6a2 2 0 0 0-2 2v9"/></svg><span class="lbl">Copiar código PIX</span></button>
+          <a class="ap-sub" href="https://tecjustica.substack.com/" target="_blank" rel="noopener">Assinar — R$ 10/mês ↗</a>
+        </div>
+        <!-- O QR fica recolhido: no computador quem apoia usa o "copia e cola";
+             o QR serve a quem está com o celular na mão, e aberto por padrão
+             custaria 130px dos 600 de altura do popup. -->
+        <details class="ap-qr">
+          <summary>Ver o QR Code</summary>
+          <img src="../icons/pix-qr.svg" width="132" height="132"
+               alt="QR Code do PIX para Marcos Antonio Rafael da Fonseca, Nubank">
+        </details>
+      </div>
+
       <div class="foot">
         <a href="editor.html" target="_blank">Minhas minutas</a>
         <a href="modelos.html" target="_blank">Modelos</a>
@@ -280,5 +307,6 @@
     </div>
 
     <script src="popup.js"></script>
+    <script src="apoio.js"></script>
   </body>
 </html>

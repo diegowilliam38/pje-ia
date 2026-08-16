@@ -617,3 +617,114 @@ input:focus, select:focus, textarea:focus {
   padding: 9px 16px; border-radius: var(--r-sm); box-shadow: var(--sh-btn);
 }
 .apoio a.assinar:hover { filter: brightness(1.06); }
+
+/* ---------- Apoio direto por PIX (`.pix`, dentro da `.apoio`) ----------
+   Irmão do botão de assinatura, não substituto: a assinatura é recorrente e
+   sustenta os próximos projetos; o PIX é o gesto de quem quer retribuir UMA
+   vez, hoje, pelo que já usou. Vive nos mesmos três lugares da `.apoio` e em
+   nenhum outro — a regra de nunca pedir apoio no fluxo de trabalho não muda
+   por ser um valor menor.
+
+   Fica sobre `--surface` DENTRO da caixa tingida: o QR precisa de branco em
+   volta para os leitores acharem a zona quieta, e o cartão branco separa "o
+   que eu faço agora" do parágrafo que explica por quê. */
+.apoio .pix {
+  display: flex; align-items: center; gap: var(--sp-4);
+  margin: var(--sp-3b) 0; padding: var(--sp-3b);
+  background: var(--surface); border: 1px solid var(--line-card);
+  border-radius: var(--r-md);
+}
+/* O QR tem margem branca própria (quiet zone) no SVG; o fundo aqui é cinto e
+   suspensório para quando a página for impressa ou o SVG não carregar. */
+.apoio .pix-qr {
+  flex: none; width: 108px; height: 108px; display: block;
+  background: #fff; border-radius: var(--r-xs);
+}
+.apoio .pix-tx { min-width: 0; }
+.apoio .pix-t {
+  display: flex; align-items: center; gap: var(--sp-2);
+  font-size: var(--fs-ui); font-weight: 600; color: var(--ink);
+}
+/* A garrafa usa `--pje`, a cor de AÇÃO do sistema — não um verde de cerveja.
+   Os tokens `--cat-*` são semânticos (espécie de peça) e `--ok-*` significa
+   sucesso; pintar uma garrafa com qualquer um dos dois ensinaria uma terceira
+   leitura para uma cor que já tem dono (DESIGN.md §2). A marca vive no texto. */
+.apoio .pix-t svg { flex: none; color: var(--pje); }
+.apoio .pix-m { font-size: var(--fs-meta); color: var(--muted); margin: var(--sp-1) 0 var(--sp-2b); }
+.apoio .pix-k { font-family: var(--ff-mono); color: var(--text-2); }
+.apoio .pix-copy {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  font-family: inherit; font-size: var(--fs-meta); font-weight: 600;
+  color: var(--pje-2); background: var(--surface);
+  border: 1px solid var(--line-strong); border-radius: var(--r-tight);
+  padding: 6px var(--sp-3); cursor: pointer; transition: 140ms ease;
+}
+.apoio .pix-copy:hover { background: var(--hover-2); border-color: var(--pje); }
+.apoio .pix-copy.feito { color: var(--ok-ink); border-color: var(--ok-line); background: var(--ok-bg); }
+/* Em tela estreita (popup embutido, janela pequena) o QR vai para cima do
+   texto em vez de espremer a coluna a ponto de a chave quebrar no meio. */
+@media (max-width: 460px) {
+  .apoio .pix { flex-direction: column; align-items: flex-start; }
+}
+
+/* ---------- Faixa de apoio do POPUP (`.apoiar`) ----------
+   A caixa `.apoio` completa não cabe aqui: o popup do Chrome tem 600px de
+   altura e a tarefa dele é configurar a chave. Mas o rodapé de links também
+   não servia — o apoio era UM texto entre sete, e nem quem escreveu o projeto
+   o achava. Esta é a versão de uma faixa: separada por linha tracejada (mesmo
+   recurso da `.privacy`, marca mudança de assunto sem criar um segundo
+   cartão), com o QR RECOLHIDO.
+
+   Aparece só depois de haver chave salva (popup.js) — é o espelho do
+   `#firstRun`, que aparece só enquanto NÃO há. Pedir apoio a quem ainda está
+   configurando é pedir antes de ter entregado qualquer coisa. */
+.apoiar {
+  margin-top: var(--sp-5); padding-top: var(--sp-4);
+  border-top: 1px dashed var(--line-2);
+  font-size: var(--fs-meta); color: var(--text-2);
+}
+.apoiar .ap-h {
+  display: flex; align-items: center; gap: var(--sp-2); margin: 0 0 var(--sp-2);
+  font-size: var(--fs-ui); font-weight: 600; color: var(--ink);
+}
+.apoiar .ap-h svg { flex: none; color: var(--pje); }
+.apoiar .ap-t { margin: 0 0 var(--sp-3); line-height: 1.5; }
+.apoiar .ap-t b { color: var(--ink); }
+.apoiar .ap-acts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+/* O botão de copiar reusa `.pix-copy` da caixa completa; só o link de
+   assinatura é próprio, e é SECUNDÁRIO aqui (texto, não botão cheio): o
+   gradiente de `a.assinar` competiria com o "Salvar configuração", que é a
+   ação principal desta tela. */
+.apoiar .ap-sub {
+  font-size: var(--fs-meta); font-weight: 600; color: var(--pje-2);
+  text-decoration: none; padding: 6px var(--sp-2);
+}
+.apoiar .ap-sub:hover { text-decoration: underline; }
+.apoiar .pix-copy {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  font-family: inherit; font-size: var(--fs-meta); font-weight: 600;
+  color: var(--pje-2); background: var(--surface);
+  border: 1px solid var(--line-strong); border-radius: var(--r-tight);
+  padding: 6px var(--sp-3); cursor: pointer; transition: 140ms ease;
+}
+.apoiar .pix-copy:hover { background: var(--hover-2); border-color: var(--pje); }
+.apoiar .pix-copy.feito { color: var(--ok-ink); border-color: var(--ok-line); background: var(--ok-bg); }
+.apoiar .pix-k { font-family: var(--ff-mono); color: var(--text-2); }
+.apoiar .ap-qr { margin-top: var(--sp-2b); }
+.apoiar .ap-qr > summary {
+  cursor: pointer; list-style: none; color: var(--pje-2);
+  font-size: var(--fs-micro); font-weight: 600;
+  display: flex; align-items: center; gap: var(--sp-2);
+}
+.apoiar .ap-qr > summary::-webkit-details-marker { display: none; }
+.apoiar .ap-qr > summary::before {
+  content: ""; flex: none;
+  border-left: 5px solid currentColor;
+  border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+  transition: transform 0.15s;
+}
+.apoiar .ap-qr[open] > summary::before { transform: rotate(90deg); }
+.apoiar .ap-qr img {
+  display: block; margin-top: var(--sp-2b);
+  background: #fff; border-radius: var(--r-xs);
+}

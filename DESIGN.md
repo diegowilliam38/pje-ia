@@ -603,6 +603,62 @@ Botão **Enviar com gradiente vertical** (`--btn-de`→`--btn-para`, `--sh-btn`)
 → à direita do rótulo; no modo estreito vira quadrado de 38×38 só com a seta.
 Abaixo, dicas de teclado em `--fs-micro`.
 
+### Os cinco ícones do cluster de layout
+
+`[ocultar peças · largo · lateral · livre · tela cheia]`. **Julgue-os em fileira,
+nunca isolados**: o que o olho faz a 15px é distinguir SILHUETAS, e três deles
+eram variações de "retângulo com uma divisória".
+
+| Botão | Desenho | Por quê |
+|---|---|---|
+| `.docsvis` | retângulo com divisória + chevron | inalterado; o chevron é o que o separa do lateral |
+| `.expand` | retângulo com **coluna à esquerda + linhas** | mostra o que o modo entrega (lista em coluna). **Era um par de setas `↔`**, que lê como *redimensionar largura* |
+| `.side` | **dois blocos separados** | a página larga + o painel encostado. Era um retângulo com divisória interna, quase gêmeo do `.docsvis` |
+| `.free` | **duas janelas sobrepostas** | a convenção universal de janela solta. Era uma janela única com barra de título: correta e muda — descrevia um painel qualquer |
+| `.fs` | setas diagonais | inalterado; é convenção |
+
+### As duas affordances do modo livre
+
+`cursor: move` no cabeçalho **não é affordance**: só se revela depois que o
+ponteiro já está lá, isto é, para quem já desconfiava. Quem não sabe que a janela
+sai do lugar não passa o mouse ali para descobrir — a mesma falha do `.d-ver`
+invisível até o hover. Os dois sinais são pseudo-elementos, então **não custam
+espaço de layout**:
+
+- **Pega** (`.wrap.livre .hd::before`): barra de 34×3px em branco a 30%, no topo
+  do cabeçalho — a convenção de "arraste por aqui". Exige `position: relative` no
+  `.hd`, senão se resolve contra o `.panel` e só acerta por coincidência.
+- **Alça** (`.wrap.livre .panel::after`): duas diagonais de `--muted-3` no canto.
+  O `resize: both` do navegador já desenha um triangulozinho ali, mas ele some
+  sobre o branco do painel; os dois convivem (medido em pixel). **`pointer-events:
+  none` nos dois** — quem trata o arrasto é o `.hd`, e quem redimensiona é a alça
+  NATIVA, que fica exatamente sob o desenho.
+
+### Caixa de apoio (`.apoio`) e o bloco de PIX (`.pix`)
+
+Vive **só** nas telas satélites (ajuda, novidades, configuração) e como UMA LINHA
+no guia recolhido do painel. Nunca no fluxo de trabalho: uma caixa de apoio entre
+a pergunta e a resposta cobra pedágio no meio da análise dos autos. Veste-se com
+`--accent-bg` — não é sucesso nem alerta, é informação institucional.
+
+Dentro dela, o `.pix` é um cartão `--surface` com o QR (108px) à esquerda e, à
+direita, título com ícone, os dados e o botão **Copiar código PIX**. O branco em
+volta do QR não é estética: é a *quiet zone* de que o leitor precisa, e o cartão
+claro separa "o que eu faço agora" do parágrafo que explica por quê. Abaixo de
+460px o QR sobe para cima do texto, senão a chave quebra no meio.
+
+> **A garrafa é `--pje`, a cor de ação — não um verde de cerveja.** Os `--cat-*`
+> são semânticos (espécie de peça) e `--ok-*` significa sucesso; pintar uma
+> garrafa com qualquer um dos dois ensinaria uma terceira leitura a uma cor que já
+> tem dono. A marca vive no texto, e o **logo de terceiro nunca entra** — desenho
+> próprio, na família de traço do sistema.
+
+> **22px, e isso foi medido.** Uma garrafa é silhueta alta e estreita: em 15px o
+> corpo fica com ~6px de largura e ela lê como **cadeado**. Os ícones que
+> funcionam em 13–15px neste sistema são todos de proporção quadrada (lupa,
+> clipe, escudo). Ícone de silhueta vertical precisa de mais altura ou de outro
+> desenho.
+
 ### Ícones
 SVG stroke, `fill: none`, `stroke-linecap/linejoin: round`, `currentColor` sempre
 que a cor vier do estado. **A espessura varia por contexto** — um valor único faz
@@ -610,6 +666,7 @@ o ícone de 13px parecer mais pesado que o de 18px:
 
 | Stroke | Onde |
 |---|---|
+| 1.6 | Garrafa do PIX (22px) — quanto maior o ícone, mais fino o traço |
 | 1.7 | Marca (18px) |
 | 1.8 | Botões do cabeçalho, `ⓘ`, cadeado |
 | 1.9 | Toolbar, rodapé da lista, ✕ do cabeçalho |

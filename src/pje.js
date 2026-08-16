@@ -1096,9 +1096,18 @@ var PJE = (function () {
     return window;
   }
 
-  async function carregarTimelineCompleta(onProgress) {
+  // `pararQuando` (opcional) encerra a rolagem assim que ELE devolver true —
+  // usado por "ver na timeline", que não precisa da lista inteira: precisa de
+  // UMA peça. Numa peça do meio dos autos isso é a diferença entre 3 segundos e
+  // os 90 do teto. Sem o parâmetro, o comportamento é byte a byte o de antes.
+  async function carregarTimelineCompleta(onProgress, pararQuando) {
     let tl = document.querySelector("#divTimeLine");
     if (!tl) return { total: 0, completo: true };
+    // Já está lá: não rola nada. Vale para o caso em que o chamador testou antes
+    // e a timeline mudou no meio (o A4J re-renderiza sozinho).
+    if (pararQuando && pararQuando()) {
+      return { total: listarDocumentos().length, completo: true, achou: true };
+    }
     const scrollAntes = (() => {
       const sc = acharScroller(tl);
       return sc === window ? window.scrollY : sc.scrollTop;
@@ -1121,6 +1130,7 @@ var PJE = (function () {
         sc.scrollTop = sc.scrollHeight;
       }
       let cresceu = false;
+      let achou = false;
       for (let i = 0; i < 10 && !cresceu; i++) {
         await sleep(300);
         const agora = contar();
@@ -1128,8 +1138,19 @@ var PJE = (function () {
           total = agora;
           cresceu = true;
         }
+        // Confere a cada leva, e não só quando a leva CRESCE: a peça procurada
+        // pode chegar numa rodada em que a contagem já estava estável.
+        if (pararQuando && pararQuando()) {
+          achou = true;
+          break;
+        }
       }
       if (onProgress) onProgress(listarDocumentos().length);
+      if (achou) {
+        // Não devolve a rolagem: quem pediu a parada vai rolar até o alvo em
+        // seguida, e restaurar aqui produziria dois saltos na tela do usuário.
+        return { total: listarDocumentos().length, completo: true, achou: true };
+      }
       estaveis = cresceu ? 0 : estaveis + 1;
     }
     const tlFim = document.querySelector("#divTimeLine");
@@ -1141,6 +1162,7 @@ var PJE = (function () {
     return {
       total: listarDocumentos().length,
       completo: Date.now() - inicio < TETO_MS,
+      achou: pararQuando ? !!pararQuando() : undefined,
     };
   }
 
@@ -1641,6 +1663,11 @@ var PJE = (function () {
     lerEventos,
     baixar,
     scrollAte,
+    // Predicado público: "esta peça existe no DOM da LINHA DO TEMPO?" — que é
+    // pergunta DIFERENTE de "esta peça existe na lista do painel". A lista pode
+    // vir inteira da rota REST sem que um único nó novo entre na timeline, e é
+    // dessa diferença que nascia o laço sem saída do "ver na timeline".
+    temNaTimeline: (id) => !!acharLink(id),
     carregarTimelineCompleta,
     listarPelaApi,
     listarPelaGrid,

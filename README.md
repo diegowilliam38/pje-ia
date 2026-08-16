@@ -320,6 +320,24 @@ flowchart LR
 > observadas as normas do tribunal, a LGPD e eventuais segredos de justiça. As respostas
 > da IA são apoio à leitura, **não substituem** a análise jurídica humana.
 
+### 🛡️ Processo em segredo de justiça: anonimize antes
+
+O **art. 19, §3º, IV** da Resolução CNJ 615/2025 veda usar IA privada ou externa para
+processar documentos sigilosos ou em segredo de justiça — **salvo** anonimização na
+origem. Esta extensão é solução privada e externa (usa a sua chave de uma API comercial),
+então, nesses processos, o caminho é anonimizar o documento **antes** de ele sair do seu
+computador.
+
+Para isso existe o **[TecJustiça Sigilo](https://github.com/marcosmarf27/tecjustica-sigilo)**,
+um programa separado e gratuito que mascara nomes, CPF, CNPJ, RG, número do processo, OAB,
+telefone, e-mail, endereço e conta bancária — **100% local**, sem enviar nada para servidor
+nenhum. Ele grava um `.txt` anonimizado, e esse arquivo entra aqui pelo **clipe de anexo**:
+com um anexo e nenhuma peça marcada, a conversa passa a ser sobre aquele arquivo.
+
+Ele não é infalível (precisão de ~91% em texto jurídico) e traz uma tela de revisão que é
+**parte do trabalho**, não formalidade. O passo a passo completo está no guia da extensão,
+em **Segredo de justiça: anonimizar antes de enviar**.
+
 ## 🗺️ Roadmap
 
 - [x] Files API para processos muito volumosos
@@ -450,8 +468,17 @@ não apoia — você usa tudo com a sua própria chave de API. Ela recebe melhor
 semana, e cada recurso é escrito e testado em processos reais: isso custa tempo de
 desenvolvimento e tokens de API.
 
-Se ela está sendo útil no seu trabalho, a forma de apoiar os próximos projetos é
-**assinar o [TecJustiça no Substack](https://tecjustica.substack.com/) — R$ 10 mensais**.
+Se ela está sendo útil no seu trabalho, há duas formas de retribuir:
+
+- 🍺 **Me pague uma Heineken** — um PIX de uma vez só, no valor que você achar justo.
+  Chave **(88) 99365-0420** (Nubank, Marcos Antonio Rafael da Fonseca). O QR
+  Code e o "copia e cola" estão na própria extensão, em **Configuração → Apoiar** ou no
+  fim do **Guia**.
+- 📬 **Assine o [TecJustiça no Substack](https://tecjustica.substack.com/) — R$ 10
+  mensais**, para apoiar os próximos projetos de forma contínua.
+
+Nada muda na extensão com isso: ela continua inteira e gratuita para todo mundo, com ou
+sem apoio.
 
 ## 📄 Licença
 
