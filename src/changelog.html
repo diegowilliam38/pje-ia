@@ -99,7 +99,44 @@
 
       <div class="card destaque">
         <p class="eyebrow" style="color: rgba(255,255,255,0.7)">A novidade mais recente</p>
-        <h2><span class="v novo">v0.44.0</span> Achou um problema? Agora dá para falar comigo direto</h2>
+        <h2><span class="v novo">v0.45.0</span> O assistente passou a ver as datas do processo — e agora responde sobre prazos</h2>
+        <p>
+          Perguntar <em>“qual a data do trânsito em julgado?”</em> devolvia
+          <em>“não é possível determinar com segurança”</em>. A resposta estava
+          <strong>certa</strong>, e o problema era outro: <strong>publicação, decurso de prazo
+          e trânsito são movimentos do processo</strong>, não peças — e movimento quase nunca
+          tem documento com texto. O assistente recebia os PDFs das peças marcadas e nada
+          mais: nem a data em que cada uma foi juntada, nem os atos registrados no PJe.
+        </p>
+        <p>
+          Agora vai junto a <strong>linha do tempo processual</strong>: cada movimento com
+          <strong>data e hora</strong>, o código e a descrição oficiais do CNJ e o
+          complemento que fecha a conta — <em>“Decorrido prazo de … em 16/07/2026
+          23:59”</em>. Some-se a <strong>data de juntada</strong> de cada peça anexada, e a
+          data também aparece na lista das peças que <em>não</em> foram anexadas (o que ajuda
+          a escolher a certa).
+        </p>
+        <p>
+          A informação vem da <strong>lista oficial de movimentações do PJe</strong>, numa
+          única consulta: cobre o <strong>processo inteiro</strong> — não só o trecho da
+          linha do tempo que está carregado na tela — e não abre tela nenhuma do sistema.
+          Onde essa consulta não existir, a extensão lê a linha do tempo da própria tela e
+          <strong>avisa que a lista pode estar parcial</strong>, para o assistente não tratar
+          ausência de um ato como se ele não tivesse acontecido.
+        </p>
+        <p>
+          Vale nas três saídas: <strong>chat</strong>, <strong>minuta</strong> (um relatório
+          de sentença precisa saber o que já aconteceu) e <strong>mapa mental</strong> (os
+          eixos de prazos e situação atual saíam vazios). O assistente passou a citar o
+          movimento e a data, e a distinguir o que está <strong>registrado</strong> nos autos
+          do que ele <strong>calculou</strong> a partir do registro — dizendo qual dado falta
+          quando o cálculo não fecha.
+        </p>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">Antes disso</p>
+        <h2><span class="v">v0.44.0</span> Achou um problema? Agora dá para falar comigo direto</h2>
         <p>
           A extensão é escrita e testada em <strong>processos reais</strong>, mas o PJe muda
           de tribunal para tribunal — e o que trava no seu pode não acontecer no meu. Até
@@ -1393,6 +1430,7 @@
             <tr><th>Versão</th><th>Data</th><th>O que mudou</th></tr>
           </thead>
           <tbody>
+            <tr class="marco"><td><span class="v">0.45.0</span></td><td>17/08/2026</td><td><span class="dot-marco"></span><strong>O assistente passou a ver as datas do processo.</strong> Perguntar a data do trânsito em julgado devolvia “não é possível determinar” — e estava certo: <strong>publicação, decurso de prazo e trânsito são movimentos</strong>, não peças, e o assistente recebia só os PDFs. Agora vai junto a <strong>linha do tempo processual</strong> (cada ato com data e hora, código e descrição do CNJ, e o complemento que fecha a conta: “Decorrido prazo de … em 16/07/2026 23:59”), mais a <strong>data de juntada</strong> de cada peça anexada e a data na lista das não anexadas. Vem da lista oficial de movimentações do PJe numa única consulta — cobre o <strong>processo inteiro</strong>, não só o trecho carregado na tela, e não abre tela nenhuma do sistema; onde ela não existir, a extensão lê a linha do tempo da tela e <strong>avisa que pode estar parcial</strong>. Vale no chat, na minuta e no mapa mental, e o assistente passa a distinguir o que está <strong>registrado</strong> do que ele <strong>calculou</strong></td></tr>
             <tr><td><span class="v">0.44.0</span></td><td>16/08/2026</td><td><strong>Canal direto para bugs e sugestões.</strong> Um <strong>WhatsApp</strong> no rodapé da configuração, no guia (“Deu problema? Fale comigo”), nas novidades e dentro do painel — e, quando o link parte do painel, a <strong>versão da extensão já vai na mensagem</strong>. A issue no GitHub continua para quem prefere registrar por escrito. Nenhum dos dois canais aceita conteúdo de processo em segredo de justiça. Correções da revisão da v0.43.0: a busca da peça na linha do tempo deixou de <strong>apagar o aviso de progresso</strong> de um envio em andamento, e a rotina de rolagem passou a responder “não encontrei” em vez de nada quando a linha do tempo não existe</td></tr>
             <tr class="marco"><td><span class="v">0.43.0</span></td><td>16/08/2026</td><td><span class="dot-marco"></span><strong>Segredo de justiça ganha um caminho, e o “ver na linha do tempo” volta a funcionar.</strong> O guia enunciava o art. 19, §3º, IV da Res. CNJ 615 (vedado usar IA privada em documento sigiloso, <em>salvo</em> anonimização na origem) sem dizer como cumpri-lo; agora aponta o <strong>TecJustiça Sigilo</strong>, programa separado e gratuito que mascara nomes, CPF, número do processo e endereços <strong>no seu computador</strong> e devolve um <code>.txt</code> que entra pelo clipe de anexo. O convite leva ao guia, não ao download: são ~660 MB, só Windows x64, e a anonimização não é infalível (~91%). <strong>Correção:</strong> o botão que leva da lista até a peça no PJe falhava em parte das peças e mandava usar o ⟳ Carregar tudo, que desde a v0.38 lê a lista por uma via rápida e <strong>não carrega a linha do tempo</strong> — o clique não mudava nada e o aviso voltava. Agora o próprio botão rola a linha do tempo até achar a peça, e para assim que acha. Os <strong>ícones do cabeçalho</strong> foram refeitos (o “painel largo” eram setas ↔, que liam como redimensionar; o lateral era gêmeo do ocultar-peças; a janela livre não dizia que se arrasta), e o modo de janela livre ganhou <strong>pega</strong> no cabeçalho e <strong>alça</strong> no canto. Também: apoio ao projeto por <strong>PIX</strong> (QR e copia-e-cola) na configuração, no guia e nas novidades</td></tr>
             <tr class="marco"><td><span class="v">0.42.0</span></td><td>14/08/2026</td><td><span class="dot-marco"></span><strong>A minuta de ato decisório passa a exigir a sua tese (Resolução CNJ 615/2025).</strong> Ao ligar o modo Minutar você escolhe a <em>espécie do ato</em>; sentença, decisão, acórdão e despacho pedem a <strong>tese e o dispositivo</strong> antes de gerar — ofício, mandado, alvará e ata seguem direto. O Anexo da resolução classifica como <strong>alto risco</strong> (AR4) a “formulação de juízos conclusivos sobre a aplicação da norma jurídica”, e só admite como baixo risco (BR4) o texto de apoio produzido “com base nas instruções do magistrado, especialmente as decisões acerca das preliminares e questões de mérito”; como a extensão usa uma API privada, o art. 19, §3º, V ainda <strong>veda</strong> o uso de alto risco. A instrução padrão deixou de pedir “o ato cabível”. Peça que contraria a tese vira <code>[COMPLETAR: divergência — …]</code>, sem alterar o dispositivo; quem ainda não tem a tese pode pedir um <strong>estudo do que é cabível</strong> pelo chat. Cada minuta guarda a orientação que a gerou, e o guia ganhou a seção sobre a resolução. A tela <strong>Minhas minutas</strong> foi refeita (filtros por espécie e processo, ordenação, busca no texto e o <strong>prazo de validade à vista</strong>). Correções: Jurisprudência era ignorada na minuta e no mapa; processo retomado da memória recusava as peças marcadas; recusa por PJe ocupado perdia o texto digitado; a categoria de peças-modelo grudava entre minutas; modelo grande bloqueava os menores; e a minuta ganhou pré-voo de contexto</td></tr>

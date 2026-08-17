@@ -1521,6 +1521,80 @@ var PJE = (function () {
   }
 
   /**
+   * MOVIMENTAÇÕES do processo pela API REST — a linha do tempo PROCESSUAL, que
+   * é coisa diferente da lista de peças. Devolve
+   *   [{ms, data, cod, evento, texto, docs:[id]}]  (ordem CRESCENTE)
+   * ou `null` quando a rota não responde (o chamador cai para o DOM).
+   *
+   * É a fonte que faltava para toda pergunta de PRAZO. Medido no
+   * 3000167-23.2025.8.06.0203 (17/08/2026): 25 movimentos, ~77 ms, e o que vem é
+   * melhor que a timeline em três eixos —
+   *   • `dataAtualizacao` é epoch em ms, então há **hora**; o `.media.data` do DOM
+   *     só dá o dia, e dois atos do mesmo dia ficavam indistinguíveis;
+   *   • `codEvento`/`dsEvento` são o vocabulário CNJ (1051 Decurso de Prazo,
+   *     92 Publicação, 12283 Confirmada…), não o nome que alguém digitou;
+   *   • `textoFinalExterno` traz o complemento que decide a conta —
+   *     "Decorrido prazo de EUDES … em 16/07/2026 23:59".
+   * E, decisivo: **não depende da timeline carregada** (o DOM entrega só o
+   * trecho rolado) e **não gasta view JSF**, porque está sob `pje-legacy/` e
+   * portanto não passa pelo Faces Servlet — ver docs/pje-api-rest.md.
+   */
+  async function listarMovimentacoes() {
+    const proc = getIdProcesso();
+    if (!proc) return null;
+    try {
+      const url =
+        "/" + getBase() + "/seam/resource/rest/pje-legacy/processos/" + proc + "/movimentacoes";
+      const r = await fetch(url, {
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      });
+      if (!r.ok) {
+        dlog("movimentações: HTTP " + r.status + " — caindo para a timeline");
+        return null;
+      }
+      const j = await r.json();
+      if (!Array.isArray(j) || !j.length) return null;
+      const movs = [];
+      for (const m of j) {
+        const ms = Number(m && m.dataAtualizacao);
+        const evento = String((m && m.dsEvento) || "").trim();
+        const texto = String((m && m.textoFinalExterno) || "").trim();
+        if (!evento && !texto) continue;
+        movs.push({
+          ms: Number.isFinite(ms) && ms > 0 ? ms : null,
+          data: Number.isFinite(ms) && ms > 0 ? new Date(ms) : null,
+          cod: String((m && m.codEvento) || "").trim(),
+          evento,
+          // O complemento repete o evento em metade dos casos ("Decisão
+          // Interlocutória de Mérito" nos dois campos); guardar a repetição
+          // dobraria a linha sem acrescentar nada. E o sufixo "Documento: N"
+          // sai do texto porque o id volta como `docs` — mantê-lo escrevia o
+          // mesmo número duas vezes na mesma linha ("… Documento: 207691389
+          // (peça 207691389)"), o que é ruído e token gasto.
+          texto:
+            texto && texto !== evento
+              ? texto.replace(/\s*documento:?\s*\d{4,}\.?\s*$/i, "").trim()
+              : "",
+          // "Documento: 207691389" é o formato do PJe. Casar `\d{6,}` solto
+          // pegaria datas e valores que aparecem no mesmo texto.
+          docs: [...texto.matchAll(/documento:?\s*(\d{4,})/gi)].map((x) => x[1]),
+        });
+      }
+      if (!movs.length) return null;
+      // CRESCENTE: a rota devolve em ordem arbitrária (medido: o 1º item era o
+      // mais recente). Sem data não há como ordenar — esses ficam no fim, na
+      // ordem em que vieram, em vez de inventarem posição na cronologia.
+      movs.sort((a, b) => (a.ms == null ? 1 : b.ms == null ? -1 : a.ms - b.ms));
+      dlog("movimentações: " + movs.length + " movimento(s) pela API REST, zero tela JSF");
+      return movs;
+    } catch (e) {
+      dlog("movimentações: " + ((e && e.message) || e) + " — caindo para a timeline");
+      return null;
+    }
+  }
+
+  /**
    * Lista os documentos pela grid. Devolve
    *   {docs, total, paginas, paginasLidas, incompleto}
    * ou `null` quando a rota não está disponível (aí o chamador usa o scroll).
@@ -1674,6 +1748,7 @@ var PJE = (function () {
     temNaTimeline: (id) => !!acharLink(id),
     carregarTimelineCompleta,
     listarPelaApi,
+    listarMovimentacoes,
     listarPelaGrid,
     lerAnexo,
     // Só o pacote de precatória usa (dois postbacks por peça — ver o comentário).

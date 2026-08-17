@@ -2040,6 +2040,66 @@ camadas: `.hint-sigilo` no estado vazio do painel, cartão na página de opçõe
   captura de pixel mostra esse tipo de falha — `getComputedStyle` reporta tudo vivo e
   correto, como no `box-shadow` da caixa 0×0 do tour.
 
+## A LINHA DO TEMPO PROCESSUAL no contexto (`PJE.listarMovimentacoes` + `linhaDoTempoProcessual`)
+
+**As datas dos atos são o eixo que as peças não têm.** Relato que abriu a rodada:
+pedir a data do trânsito em julgado devolvia *"não é possível determinar com
+segurança"* — e a resposta estava CORRETA, porque publicação, decurso de prazo e
+trânsito são **movimentos**, e movimento quase nunca vira peça com texto. O modelo
+recebia os PDFs, o `title` `"207691389 - Sentença"` (sem data), a ficha e mais nada.
+Não era o modelo "não vendo" as datas: elas nunca foram enviadas.
+
+Três blocos passaram a viajar no texto do turno, pelas MESMAS razões do inventário
+(a timeline muda, então não vão no system; e só na cópia enviada, senão acumulam):
+**linha do tempo processual**, **data de juntada das peças anexadas** e o
+inventário, que ganhou a data de cada peça não marcada.
+
+- **A fonte é a rota REST `processos/{id}/movimentacoes`**, não o DOM. Melhor em
+  tudo o que importa: cobre o processo INTEIRO (o DOM dá só o trecho rolado), tem
+  **hora** (`dataAtualizacao` é epoch; o `.media.data` da timeline só dá o dia),
+  usa o **vocabulário CNJ** (`codEvento`/`dsEvento`) e traz o `textoFinalExterno`
+  — que é o campo que FECHA a conta do prazo: *"Decorrido prazo de EUDES … em
+  16/07/2026 23:59"*. Custa ~77 ms e **zero tela JSF**. Medido em sessão real no
+  3000167-23.2025.8.06.0203; detalhes em `docs/pje-api-rest.md`.
+- **`lerEventos()` (DOM) continua como FALLBACK**, para o tribunal em que a rota
+  não exista. O cabeçalho do bloco DIZ qual fonte produziu a lista, e o aviso de
+  parcialidade **só sai no fallback** — repeti-lo com a fonte oficial faria o
+  modelo recusar uma data que ele tem em mãos, que é o defeito de origem.
+- **Cache + `garantirMovimentacoes()`**: `linhaDoTempoProcessual` é SÍNCRONA
+  (roda dentro de `comInventario`, na montagem do request), então quem busca é um
+  `await` no início do turno — em `onSend`, `minutarAgora` e `mapearAgora`, os
+  três que montam contexto. Falha de rede **não apaga** o que o turno anterior
+  obteve (só substitui em caso de sucesso).
+- **ORDENA SEMPRE, e o desempate depende da FONTE.** Não confiar na ordem de
+  quem entregou: a rota devolve fora de ordem, e pular o sort "porque o pje.js já
+  ordenou" pôs a distribuição depois da sentença — só o teste viu. O desempate
+  muda porque a granularidade da data muda: no REST o timestamp é ao segundo e
+  empate é raro (preserva a ordem de origem); no DOM a data é por DIA, todos os
+  atos do dia empatam, e como a timeline lista do mais recente para o mais antigo
+  o desempate certo é **inverter**.
+- **Hora só quando ela existe.** Ato de meia-noite exata é o que o PJe grava em
+  publicação de diário; escrever "00:00" ali afirmaria precisão que o dado não
+  tem.
+- **As datas das peças NÃO vão no `title` do bloco `document`.** Tentador (ficaria
+  colada ao documento), e errado por dois motivos: `tituloLimpo` deriva do mesmo
+  campo e o rótulo das citações sairia poluído; e o `title` entra no prefixo
+  CACHEADO, então uma peça anexada antes de a lista oficial chegar ficaria sem
+  data para sempre. Na lista separada, recalculada a cada turno, a data aparece
+  assim que a lista oficial chega.
+- **Teto `MOV_MAX` (140) com corte pelo MEIO** e o corte DITO — o começo tem
+  distribuição e citação, o fim tem sentença, intimação e trânsito; o miolo é
+  expediente. Mesma regra do "Escolher com IA".
+- **A regra no `PROMPT_FIM` não é opcional**: o modelo foi treinado a responder
+  pelo CONTEÚDO dos documentos, e prazo é justamente o que não está escrito neles.
+  Sem a instrução ele ignora o bloco. Ela manda tratar a linha do tempo como
+  fonte **preferencial** de datas, citar movimento + data, distinguir o que está
+  REGISTRADO do que ele CALCULOU, e — no fallback parcial — ler ausência como
+  "não carregado", nunca como "não aconteceu".
+- Cobertos por dois testes: a normalização da rota (`fetch` fake com o JSON REAL
+  medido, incluindo ordem, empate, sufixo `Documento: N` e as quatro formas de
+  degradar) e o caminho do envio em jsdom (o bloco no payload, a ordem
+  cronológica, o não-acúmulo no histórico, o fallback e o aviso de parcial).
+
 ## Lista completa ≠ linha do tempo carregada (o laço do "ver na timeline")
 
 **São dois DOMs, e só uma das três rotas do ⟳ mexe no segundo.** A lista do painel

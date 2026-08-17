@@ -78,6 +78,21 @@
     // O inventário das peças NÃO marcadas viaja no texto do turno (ver
     // inventarioNaoMarcadas). Sem esta regra o modelo trataria a lista como
     // conteúdo disponível e passaria a afirmar coisas sobre peças que não leu.
+    // A LINHA DO TEMPO PROCESSUAL viaja no mesmo lugar (ver
+    // linhaDoTempoProcessual). Sem esta regra o modelo a ignora: ele foi
+    // treinado a responder a partir do CONTEÚDO dos documentos, e prazo é
+    // justamente o que não está escrito neles — publicação, decurso e trânsito
+    // são movimentos, e movimento quase nunca vira peça com texto.
+    "Você pode receber, ao fim da mensagem, a LINHA DO TEMPO do processo: os",
+    "movimentos registrados no PJe, cada um com data. Ela é fonte legítima e",
+    "PREFERENCIAL para datas de publicação, intimação, decurso de prazo, trânsito",
+    "em julgado, conclusão e distribuição — não diga que não é possível determinar",
+    "uma data sem antes procurá-la ali. Ao usá-la, cite o movimento e a data",
+    "(ex.: 'decurso de prazo em 10/02/2026, conforme a linha do tempo'), e",
+    "distinga o que está REGISTRADO do que você CALCULOU a partir do registro:",
+    "se o cálculo depender de um dado que não consta, diga qual dado falta.",
+    "Se o bloco avisar que a linha do tempo está PARCIAL, trate a ausência de um",
+    "ato como 'não carregado', nunca como 'não aconteceu'.",
     "Você pode receber, ao fim da mensagem, a lista das peças do processo que NÃO",
     "foram anexadas — apenas id e título. NUNCA afirme nada sobre o conteúdo",
     "delas: você não as leu. Use-a só para uma coisa — quando a resposta não",
@@ -2635,6 +2650,188 @@
   // de uma conversa com 200 peças seriam ~20 mil tokens de listas repetidas e
   // desatualizadas, competindo com o conteúdo real.
   const INVENTARIO_MAX = 80; // acima disto, só as peças de maior relevância
+
+  // ---------------------------------------------------------------------------
+  // LINHA DO TEMPO PROCESSUAL — os movimentos datados, no contexto.
+  //
+  // Faltava a informação que decide toda pergunta de PRAZO. O modelo recebia o
+  // conteúdo das peças e, como identificação, só "207691389 - Sentença": sem
+  // data de juntada, sem publicação, sem decurso de prazo. Relato real: pedir a
+  // data do trânsito em julgado devolvia "não é possível determinar" — e estava
+  // certo, porque expedição de intimação, publicação e decurso de prazo são
+  // MOVIMENTOS, e movimento quase nunca vira peça com texto. A extensão já lia
+  // tudo isso (`PJE.lerEventos`, desde a v0.35) e usava só no pacote de carta
+  // precatória.
+  //
+  // Vai junto do inventário, pelas MESMAS razões: no texto do turno (a timeline
+  // muda a cada refresh e no system invalidaria o cache), e só na cópia que vai
+  // à API (no histórico se acumularia turno a turno).
+  const MOV_MAX = 140; // acima disto, corta pelo MEIO e diz que cortou
+  // Movimentações pela API REST (`PJE.listarMovimentacoes`). É a fonte
+  // PREFERENCIAL e melhor em três eixos que raspar a timeline: tem HORA, usa o
+  // vocabulário CNJ e — o que mais importa — **não depende da timeline
+  // carregada**, então a linha do tempo deixa de nascer parcial no caso comum.
+  // Fica em cache porque `linhaDoTempoProcessual` é síncrona (roda dentro de
+  // `comInventario`, na montagem do request); quem preenche é
+  // `garantirMovimentacoes`, no começo do turno.
+  let movsOficiais = null;
+  async function garantirMovimentacoes() {
+    try {
+      if (!PJE.listarMovimentacoes) return;
+      const m = await PJE.listarMovimentacoes();
+      // Só substitui em caso de SUCESSO: uma falha de rede num turno não pode
+      // apagar a linha do tempo que o turno anterior já tinha obtido.
+      if (m && m.length) movsOficiais = m;
+    } catch (e) {
+      console.warn("[PJe IA] movimentações:", e);
+    }
+  }
+  function fmtData(d, comHora) {
+    if (!d || typeof d.getTime !== "function" || isNaN(d.getTime())) return null;
+    const p = (n) => String(n).padStart(2, "0");
+    const dia = p(d.getDate()) + "/" + p(d.getMonth() + 1) + "/" + d.getFullYear();
+    // A hora entra só quando ela EXISTE de verdade (fonte REST). A meia-noite
+    // exata é o que o PJe grava em ato sem hora (publicação em diário), e
+    // escrever "00:00" ali afirmaria uma precisão que o dado não tem.
+    if (!comHora || (d.getHours() === 0 && d.getMinutes() === 0)) return dia;
+    return dia + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+  function linhaDoTempoProcessual() {
+    let itens = null;
+    let fonteRest = false;
+    if (movsOficiais && movsOficiais.length) {
+      fonteRest = true;
+      itens = movsOficiais.map((m) => ({
+        data: fmtData(m.data, true),
+        ord: m.ms,
+        mov: m.evento + (m.texto ? " — " + m.texto : ""),
+        pecas: m.docs || [],
+      }));
+    } else {
+      // FALLBACK: a timeline do DOM. Serve ao tribunal em que a rota REST não
+      // existe ou muda de nome, e ao PJe cuja sessão recusa a chamada.
+      let eventos;
+      try {
+        eventos = PJE.lerEventos ? PJE.lerEventos() : [];
+      } catch (e) {
+        console.warn("[PJe IA] linha do tempo:", e);
+        return "";
+      }
+      if (!Array.isArray(eventos) || !eventos.length) return "";
+      // Só entra quem tem MOVIMENTO — um evento sem texto de movimento não
+      // informa ato nenhum, e ocuparia linha dizendo apenas uma data.
+      itens = eventos
+        .map((ev) => ({
+          data: fmtData(ev.data),
+          ord: ev.data && ev.data.getTime ? ev.data.getTime() : null,
+          mov: (ev.mov || "").trim(),
+          pecas: (ev.pecas || []).map((p) => p.id),
+        }))
+        .filter((x) => x.mov);
+    }
+    if (!itens || !itens.length) return "";
+    // A ordem tem de ser CRESCENTE, como na exportação e no "Escolher com IA":
+    // a cronologia invertida faz o modelo ler a sentença antes da inicial.
+    //
+    // ORDENA SEMPRE — não confia na ordem de quem entregou. O `pje.js` já
+    // devolve crescente, mas cronologia errada numa análise de prazo é erro
+    // caro e silencioso, e o preço de reordenar uma lista de 25 itens é zero.
+    // (Isto foi um defeito real: ao "otimizar" pulando o sort no ramo REST, um
+    // stub que devolvia fora de ordem passou a produzir a distribuição DEPOIS
+    // da sentença — e só o teste viu.)
+    //
+    // O que muda por fonte é o DESEMPATE, e a razão é a granularidade da data:
+    //   • REST: timestamp ao segundo, único por ato. Empate é raro (dois atos
+    //     no mesmo instante) e ali a ordem de origem é a correta — preserva.
+    //   • DOM: a data é por DIA, então todos os atos de um dia empatam; e a
+    //     timeline lista do mais recente para o mais antigo, logo o desempate
+    //     certo é INVERTER a ordem em que vieram.
+    // Quem não tem data nenhuma mantém a posição relativa: inventar cronologia
+    // é pior que preservá-la.
+    itens = itens
+      .map((x, i) => ({ x, i }))
+      .sort((a, b) => {
+        const A = a.x.ord;
+        const B = b.x.ord;
+        if (A != null && B != null && A !== B) return A - B;
+        if (A == null || B == null) return 0;
+        return fonteRest ? a.i - b.i : b.i - a.i;
+      })
+      .map((p) => p.x);
+    const total = itens.length;
+    let cortou = 0;
+    if (total > MOV_MAX) {
+      // Corte pelo MEIO (mesma regra do "Escolher com IA"): o começo tem a
+      // distribuição e a citação, o fim tem sentença, intimação e trânsito — o
+      // miolo é o expediente repetitivo.
+      const metade = Math.floor(MOV_MAX / 2);
+      cortou = total - MOV_MAX;
+      itens = itens.slice(0, metade).concat(itens.slice(total - (MOV_MAX - metade)));
+    }
+    const linhas = itens.map(
+      (x) =>
+        (x.data || "sem data") +
+        " · " +
+        x.mov +
+        (x.pecas.length ? " (peça" + (x.pecas.length > 1 ? "s " : " ") + x.pecas.join(", ") + ")" : "")
+    );
+    if (cortou) linhas.splice(Math.floor(MOV_MAX / 2), 0, "… (" + cortou + " movimentos de expediente omitidos aqui) …");
+    // COBERTURA: `lerEventos` lê o DOM da linha do tempo, que carrega sob
+    // demanda — e a lista de peças pode vir completa pela rota REST sem que um
+    // único movimento novo entre na tela. Afirmar uma data de trânsito sobre um
+    // trecho parcial é exatamente o erro que este bloco existe para evitar, então
+    // a parcialidade vai DITA. Ver "Lista completa ≠ linha do tempo carregada".
+    let aviso = "";
+    try {
+      const naTimeline = PJE.listarDocumentos ? PJE.listarDocumentos().length : 0;
+      // A rota REST devolve o processo INTEIRO — o aviso de parcialidade só vale
+      // para o fallback pelo DOM. Repeti-lo com a fonte oficial faria o modelo
+      // recusar uma data que ele tem em mãos, que é o defeito de origem.
+      if (!fonteRest && naTimeline && docsIndex.size > naTimeline) {
+        aviso =
+          " ATENÇÃO: a linha do tempo desta tela está PARCIAL — o processo tem " +
+          docsIndex.size +
+          " documentos e só " +
+          naTimeline +
+          " estão carregados nela. Podem existir atos ANTERIORES não listados aqui; " +
+          "não conclua data de trânsito, decurso ou publicação a partir de ausência.";
+      }
+    } catch {
+      /* best-effort: sem a medida, o bloco vai sem o aviso */
+    }
+    return (
+      "\n\n[LINHA DO TEMPO DO PROCESSO — movimentos " +
+      (fonteRest
+        ? "oficiais registrados no PJe (código e descrição do CNJ, com hora quando o ato tem hora)"
+        : "lidos da linha do tempo desta tela") +
+      ", do mais antigo ao mais recente. É a fonte para prazos, publicação, " +
+      "decurso, intimação e trânsito em julgado; o texto das peças costuma não " +
+      "trazer essas datas.]\n" +
+      linhas.join("\n") +
+      "\n(" +
+      total +
+      " movimento(s)" +
+      (fonteRest ? " — lista completa do processo." : " na linha do tempo carregada.") +
+      aviso +
+      ")"
+    );
+  }
+
+  // Datas de JUNTADA das peças que foram anexadas. Vêm da lista oficial (rota
+  // REST/grid), então são completas mesmo com a timeline parcial — e são o que
+  // ancora cada documento no tempo, já que o `title` do bloco não leva data (pôr
+  // ali contaminaria o rótulo das citações, que sai do mesmo campo).
+  function datasDasPecas(idsAnexados) {
+    const linhas = [];
+    for (const id of idsAnexados) {
+      if (ehIdAnexo(id)) continue; // arquivo do usuário: não tem juntada nos autos
+      const d = docsIndex.get(id);
+      if (d && d.juntadoEm) linhas.push(d.titulo + " — juntada em " + String(d.juntadoEm).slice(0, 16));
+    }
+    if (!linhas.length) return "";
+    return "\n\n[Data de juntada das peças anexadas]\n" + linhas.join("\n");
+  }
+
   function inventarioNaoMarcadas(idsAnexados) {
     const dentro = new Set(idsAnexados);
     // Map preserva a ordem de inserção, que aqui é a da timeline do PJe — ou
@@ -2661,9 +2858,15 @@
       }
     }
     return (
-      "\n\n[Peças deste processo que NÃO estão anexadas — apenas id e título, " +
-      "você não leu o conteúdo delas: " +
-      fora.map((d) => d.titulo).join("; ") +
+      "\n\n[Peças deste processo que NÃO estão anexadas — apenas id, título e data " +
+      "de juntada; você não leu o conteúdo delas: " +
+      // A data entra aqui porque muda a decisão de QUAL marcar: numa pergunta de
+      // prazo, "Certidão (23/01/2026)" diz mais do que "Certidão", e é o que
+      // permite ao modelo pedir a peça certa em vez de a primeira com o nome
+      // parecido. Vem da lista oficial, então existe mesmo com a timeline parcial.
+      fora
+        .map((d) => d.titulo + (d.juntadoEm ? " (" + String(d.juntadoEm).slice(0, 10) + ")" : ""))
+        .join("; ") +
       "." +
       (cortou
         ? " (Listadas " + fora.length + " de " + total + "; as demais são de expediente.)"
@@ -2848,7 +3051,12 @@
     // que não é sobre estes autos. A capacidade não se perde: o system manda
     // orientar quem perguntar do processo da tela a marcar as peças na lista.
     if (soAnexosNoContexto()) return msgs;
-    const txt = inventarioNaoMarcadas(idsAnexados);
+    // Três blocos, um propósito: dar ao modelo o EIXO DO TEMPO, que as peças
+    // sozinhas não têm. A ordem é a da leitura — primeiro o que aconteceu no
+    // processo, depois quando cada peça anexada entrou, por último o que existe
+    // e não foi lido. Todos são voláteis pelo mesmo motivo (a timeline muda), e
+    // por isso viajam juntos, no texto do turno e só na cópia enviada.
+    const txt = linhaDoTempoProcessual() + datasDasPecas(idsAnexados) + inventarioNaoMarcadas(idsAnexados);
     if (!txt || !msgs.length) return msgs;
     const i = msgs.length - 1;
     const ultima = msgs[i];
@@ -3617,6 +3825,11 @@
 
     try {
       await garantirCaps(); // limites do modelo antes de qualquer validação
+      // Movimentações do processo (linha do tempo PROCESSUAL). Vai junto porque
+      // é o eixo do tempo que as peças não têm — sem ele, pergunta de prazo
+      // volta como "não é possível determinar". Custa ~77 ms de rede e nenhuma
+      // tela JSF; falhar não impede o turno (cai para a leitura do DOM).
+      await garantirMovimentacoes();
       // Conversa retomada da memória: as referências de upload dos turnos
       // ANTERIORES podem ter expirado. Isto roda antes do download das peças
       // novas e, no caminho normal (nada a revalidar), custa uma varredura do
@@ -4714,6 +4927,10 @@
     let ckptMinuta = ""; // texto na UI no início do request físico corrente
 
     try {
+      // Linha do tempo processual: prazos e intimações não estão no texto
+      // das peças, e este caminho monta os blocos do zero (não passa por
+      // `comInventario`). Best-effort — falhar não impede o turno.
+      await garantirMovimentacoes();
       // Peça que falha no download não derruba a minuta: seguimos com o que
       // baixou e o relatório diz o que ficou de fora (mesma regra do chat).
       const dl = await baixarSelecionadas(selectedIds);
@@ -4768,6 +4985,12 @@
                   " Peças anexadas, use exatamente estes ids: " +
                   dl.ok.map((id) => metaDe(id).titulo).join("; ") +
                   "." +
+                  // O ato a redigir depende do que JÁ ACONTECEU: prazo
+                  // decorrido, parte intimada, data da publicação. Nada disso
+                  // está no texto das peças, e um relatório de sentença escrito
+                  // sem essas datas sai incompleto ou inventado.
+                  datasDasPecas(dl.ok) +
+                  linhaDoTempoProcessual() +
                   blocoOrientacao(ato),
               },
             ],
@@ -5059,6 +5282,10 @@
     let ckptMapa = ""; // texto na UI no início do request físico corrente
 
     try {
+      // Linha do tempo processual: prazos e intimações não estão no texto
+      // das peças, e este caminho monta os blocos do zero (não passa por
+      // `comInventario`). Best-effort — falhar não impede o turno.
+      await garantirMovimentacoes();
       // Peça que falha no download não derruba o mapa: seguimos com o que
       // baixou e o relatório diz o que ficou de fora (mesma regra do chat).
       const dl = await baixarSelecionadas(selectedIds);
@@ -5099,7 +5326,11 @@
                   SUFIXO_MAPA +
                   " Peças anexadas, use exatamente estes ids: " +
                   dl.ok.map((id) => metaDe(id).titulo).join("; ") +
-                  ".",
+                  "." +
+                  // O mapa tem eixos de PRAZOS e de situação atual, que sem as
+                  // datas dos atos saem vazios ou adivinhados.
+                  datasDasPecas(dl.ok) +
+                  linhaDoTempoProcessual(),
               },
             ],
           },

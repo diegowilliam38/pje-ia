@@ -109,7 +109,7 @@ prefixo `pje-legacy/`.**
 
 | Rota | Estado | O que ela substituiria / permitiria |
 |---|---|---|
-| `processos/{id}/movimentacoes` | **CONFIRMADA** | `PJE.lerEventos()`, que hoje raspa `.texto-movimento` do DOM — e com isso o `carregarTimelineCompleta` (até 90 s de scroll) que o **pacote de carta precatória** é obrigado a rodar. Traz o **`codEvento`** (código CNJ do movimento), que é vocabulário controlado — mais confiável que o texto que raspamos |
+| `processos/{id}/movimentacoes` | **em uso** (v0.45.0) | A **linha do tempo processual no contexto do modelo** — ver a nota abaixo. `PJE.lerEventos()` continua como fallback, e o **pacote de carta precatória** ainda depende dele (precisa do par movimento↔peça da timeline, que esta rota dá de outra forma) |
 | `api/v1/processos-judiciais/{id}` | **CONFIRMADA** | A ficha inteira em **formato MNI** do CNJ (`dadosBasicos`, `polo`, `assunto`, `valorCausa`, `orgaoJulgador`, `processoFisico`) numa requisição — hoje `lerCabecalhoProcesso()` raspa `#maisDetalhes`/`#poloAtivo`/`#poloPassivo` |
 | `cadastro-partes/processos/{id}/partes` | **CONFIRMADA** | Os três polos já separados (`poloAtivoList`/`poloPassivoList`/`poloOutrosList`), com documento e tipo de parte |
 | `usuario/isAuthenticated` | **CONFIRMADA** | Saber se a sessão está viva **antes** de gastar um postback. Hoje `telaMorta` infere pelo sumiço de `#divTimeLine` e precisa de segunda leitura para não dar falso positivo |
@@ -120,6 +120,39 @@ prefixo `pje-legacy/`.**
 | `api/v1/mobile/…/gerar-pdf/{id}` | **ERRO 500** | Seria o PDF oficial sem os dois postbacks JSF por peça do pacote de precatória. A rota existe (não é 404), mas devolve 500 com id de peça juntada — ver a nota abaixo |
 | `api/v1/dados-completos/` | **AUSENTE (404)** | Nada: não existe nesta versão |
 | `processos/{id}/atosProcessuais` | **VAZIA** | Nada por ora — responde 200 com `array[0]` neste processo, apesar de o DTO de 2019 prometer `nomeUsuarioJuntada` (o `juntadoPor` pelo qual a grid não foi removida). **Não conte com ela** sem testar em mais processos |
+
+### A primeira rota do catálogo que virou recurso: `movimentacoes` (v0.45.0)
+
+Este documento existia com o veredito "o fonte do CNJ ainda NÃO rendeu melhoria —
+a régua é o ganho que o usuário SENTE". `movimentacoes` cruzou essa régua, e o
+gatilho foi um relato: pedir a data do trânsito em julgado devolvia *"não é
+possível determinar com segurança"*. Estava correto — **publicação, decurso de
+prazo e trânsito são MOVIMENTOS**, e movimento quase nunca vira peça com texto.
+O modelo recebia os PDFs e nada mais.
+
+Medido no 3000167-23.2025.8.06.0203 (17/08/2026, sessão real): 25 movimentos,
+~77 ms, uma requisição. O que a rota dá e o DOM não dava:
+
+| | `lerEventos()` (DOM) | `movimentacoes` (REST) |
+|---|---|---|
+| Cobertura | só o trecho rolado da timeline | **o processo inteiro** |
+| Precisão da data | o DIA (`19 jun 2026`) | **epoch ms** — data e **hora** |
+| Nome do ato | o texto que aparece na tela | **`codEvento` + `dsEvento` do CNJ** |
+| Complemento | — | **`textoFinalExterno`**: *"Decorrido prazo de EUDES … em 16/07/2026 23:59"* |
+| Custo | até 90 s de scroll para completar | ~77 ms, zero tela JSF |
+
+O `textoFinalExterno` é o campo que fecha a conta: é ele que traz **a parte e a
+hora exata do fim do prazo**. Sem ele há a data do decurso; com ele há o prazo.
+
+Duas armadilhas do parsing, ambas cobertas por teste:
+
+- **A rota devolve FORA DE ORDEM** (medido: o 1º item era o mais recente). Quem
+  consome ordena — e ordena SEMPRE, sem confiar na entrega: pular o sort "porque
+  o pje.js já ordenou" produziu a distribuição depois da sentença na primeira
+  versão, e só o teste viu.
+- **`textoFinalExterno` repete o `dsEvento`** em metade dos casos, e termina em
+  `Documento: 207691389` quando há peça. Guardar os dois escrevia o mesmo número
+  duas vezes na linha; o sufixo sai do texto e o id volta como `docs`.
 
 ## Catálogo — família por família
 
