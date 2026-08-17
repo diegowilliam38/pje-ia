@@ -666,7 +666,21 @@ alinhada à **direita do selo** e **acima** dele; abaixo só quando não cabe em
 | `.mv-gap` | onde a lista foi cortada | tokens `--warn-*`; sem esta linha o salto de 2011 para 2026 passaria por continuidade |
 
 - **420px não é generosidade, é requisito**: o complemento do movimento é a
-  informação que decide o prazo.
+  informação que decide o prazo. E não é número solto — é a largura prescritiva do
+  modo lateral (§ Larguras).
+- **As bordas do PAINEL são o limite, não as da viewport** (`posicionarMov` mede
+  contra o `.panel` e recua 8px). Ancorada só no selo e clampada pela janela, a
+  caixa vazava para fora do painel no lateral e ia parar sobre a tela do tribunal,
+  encostando na borda da janela — parecia acidente. A altura segue a mesma regra:
+  uma caixa mais alta que o painel flutuaria sobre o cabeçalho e a página ao mesmo
+  tempo. Só a medição nos QUATRO modos mostrou isso; o flutuante sozinho passava.
+- **O estado vazio ABRE e explica.** Sem movimento nenhum a caixa saía na primeira
+  linha e o selo âmbar ficava com `cursor: pointer` prometendo um clique que não
+  fazia nada — o "botão mudo" que o copiar do PIX já custou uma correção. É ao
+  clicar no selo que a pergunta "por que não há datas?" nasce, e o tooltip não
+  responde no toque nem chama atenção num chip pequeno. A explicação é a MESMA
+  string do tooltip: duas redações do mesmo fato seriam duas verdades para
+  divergirem.
 - `min-height: 0` no `.mv-list` — a armadilha do overflow em coluna flex, a mesma
   do `.doclist` na faixa `.docs`.
 - Conteúdo por `textContent` (é dado dos autos); só o ✕ é SVG do pacote.

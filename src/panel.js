@@ -3158,6 +3158,7 @@ var PjePanel = (function () {
     // -------------------------------------------------------------------------
     let movItens = [];
     let movCab = "";
+    let movExplica = "";
     let movbox = null;
     function fecharMov() {
       if (!movbox) return;
@@ -3167,7 +3168,6 @@ var PjePanel = (function () {
     }
     function abrirMov() {
       fecharMov();
-      if (!movItens.length) return;
       const box = document.createElement("div");
       box.className = "movbox";
       box.setAttribute("role", "dialog");
@@ -3188,6 +3188,19 @@ var PjePanel = (function () {
       box.appendChild(hd);
       const lista = document.createElement("div");
       lista.className = "mv-list";
+      // CONJUNTO VAZIO SE EXPLICA (a regra da `.sel-nota` e do estado vazio da
+      // biblioteca). Antes, sem movimento nenhum, `abrirMov` saía na primeira
+      // linha: o selo âmbar ficava com `cursor: pointer` prometendo um clique que
+      // não fazia NADA — o mesmo "botão mudo" que o botão de copiar o PIX já
+      // custou uma correção. E é justo aqui que a pergunta "por que não há
+      // datas?" nasce, então é aqui que ela tem de ser respondida (o tooltip
+      // responde, mas some no toque e passa despercebido num chip pequeno).
+      if (!movItens.length) {
+        const v = document.createElement("div");
+        v.className = "mv-vazio";
+        v.textContent = movExplica;
+        lista.appendChild(v);
+      }
       for (const it of movItens) {
         // Marca do corte: a lista salta de uma data para outra bem distante, e
         // sem esta linha o salto passaria por continuidade.
@@ -3247,15 +3260,29 @@ var PjePanel = (function () {
     }
     function posicionarMov() {
       if (!movbox) return;
+      const p = panelEl.getBoundingClientRect();
       const r = ltEl.getBoundingClientRect();
-      const larg = movbox.offsetWidth;
+      // A caixa é DO PAINEL, não da página, e é isso que a medição nos modos
+      // mostrou: ancorada só no selo e clampada pela viewport, ela vazava para
+      // fora do painel no LATERAL (420px colado à direita) e ia parar sobre a
+      // tela do tribunal, encostando na borda da janela — parecia acidente, não
+      // desenho. Agora as bordas do painel são o limite, com 8px de recuo: onde
+      // o painel é estreito a caixa fica visivelmente DENTRO dele.
+      const larg = Math.max(240, Math.min(420, p.width - 16));
+      movbox.style.width = larg + "px";
+      // A altura também respeita o painel — uma caixa mais alta que ele
+      // flutuaria por cima do cabeçalho e da página ao mesmo tempo.
+      const lista = movbox.querySelector(".mv-list");
+      if (lista) lista.style.maxHeight = Math.max(140, Math.min(460, p.height - 96)) + "px";
       const alt = movbox.offsetHeight;
-      // Alinhado à DIREITA do selo (ele vive no canto direito do rodapé) e
-      // ACIMA dele, que é onde há espaço; abaixo só quando não cabe em cima.
+      // Alinhada à DIREITA do selo (que vive no canto direito do rodapé), porque
+      // é dele que a caixa sai — mas sem passar da borda do painel.
+      const dir = Math.min(r.right, p.right - 8);
       movbox.style.left =
-        Math.max(6, Math.min(r.right - larg, window.innerWidth - larg - 6)) + "px";
+        Math.max(p.left + 8, Math.min(dir - larg, window.innerWidth - larg - 6)) + "px";
+      // ACIMA do selo, que é onde há espaço; abaixo só quando não cabe em cima.
       if (r.top - alt - 8 >= 6) movbox.style.top = r.top - alt - 8 + "px";
-      else movbox.style.top = Math.min(r.bottom + 8, window.innerHeight - alt - 6) + "px";
+      else movbox.style.top = Math.max(6, Math.min(r.bottom + 8, window.innerHeight - alt - 6)) + "px";
     }
     ltEl.addEventListener("click", () => (movbox ? fecharMov() : abrirMov()));
     // Fecha em clique fora e no Esc. O `stopPropagation` no Esc é obrigatório:
@@ -6693,11 +6720,15 @@ var PjePanel = (function () {
         }
         // Cabeçalho da lista: a procedência e o tamanho, que é o que decide o
         // peso do que se vai ler ali.
-        movCab =
-          (oficial ? "Registro oficial do PJe" : "Lido da linha do tempo desta tela") +
-          " · " + movs(total) + (cortou ? " (" + n + " listados)" : "");
-        const clicar = movItens.length ? " Clique para ler a lista." : "";
+        movCab = !n
+          ? "Sem linha do tempo"
+          : (oficial ? "Registro oficial do PJe" : "Lido da linha do tempo desta tela") +
+            " · " + movs(total) + (cortou ? " (" + n + " listados)" : "");
         const txt = partes.join(" ");
+        // A explicação da caixa é a MESMA do tooltip: uma segunda redação para o
+        // mesmo fato viraria duas versões da verdade para divergirem.
+        movExplica = txt;
+        const clicar = movItens.length ? " Clique para ler a lista." : "";
         ltEl.title = txt + clicar;
         ltEl.setAttribute("aria-label", txt + clicar);
         ltEl.hidden = false;

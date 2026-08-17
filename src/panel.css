@@ -2075,6 +2075,10 @@ button > svg { flex: none; }
    16/07/2026 23:59") e cortá-lo tiraria justamente o que se veio ler. */
 .movbox {
   position: fixed; z-index: 2147483646;
+  /* A largura REAL é calculada em `posicionarMov` contra a caixa do painel (nunca
+     ultrapassá-la); este valor é só o ponto de partida antes da medição. Os 420px
+     não são arbitrários: é a largura PRESCRITIVA do modo lateral (§ Larguras), e
+     é ela que o complemento do movimento precisa para não ser cortado. */
   width: min(420px, calc(100vw - 24px));
   background: var(--surface); border: 1px solid var(--line-card);
   border-radius: var(--r-md); box-shadow: var(--sh-pop);
@@ -2121,6 +2125,12 @@ button > svg { flex: none; }
   font: inherit; font-size: var(--fs-nano); cursor: pointer;
 }
 .mv-p:hover { border-color: var(--pje); background: var(--hover); }
+/* Estado vazio da caixa: o selo âmbar diz "sem linha do tempo", e é ao clicá-lo
+   que a pergunta "por quê?" nasce. Antes o clique não fazia nada. */
+.mv-vazio {
+  padding: 14px 14px 16px; font-size: var(--fs-meta); line-height: 1.5;
+  color: var(--text-2);
+}
 /* Marca do corte: tokens de aviso SUAVE, como a `.sel-nota` — falta pedaço, mas
    nada está impedido. Sem esta linha o salto de datas passaria por continuidade. */
 .mv-gap {
