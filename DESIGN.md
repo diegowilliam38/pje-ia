@@ -636,6 +636,10 @@ não documento.
   faixa "de 04/05/2026 a 04/05/2026" (que anuncia um intervalo inexistente) sairiam
   na estreia do recurso. Num selo cuja função é dar confiança, erro de concordância
   é o que faz duvidar do número ao lado dele.
+- **O selo é uma PORTA, não um rótulo** (`<button>`, `cursor: pointer`): clicá-lo
+  abre a `.movbox` com os movimentos. Enquanto ele era só um `<div>` informativo,
+  as datas não existiam em lugar nenhum da interface — iam ao modelo e voltavam só
+  se ele as citasse. `aria-expanded` acompanha o estado.
 - Ícone de relógio SVG com ponteiros em 10h10 — a 14px, 12h00 vira um traço só.
   Emoji está fora (§5). `role="note"`, `tabindex="0"` e `aria-label` espelhando o
   `title`: em `display:none` o tooltip não é anunciado, e quem navega por teclado
@@ -645,6 +649,27 @@ Caixa de entrada com `--r-xl`, borda `--line-input`, foco `--line-focus` + `--ri
 Botão **Enviar com gradiente vertical** (`--btn-de`→`--btn-para`, `--sh-btn`) e seta
 → à direita do rótulo; no modo estreito vira quadrado de 38×38 só com a seta.
 Abaixo, dicas de teclado em `--fs-micro`.
+
+#### A lista dos movimentos (`.movbox`) — o registro, não o resumo
+
+Abre no clique do selo. `position: fixed` pela razão do `.selmenu` e da
+`.confirmbox` (o `.wrap` tem tamanho zero), largura `min(420px, 100vw - 24px)`,
+alinhada à **direita do selo** e **acima** dele; abaixo só quando não cabe em cima.
+
+| Parte | Papel | Decisão |
+|---|---|---|
+| `.mv-hd` | procedência + tamanho | `Registro oficial do PJe · 380 movimentos (140 listados)` — o peso do que se vai ler vem antes do conteúdo |
+| `.mv-d` | a data | coluna **fixa** de 104px e `tabular-nums`: o olho desce a lista procurando uma data, e largura variável destrói essa varredura |
+| `.mv-b b` | o evento | o vocabulário CNJ, em `--ink` |
+| `.mv-c` | o complemento | é ele que fecha a conta do prazo (*"… em 16/07/2026 23:59"*) — por isso a caixa é larga: cortá-lo tiraria o que se veio ler |
+| `.mv-p` | a peça do ato | pílula clicável que reusa `irParaPeca` (o mesmo caminho do "ver na timeline") |
+| `.mv-gap` | onde a lista foi cortada | tokens `--warn-*`; sem esta linha o salto de 2011 para 2026 passaria por continuidade |
+
+- **420px não é generosidade, é requisito**: o complemento do movimento é a
+  informação que decide o prazo.
+- `min-height: 0` no `.mv-list` — a armadilha do overflow em coluna flex, a mesma
+  do `.doclist` na faixa `.docs`.
+- Conteúdo por `textContent` (é dado dos autos); só o ✕ é SVG do pacote.
 
 ### Os cinco ícones do cluster de layout
 

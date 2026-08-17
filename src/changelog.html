@@ -94,7 +94,7 @@
              linhas na tabela — defasagem silenciosa de 11 versões, porque nada aqui a
              calcula. Ao lançar, conferir: o valor certo é a contagem de <tr> do
              histórico. -->
-        Da primeira versão (19 de julho de 2026) até hoje foram <strong>79 versões</strong>. Esta
+        Da primeira versão (19 de julho de 2026) até hoje foram <strong>80 versões</strong>. Esta
         página agrupa o que foi feito <strong>por recurso</strong> — é assim que se usa a
         extensão, não versão a versão. O
         <a class="link" href="#historico">histórico completo</a>, com data e uma linha por
@@ -103,7 +103,36 @@
 
       <div class="card destaque">
         <p class="eyebrow" style="color: rgba(255,255,255,0.7)">A novidade mais recente</p>
-        <h2><span class="v novo">v0.45.3</span> Acabamento do selo das datas: some ao trocar de conversa, e fala certo no singular</h2>
+        <h2><span class="v novo">v0.46.0</span> Agora dá para LER a linha do tempo do processo, e ela aparece sem você pedir</h2>
+        <p>
+          Duas coisas que faltavam à novidade das últimas versões, e as duas apareceram da
+          mesma forma: atualizei a extensão, abri um processo e <strong>não achei nada</strong>.
+        </p>
+        <p>
+          A primeira: o selo das datas só nascia <em>depois</em> da primeira pergunta. Mas quem
+          quer conferir se a extensão viu as datas do processo <strong>abre o painel e olha</strong>
+          — não pergunta primeiro. Agora ele já está lá quando o painel abre, com a contagem e a
+          fonte, sem custo nenhum: a consulta é uma só e não abre tela alguma do PJe.
+        </p>
+        <p>
+          A segunda é a que importa mais: <strong>as datas não apareciam em lugar nenhum</strong>.
+          Iam para o assistente e só voltavam se ele as citasse na resposta. Agora o selo é
+          <strong>clicável</strong> e abre a linha do tempo do processo dentro do painel — cada
+          movimento com data e hora, o nome oficial do ato (o vocabulário do CNJ), o complemento
+          que fecha a conta do prazo (<em>“Decorrido prazo de … em 16/07/2026 23:59”</em>) e a
+          peça correspondente, que leva à linha do tempo do PJe num clique. É a mesma lista, na
+          mesma ordem, que o assistente recebeu: serve para <strong>conferir a resposta dele</strong>.
+        </p>
+        <p>
+          Em processo longo, onde a lista é encurtada para caber, o corte aparece como uma
+          <strong>faixa no meio da lista</strong> dizendo quantos movimentos ficaram de fora — sem
+          ela, as datas saltariam de 2011 para 2026 e o salto passaria por continuidade.
+        </p>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">Antes disso</p>
+        <h2><span class="v">v0.45.3</span> Acabamento do selo das datas: some ao trocar de conversa, e fala certo no singular</h2>
         <p>
           Revisão do selo que a versão anterior estreou. Ele <strong>sobrevivia ao “Nova
           conversa”</strong>: o medidor e o custo eram zerados, o selo ficava — no melhor caso
@@ -1526,6 +1555,7 @@
             <tr><th>Versão</th><th>Data</th><th>O que mudou</th></tr>
           </thead>
           <tbody>
+            <tr class="marco"><td><span class="v">0.46.0</span></td><td>17/08/2026</td><td><span class="dot-marco"></span><strong>Agora dá para LER a linha do tempo do processo.</strong> As datas iam para o assistente e não apareciam em lugar nenhum — só voltavam se ele as citasse. O selo do rodapé passou a ser <strong>clicável</strong> e abre a lista dentro do painel: cada movimento com data e hora, o nome oficial do ato, o complemento que fecha a conta do prazo e a peça correspondente, que leva à linha do tempo do PJe num clique. É a mesma lista, na mesma ordem, que o assistente recebeu, e serve para conferir a resposta dele; onde ela foi encurtada, uma faixa no meio diz quantos movimentos ficaram de fora. O selo também <strong>deixou de esperar a primeira pergunta</strong>: aparece quando o painel abre, porque quem quer conferir olha, não pergunta</td></tr>
             <tr><td><span class="v">0.45.3</span></td><td>17/08/2026</td><td>Acabamento do selo das datas. Ele <strong>sobrevivia ao “Nova conversa”</strong> (o medidor e o custo eram zerados; o selo ficava, no pior caso mostrando um aviso âmbar sobre uma conversa já arquivada) e errava a concordância no <strong>processo recém-distribuído</strong>, que tem um movimento só: “1 movimento lidos” e a faixa “de 04/05/2026 a 04/05/2026”, um intervalo que não existe. O selo âmbar também não respondia ao mouse, e os textos de ajuda foram encurtados. Fora isso, o botão “Nova conversa” ganhou uma proteção que faltava contra falha do módulo de memória</td></tr>
             <tr><td><span class="v">0.45.2</span></td><td>17/08/2026</td><td>A <strong>linha do tempo do processo</strong> passou a se anunciar na interface. Ela ia junto com as peças desde a v0.45.0 e não dizia nada: dava para ler uma resposta sobre prazo sem saber se veio do <strong>registro oficial de movimentações</strong> ou de uma leitura parcial da tela, nem que a lista havia sido encurtada — os avisos existiam, mas eram escritos para o assistente, não para quem confia na resposta. Agora um selo no rodapé mostra quantos movimentos foram e, no toque do mouse, a fonte e o intervalo coberto; ele fica <strong>âmbar</strong> quando a lista foi cortada, quando não alcança o início do processo ou quando não veio movimento nenhum (<em>“sem linha do tempo”</em>, que é o que explica uma resposta sem data)</td></tr>
             <tr><td><span class="v">0.45.1</span></td><td>17/08/2026</td><td>Revisão da linha do tempo. Em processo com <strong>mais de 140 movimentos</strong> a lista é encurtada para caber, e o corte era pelo <strong>meio</strong> — onde costumam estar a publicação de uma sentença antiga e o trânsito de uma fase anterior —, ainda por cima anunciado como “movimentos de expediente omitidos”. Agora sai só o que é reconhecidamente expediente, as pontas ficam intactas e, quando nem isso basta, o aviso <strong>diz</strong> que o corte alcançou outros atos. A <strong>minuta e o mapa mental</strong> ganharam como citar uma data da linha do tempo (<em>movimentação de 25/06/2026</em>): antes a regra de origem exigia peça, id e folha, e uma data de publicação não tem folha — ela ficava fora do relatório ou saía pendurada numa peça que não a contém. A extensão também <strong>parou de afirmar</strong> que a lista cobre o processo inteiro (avisa quando a linha do tempo da tela mostra ato mais antigo do que a lista alcançou), e a consulta ganhou <strong>tempo limite</strong>, para uma rota que não responda não deixar o Enviar sem resposta e sem mensagem</td></tr>

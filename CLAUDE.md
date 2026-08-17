@@ -2180,15 +2180,58 @@ inventário, que ganhou a data de cada peça não marcada.
   - **Todos os `return ""` também anunciam** (`{n:0}`): zero movimento se explica,
     não desaparece (a regra da `.sel-nota` e do estado vazio da biblioteca) — é o
     selo que diz por que a pergunta de prazo vai voltar sem resposta.
-  - **`zerarEstadoDaConversa` APAGA o selo** (`setLinhaDoTempo(null)`), como já
-    fazia com o medidor e o custo. Ele descreve o ÚLTIMO turno, e depois do reset
-    (ou da troca de conversa, que passa pelo mesmo ponto) não há turno na tela: no
-    melhor caso ele descrevia uma resposta que saiu do ecrã, no pior mostrava um
-    AVISO ÂMBAR sobre uma conversa arquivada. Os movimentos (`movsOficiais`) NÃO
-    são esquecidos — são do processo, como as peças, e o próximo turno os manda de
-    novo. Calar não é desligar.
+  - **O selo NASCE NO BOOT** (`setTimeout` de 600 ms no FIM de `iniciar()`), não na
+    primeira resposta — e isto corrige o defeito que o dono do projeto encontrou
+    na v0.45.2: *"onde é que fica essas informações das datas que eu não estou
+    vendo?"*. Quem quer conferir se a extensão viu as datas **abre o painel e
+    olha**; não pergunta primeiro. Segunda vez que um recurso entregue ficou
+    invisível por depender de uma ação (a primeira foi a caixa de apoio).
+    - A rota REST cabe no boot porque custa ~77 ms e **zero tela JSF**; se falhar,
+      `linhaDoTempoProcessual` cai sozinha para o DOM, que é de graça.
+    - **Chama-se a função INTEIRA e descarta-se o texto**, de propósito: é o mesmo
+      caminho que monta o bloco do request, então o selo não tem como divergir do
+      que o turno vai mandar. Um atalho que só contasse movimentos seria uma
+      segunda contagem para divergir da primeira.
+    - **600 ms, e no fim de `iniciar()`**: cedo o bastante para preceder o dedo do
+      usuário no rodapé (a armadilha da "faixa que muda de altura"), e depois de
+      TODAS as declarações — chamar isso de dentro do `refresh()`, que roda ~800
+      linhas antes de `movsOficiais` existir, lançaria "Cannot access before
+      initialization" e levaria metade do painel junto, em silêncio.
+  - **`zerarEstadoDaConversa` NÃO apaga o selo**, e isto inverte a decisão da
+    v0.45.3 (que o zerava junto com o medidor e o custo). Enquanto ele nascia no
+    turno, descrevia "a última resposta" e apagá-lo fazia sentido. Nascendo no
+    boot, ele descreve o **PROCESSO** — quantos movimentos existem, de que fonte, e
+    a lista que dá para ler —, e isso segue verdadeiro depois de "Nova conversa":
+    o próximo turno manda os mesmos movimentos. Apagá-lo devolveria o selo ao
+    estado invisível que originou a correção.
   - Estados, tokens e a razão de o selo morar na `.metarow` (e não na `.docs-tip`)
     estão no DESIGN.md, "Selo da linha do tempo".
+- **O selo ABRE a lista dos movimentos** (`.movbox`), e é isso que responde à
+  pergunta do usuário: *"onde é que fica essas informações das datas?"*. O selo
+  dizia QUANTOS movimentos foram; as datas em si não apareciam em lugar nenhum —
+  iam ao modelo e só voltavam se ele as citasse na resposta. Quem confere prazo
+  precisa do REGISTRO, não do resumo.
+  - **A lista é a MESMA que foi ao modelo, já cortada**, e o corte entra nela como
+    uma LINHA (`.mv-gap`), não só como número no cabeçalho: sem a marca, as datas
+    saltariam de 2011 para 2026 no meio da lista sem explicação — pior que dizer
+    que faltou pedaço.
+  - **`itens` viaja com `evento` e `texto` SEPARADOS** (além do `mov` já
+    concatenado que vai ao modelo): na tela o evento é negrito e o complemento vem
+    abaixo, e é no complemento que está o que fecha a conta ("… em 16/07/2026
+    23:59").
+  - **`textContent`, NUNCA `innerHTML`**: movimento e complemento são conteúdo dos
+    autos, e o `escapeHtml` do painel não escapa aspa simples. A única exceção é o
+    ✕, que é SVG do próprio pacote.
+  - **`position: fixed`**, como o `.selmenu` e a `.confirmbox` — o `.wrap` é um
+    container de tamanho ZERO. Alinhado à direita do selo e ACIMA dele (é lá que há
+    espaço); abaixo só quando não cabe em cima. Medido: borda direita da caixa
+    coincidente com a do selo, 420×375 em (69,234) com o selo em (421,617).
+  - O id da peça vira botão e reusa **`irParaPeca`** — o MESMO caminho do "ver na
+    timeline" da lista de peças (que troca para o modo lateral antes de rolar).
+    Só id que casa `^\d+$` entra, como nas citações do chat.
+  - Esc fecha com **`stopPropagation`** (senão a cascata do painel cancelaria o
+    modo minuta junto) e `setLinhaDoTempo` fecha a caixa ao trocar o retrato —
+    nunca mostrar movimentos de um estado anterior.
 - **A movimentação precisa de FORMA PRÓPRIA de citação na minuta e no mapa**
   (`(movimentação de DD/MM/AAAA)` no `SUFIXO_MINUTA` e no `SUFIXO_MAPA`). Os dois
   exigem `(Título da peça, id 123456, fl. 7)` para toda afirmação e proíbem

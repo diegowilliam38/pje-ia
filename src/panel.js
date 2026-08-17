@@ -900,9 +900,9 @@ var PjePanel = (function () {
                   <div class="custo" hidden>
                     <span class="custo-txt"><span class="g-full"></span><span class="g-short"></span></span>
                   </div>
-                  <div class="linhatempo" hidden tabindex="0" role="note">
+                  <button class="linhatempo" hidden aria-expanded="false">
                     ${SVG.relogio}<span class="lt-txt"><span class="g-full"></span><span class="g-short"></span></span>
-                  </div>
+                  </button>
                   <button class="modelo-badge" hidden title="Modelo de IA em uso nesta conversa — clique para trocar nas opções da extensão"></button>
                   <span class="cite-note" hidden tabindex="0" role="note" title="Modelos Gemini: as citações de página aparecem no próprio texto da resposta (ex.: “conforme a Contestação, fl. 12”), sem os marcadores [n] automáticos dos modelos Claude." aria-label="Neste modelo as citações de página aparecem no próprio texto da resposta, sem os marcadores numerados dos modelos Claude.">${SVG.info}</span>
                 </div>
@@ -3142,6 +3142,140 @@ var PjePanel = (function () {
       // tempo do layout assentar antes de o content script rolar a página.
       setTimeout(() => verTimelineCb(id), 50);
     }
+    // -------------------------------------------------------------------------
+    // LINHA DO TEMPO DO PROCESSO — a lista LEGÍVEL por trás do selo.
+    //
+    // O selo (v0.45.2) dizia quantos movimentos foram ao modelo; as datas em si
+    // não apareciam em lugar nenhum — para lê-las era preciso que o modelo as
+    // citasse na resposta. Quem confere prazo precisa do REGISTRO, não do
+    // resumo: é ele que diz se a resposta bate com os autos. O selo virou a
+    // porta para ele.
+    //
+    // Criado sob demanda e `position: fixed`, como o `.selmenu` e a
+    // `.confirmbox`: o `.wrap` é um container de tamanho ZERO (quem tem dimensão
+    // é o `.panel`), então posicionar por dentro dele joga o elemento para fora
+    // da tela.
+    // -------------------------------------------------------------------------
+    let movItens = [];
+    let movCab = "";
+    let movbox = null;
+    function fecharMov() {
+      if (!movbox) return;
+      movbox.remove();
+      movbox = null;
+      ltEl.setAttribute("aria-expanded", "false");
+    }
+    function abrirMov() {
+      fecharMov();
+      if (!movItens.length) return;
+      const box = document.createElement("div");
+      box.className = "movbox";
+      box.setAttribute("role", "dialog");
+      box.setAttribute("aria-label", "Linha do tempo do processo");
+      const hd = document.createElement("div");
+      hd.className = "mv-hd";
+      const t = document.createElement("span");
+      t.className = "mv-t";
+      t.textContent = movCab;
+      const x = document.createElement("button");
+      x.type = "button";
+      x.className = "mv-x";
+      x.title = "Fechar (Esc)";
+      x.innerHTML = SVG.x; // ícone do próprio pacote, não conteúdo externo
+      x.addEventListener("click", fecharMov);
+      hd.appendChild(t);
+      hd.appendChild(x);
+      box.appendChild(hd);
+      const lista = document.createElement("div");
+      lista.className = "mv-list";
+      for (const it of movItens) {
+        // Marca do corte: a lista salta de uma data para outra bem distante, e
+        // sem esta linha o salto passaria por continuidade.
+        if (it.lacuna) {
+          const g = document.createElement("div");
+          g.className = "mv-gap";
+          g.textContent = "… " + it.lacuna + " …";
+          lista.appendChild(g);
+          continue;
+        }
+        const row = document.createElement("div");
+        row.className = "mv-row";
+        const d = document.createElement("span");
+        d.className = "mv-d";
+        d.textContent = it.data || "sem data";
+        const b = document.createElement("span");
+        b.className = "mv-b";
+        const ev = document.createElement("b");
+        // textContent, NUNCA innerHTML: isto é conteúdo dos autos (o movimento
+        // e o complemento vêm do PJe), e o `escapeHtml` do painel não escapa
+        // aspa simples.
+        ev.textContent = it.evento || "";
+        b.appendChild(ev);
+        if (it.texto) {
+          const c = document.createElement("span");
+          c.className = "mv-c";
+          c.textContent = it.texto;
+          b.appendChild(c);
+        }
+        for (const id of it.pecas || []) {
+          // Só id que PARECE id entra como botão — o mesmo critério das citações
+          // do chat (o número vem do texto do movimento, que é dado dos autos).
+          if (!/^\d+$/.test(String(id))) continue;
+          const p = document.createElement("button");
+          p.type = "button";
+          p.className = "mv-p";
+          p.dataset.id = String(id);
+          p.title = "Ver a peça " + id + " na linha do tempo do PJe";
+          p.textContent = "peça " + id;
+          b.appendChild(p);
+        }
+        row.appendChild(d);
+        row.appendChild(b);
+        lista.appendChild(row);
+      }
+      box.appendChild(lista);
+      // Delegado: uma lista de 140 movimentos não precisa de 140 listeners.
+      lista.addEventListener("click", (e) => {
+        const p = e.target.closest(".mv-p");
+        if (!p) return;
+        fecharMov();
+        irParaPeca(p.dataset.id);
+      });
+      wrap.appendChild(movbox = box);
+      ltEl.setAttribute("aria-expanded", "true");
+      posicionarMov();
+    }
+    function posicionarMov() {
+      if (!movbox) return;
+      const r = ltEl.getBoundingClientRect();
+      const larg = movbox.offsetWidth;
+      const alt = movbox.offsetHeight;
+      // Alinhado à DIREITA do selo (ele vive no canto direito do rodapé) e
+      // ACIMA dele, que é onde há espaço; abaixo só quando não cabe em cima.
+      movbox.style.left =
+        Math.max(6, Math.min(r.right - larg, window.innerWidth - larg - 6)) + "px";
+      if (r.top - alt - 8 >= 6) movbox.style.top = r.top - alt - 8 + "px";
+      else movbox.style.top = Math.min(r.bottom + 8, window.innerHeight - alt - 6) + "px";
+    }
+    ltEl.addEventListener("click", () => (movbox ? fecharMov() : abrirMov()));
+    // Fecha em clique fora e no Esc. O `stopPropagation` no Esc é obrigatório:
+    // sem ele a cascata do painel (`/` → `@` → modal → modo minuta) cancelaria
+    // outra coisa junto — mesma regra do Esc do preview.
+    wrap.addEventListener("pointerdown", (e) => {
+      if (movbox && !e.target.closest(".movbox") && !e.target.closest(".linhatempo")) fecharMov();
+    });
+    window.addEventListener(
+      "keydown",
+      (e) => {
+        if (e.key === "Escape" && movbox) {
+          e.stopPropagation();
+          fecharMov();
+        }
+      },
+      true
+    );
+    window.addEventListener("resize", posicionarMov);
+
     doclist.addEventListener("click", (e) => {
       const btn = e.target.closest(".d-ver");
       if (!btn) return;
@@ -6476,6 +6610,10 @@ var PjePanel = (function () {
       // info: {n, total, fonte:"oficial"|"tela", cortou, cortouChave, truncada,
       //        parcial, de, ate}. null esconde.
       setLinhaDoTempo(info) {
+        // A lista legível vive por trás do selo; ela é substituída junto com ele
+        // para nunca mostrar movimentos de um retrato anterior.
+        movItens = (info && info.itens) || [];
+        fecharMov();
         if (!info) {
           ltEl.hidden = true;
           ltFull.textContent = "";
@@ -6553,9 +6691,15 @@ var PjePanel = (function () {
               "anteriores fora da lista."
           );
         }
+        // Cabeçalho da lista: a procedência e o tamanho, que é o que decide o
+        // peso do que se vai ler ali.
+        movCab =
+          (oficial ? "Registro oficial do PJe" : "Lido da linha do tempo desta tela") +
+          " · " + movs(total) + (cortou ? " (" + n + " listados)" : "");
+        const clicar = movItens.length ? " Clique para ler a lista." : "";
         const txt = partes.join(" ");
-        ltEl.title = txt;
-        ltEl.setAttribute("aria-label", txt);
+        ltEl.title = txt + clicar;
+        ltEl.setAttribute("aria-label", txt + clicar);
         ltEl.hidden = false;
       },
       // Barra de ALERTA persistente (contexto cheio): diferente do status

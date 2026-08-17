@@ -2771,9 +2771,15 @@
     let fonteRest = false;
     if (movsOficiais && movsOficiais.length) {
       fonteRest = true;
+      // `ev` e `cp` (evento e complemento) viajam SEPARADOS além do `mov` já
+      // concatenado: o texto que vai ao modelo é uma linha só, mas a lista que o
+      // usuário lê no painel põe o evento em negrito e o complemento abaixo — e
+      // é no complemento que está o que fecha a conta ("… em 16/07/2026 23:59").
       itens = movsOficiais.map((m) => ({
         data: fmtData(m.data, true),
         ord: m.ms,
+        ev: m.evento,
+        cp: m.texto || "",
         mov: m.evento + (m.texto ? " — " + m.texto : ""),
         pecas: m.docs || [],
       }));
@@ -2801,6 +2807,10 @@
         .map((ev) => ({
           data: fmtData(ev.data),
           ord: ev.data && ev.data.getTime ? ev.data.getTime() : null,
+          // No DOM não há a separação evento/complemento: o `.texto-movimento` é
+          // uma coisa só. `cp` vazio, e a lista do painel mostra só o negrito.
+          ev: (ev.mov || "").trim(),
+          cp: "",
           mov: (ev.mov || "").trim(),
           pecas: (ev.pecas || []).map((p) => p.id),
         }))
@@ -2979,6 +2989,28 @@
       return m ? m[0] : s || null;
     };
     const datados = itens.filter((x) => x.data);
+    // A lista que o painel mostra é a MESMA que foi ao modelo, já cortada — e o
+    // corte entra nela como uma LINHA, não só como um número no cabeçalho: sem a
+    // marca, as datas saltariam de 2020 para 2026 no meio da lista sem
+    // explicação, o que é pior que dizer que faltou pedaço.
+    const itensUI = itens.map((x) => ({
+      data: x.data,
+      evento: x.ev || x.mov,
+      texto: x.cp || "",
+      pecas: x.pecas || [],
+    }));
+    if (cortou) {
+      itensUI.splice(marcaEm, 0, {
+        data: "",
+        evento: "",
+        lacuna:
+          cortou +
+          (cortouChave
+            ? " movimento(s) omitidos aqui por limite de tamanho — NÃO só de expediente"
+            : " movimento(s) de expediente omitidos aqui"),
+        pecas: [],
+      });
+    }
     anunciarLinhaDoTempo({
       n: total - cortou,
       total,
@@ -2989,6 +3021,7 @@
       parcial: domParcial,
       de: datados.length ? soODia(datados[0].data) : null,
       ate: datados.length ? soODia(datados[datados.length - 1].data) : null,
+      itens: itensUI,
     });
     return (
       "\n\n[LINHA DO TEMPO DO PROCESSO — movimentos " +
@@ -5806,14 +5839,15 @@
     panel.setAlerta(null);
     panel.setPecasEnviadas([]);
     if (panel.setAnexos) panel.setAnexos([]);
-    // O selo da linha do tempo descreve o ÚLTIMO turno, e depois daqui não há
-    // turno nenhum na tela. Sem esta linha ele sobrevivia ao "Nova conversa" e à
-    // troca de conversa — no melhor caso descrevendo uma resposta que saiu do
-    // ecrã, no pior mostrando um AVISO ÂMBAR ("140 de 380") sobre uma conversa
-    // que não está mais ali. Os movimentos em si (`movsOficiais`) NÃO são
-    // esquecidos: eles são do processo, como as peças, e o próximo turno os manda
-    // de novo — é o selo que precisa calar até haver o que descrever.
-    if (panel.setLinhaDoTempo) panel.setLinhaDoTempo(null);
+    // O selo da linha do tempo NÃO é limpo aqui, e isto é a correção de uma
+    // decisão que durou uma versão. Na v0.45.3 ele foi zerado junto com o
+    // medidor e o custo, porque descrevia "o último turno". Desde que passou a
+    // nascer no BOOT (v0.46.0), ele descreve o PROCESSO — quantos movimentos
+    // existem, de que fonte, e a lista que dá para ler —, e isso continua
+    // verdadeiro depois de "Nova conversa": o próximo turno manda os mesmos
+    // movimentos. Apagá-lo seria apagar uma verdade e devolver o selo ao estado
+    // invisível que o usuário não conseguiu achar. As PEÇAS seguem a mesma
+    // lógica e pelo mesmo motivo.
   }
 
   panel.onTrocarConversa((convId) => {
@@ -6102,6 +6136,45 @@
         g.tipo + " " + g.id + " há " + g.haMs + " ms"
     );
   });
+
+  // O SELO DA LINHA DO TEMPO NASCE NO BOOT, não na primeira resposta.
+  //
+  // Relato do dono do projeto, que atualizou a extensão e não achou o recurso:
+  // *"onde é que fica essas informações das datas que eu não estou vendo?"*. Ele
+  // estava certo, e o defeito era de projeto: o selo só era pintado DENTRO do
+  // turno, e quem quer conferir se a extensão viu as datas abre o painel e
+  // OLHA — não pergunta primeiro. É a segunda vez que um recurso entregue fica
+  // invisível por depender de uma ação (a primeira foi a caixa de apoio, e a
+  // lição registrada foi a mesma).
+  //
+  // Deferido e best-effort. A rota REST cabe no boot porque custa ~77 ms e ZERO
+  // tela JSF — não passa pelo Faces Servlet (ver docs/pje-api-rest.md) —, e se
+  // falhar `linhaDoTempoProcessual` cai sozinha para o DOM, que é de graça.
+  //
+  // Chama-se a função INTEIRA e descarta-se o texto DE PROPÓSITO: é o mesmo
+  // caminho que monta o bloco do request, então o selo não tem como divergir do
+  // que o turno vai mandar. Um atalho que só contasse os movimentos seria uma
+  // segunda contagem para divergir da primeira.
+  //
+  // 600 ms: depois do assentamento do boot e ANTES de o usuário chegar ao
+  // painel. Pintar tarde arriscaria mexer na altura do rodapé com o dedo dele já
+  // sobre um botão — é a armadilha da "faixa que muda de altura" documentada no
+  // CLAUDE.md, e aqui ela se evita pela ordem, não por sorte.
+  //
+  // TDZ: isto roda no FIM de `iniciar()`, depois de todas as declarações. Chamar
+  // `linhaDoTempoProcessual()` de dentro do `refresh()` (que roda ~800 linhas
+  // antes de `movsOficiais` existir) lançaria "Cannot access before
+  // initialization" e levaria metade do painel junto, em silêncio.
+  setTimeout(() => {
+    (async () => {
+      try {
+        await garantirMovimentacoes();
+        linhaDoTempoProcessual();
+      } catch (e) {
+        console.warn("[PJe IA] linha do tempo no boot:", e);
+      }
+    })();
+  }, 600);
 
   } // fim de iniciar()
 

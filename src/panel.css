@@ -2045,7 +2045,10 @@ button > svg { flex: none; }
    impedido de continuar (DESIGN.md §2: alerta em tudo é alerta em nada). */
 .linhatempo {
   display: inline-flex; align-items: center; gap: 5px; min-width: 0;
-  font-size: var(--fs-micro); color: var(--muted); cursor: help;
+  font-size: var(--fs-micro); color: var(--muted);
+  /* `pointer`, não `help`: desde que ele ABRE a lista dos movimentos, o gesto
+     principal é o clique — o tooltip continua ali para quem só passa o mouse. */
+  cursor: pointer; border: none; background: transparent; font-family: inherit;
   border-radius: var(--r-pill); padding: 2px 7px; margin: 0;
   transition: background 0.14s ease, color 0.14s ease;
 }
@@ -2063,6 +2066,67 @@ button > svg { flex: none; }
    é o SINAL). */
 .linhatempo.warn:hover, .linhatempo.warn:focus-visible {
   color: var(--warn-ink); box-shadow: inset 0 0 0 1px var(--warn);
+}
+
+/* ---------- A lista da linha do tempo (abre no clique do selo) ----------
+   `position: fixed` pela mesma razão do `.selmenu` e da `.confirmbox`: o `.wrap`
+   é um container de tamanho ZERO. A largura é generosa porque o complemento do
+   movimento é a informação que fecha a conta do prazo ("Decorrido prazo de … em
+   16/07/2026 23:59") e cortá-lo tiraria justamente o que se veio ler. */
+.movbox {
+  position: fixed; z-index: 2147483646;
+  width: min(420px, calc(100vw - 24px));
+  background: var(--surface); border: 1px solid var(--line-card);
+  border-radius: var(--r-md); box-shadow: var(--sh-pop);
+  display: flex; flex-direction: column; overflow: hidden;
+  animation: rise 0.12s ease-out;
+}
+.mv-hd {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 8px 8px 12px; border-bottom: 1px solid var(--line-card);
+  background: var(--surface-2);
+}
+.mv-t {
+  font-size: var(--fs-nano); font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mv-x {
+  border: none; background: transparent; cursor: pointer; flex: none;
+  color: var(--muted-3); width: 24px; height: 24px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; padding: 0;
+}
+.mv-x:hover { background: var(--hover); color: var(--ink); }
+/* `min-height: 0` no filho flex é o que permite o overflow funcionar dentro de
+   uma coluna flex (a mesma armadilha do `.doclist` na faixa `.docs`). */
+.mv-list { overflow-y: auto; min-height: 0; max-height: min(52vh, 460px); padding: 4px 0; }
+.mv-row {
+  display: flex; gap: 10px; align-items: baseline;
+  padding: 6px 12px; font-size: var(--fs-meta); line-height: 1.45;
+}
+.mv-row + .mv-row { border-top: 1px solid var(--line-2); }
+/* Data em coluna FIXA e tabular: é por ela que o olho desce a lista procurando
+   uma data, e largura variável destruiria essa varredura. */
+.mv-d {
+  flex: 0 0 104px; color: var(--text-3); font-size: var(--fs-micro);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.mv-b { min-width: 0; color: var(--text-2); }
+.mv-b b { color: var(--ink); font-weight: 600; }
+.mv-c { display: block; color: var(--muted); font-size: var(--fs-micro); }
+.mv-p {
+  display: inline-block; margin-top: 3px; padding: 1px 7px;
+  border: 1px solid var(--line); border-radius: var(--r-pill);
+  background: var(--accent-bg); color: var(--pje-2);
+  font: inherit; font-size: var(--fs-nano); cursor: pointer;
+}
+.mv-p:hover { border-color: var(--pje); background: var(--hover); }
+/* Marca do corte: tokens de aviso SUAVE, como a `.sel-nota` — falta pedaço, mas
+   nada está impedido. Sem esta linha o salto de datas passaria por continuidade. */
+.mv-gap {
+  padding: 7px 12px; font-size: var(--fs-micro); text-align: center;
+  color: var(--warn-ink); background: var(--warn-bg);
+  border-top: 1px solid var(--line-2); border-bottom: 1px solid var(--line-2);
 }
 
 /* ---------- Medidor de contexto da conversa ---------- */
