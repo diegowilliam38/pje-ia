@@ -6486,6 +6486,15 @@ var PjePanel = (function () {
         const total = Number(info.total) || n;
         const oficial = info.fonte !== "tela";
         const cortou = Math.max(0, total - n);
+        // Erro de concordância num selo cuja função é dar confiança é o detalhe
+        // que faz duvidar do número ao lado dele.
+        // Um só pluralizador para os três lugares que contam movimento, e os
+        // verbos que concordam com ele. O caso de UM movimento não é exótico: é
+        // o processo recém-distribuído, que é justamente o primeiro que alguém
+        // abre — ali "1 movimento lidos" e "1 movimento ficaram de fora"
+        // apareceriam na estreia do recurso.
+        const movs = (k) => k + " movimento" + (k === 1 ? "" : "s");
+        const ficou = (k) => (k === 1 ? " ficou" : " ficaram");
         // O aviso é sobre FALTAR pedaço — a fonte mais fraca (a tela) não é
         // aviso por si, e é o RÓTULO que a distingue: dizer "(da tela)" informa
         // sem alarmar, e alarmar o caso normal de um tribunal sem a rota REST
@@ -6505,41 +6514,43 @@ var PjePanel = (function () {
         } else {
           const fonteTxt = oficial ? "" : " (da tela)";
           ltFull.textContent =
-            "linha do tempo: " + (cortou ? n + " de " + total : String(n)) +
-            " movimento" + (total > 1 ? "s" : "") + fonteTxt;
+            "linha do tempo: " +
+            (cortou ? n + " de " + movs(total) : movs(n)) + fonteTxt;
           ltShort.textContent = (cortou ? n + "/" + total : String(n)) + " movs" + fonteTxt;
           partes.push(
-            "Linha do tempo do processo — " + total + " movimento" + (total > 1 ? "s" : "") +
+            "Linha do tempo do processo — " + movs(total) +
               (oficial
                 ? " do registro oficial do PJe"
-                : " lidos da linha do tempo desta tela (a consulta oficial não respondeu neste " +
-                  "tribunal; esta leitura não traz a hora dos atos)") +
-              (info.de && info.ate ? ", de " + info.de + " a " + info.ate : "") +
-              ". Vão junto com as peças em toda pergunta, e são a fonte das datas de publicação, " +
-              "intimação, decurso de prazo e trânsito em julgado."
+                : (total === 1 ? " lido" : " lidos") +
+                  " desta tela (a consulta oficial não respondeu aqui; sem a hora dos atos)") +
+              // Um movimento só — o processo recém-distribuído — tem UMA data:
+              // "de 04/05/2026 a 04/05/2026" anuncia uma faixa que não existe.
+              (info.de && info.ate
+                ? info.de === info.ate ? ", em " + info.de : ", de " + info.de + " a " + info.ate
+                : "") +
+              ". É a fonte das datas de publicação, intimação, decurso de prazo e trânsito."
           );
         }
         if (cortou) {
           partes.push(
             info.cortouChave
-              ? cortou + " movimento(s) ficaram de fora para a lista caber, e o corte alcançou " +
-                "atos que NÃO são de expediente: nesse intervalo pode faltar publicação, " +
-                "intimação ou decurso de prazo."
-              : cortou + " movimento(s) de expediente (juntada, petição, certidão, ato " +
-                "ordinatório) ficaram de fora para a lista caber. Publicação, prazo, intimação, " +
-                "decurso e trânsito foram todos preservados."
+              ? movs(cortou) + ficou(cortou) + " de fora para caber, e o corte alcançou atos que " +
+                "NÃO são de expediente: ali pode faltar publicação, intimação ou decurso."
+              : movs(cortou) + " de expediente (juntada, petição, certidão)" + ficou(cortou) +
+                " de fora para caber; publicação, prazo, intimação, decurso e trânsito foram " +
+                "preservados."
           );
         }
         if (info.truncada) {
           partes.push(
-            "A lista NÃO alcança o início do processo: a linha do tempo desta tela mostra ato " +
-              "anterior ao mais antigo listado. Não leia ausência de um ato como inexistência."
+            "A lista NÃO alcança o início do processo: esta tela mostra ato anterior ao mais " +
+              "antigo listado — ausência aqui não é inexistência."
           );
         }
         if (info.parcial) {
           partes.push(
-            "A linha do tempo desta tela está PARCIAL (carrega sob demanda), então podem existir " +
-              "atos anteriores fora da lista."
+            "A linha do tempo desta tela está PARCIAL (carrega sob demanda): podem existir atos " +
+              "anteriores fora da lista."
           );
         }
         const txt = partes.join(" ");

@@ -94,7 +94,7 @@
              linhas na tabela — defasagem silenciosa de 11 versões, porque nada aqui a
              calcula. Ao lançar, conferir: o valor certo é a contagem de <tr> do
              histórico. -->
-        Da primeira versão (19 de julho de 2026) até hoje foram <strong>78 versões</strong>. Esta
+        Da primeira versão (19 de julho de 2026) até hoje foram <strong>79 versões</strong>. Esta
         página agrupa o que foi feito <strong>por recurso</strong> — é assim que se usa a
         extensão, não versão a versão. O
         <a class="link" href="#historico">histórico completo</a>, com data e uma linha por
@@ -103,7 +103,33 @@
 
       <div class="card destaque">
         <p class="eyebrow" style="color: rgba(255,255,255,0.7)">A novidade mais recente</p>
-        <h2><span class="v novo">v0.45.2</span> Dá para ver que o assistente recebeu as datas — e o que faltou</h2>
+        <h2><span class="v novo">v0.45.3</span> Acabamento do selo das datas: some ao trocar de conversa, e fala certo no singular</h2>
+        <p>
+          Revisão do selo que a versão anterior estreou. Ele <strong>sobrevivia ao “Nova
+          conversa”</strong>: o medidor e o custo eram zerados, o selo ficava — no melhor caso
+          descrevendo uma resposta que não estava mais na tela, no pior mostrando um
+          <strong>aviso âmbar</strong> sobre uma conversa que acabara de ser arquivada. Agora ele
+          cala até haver o que descrever, e o turno seguinte o traz de volta.
+        </p>
+        <p>
+          E ele passou a falar certo no <strong>processo recém-distribuído</strong>, que tem um
+          movimento só e é justamente o primeiro que se abre: saía <em>“1 movimento lidos”</em> e
+          a faixa <em>“de 04/05/2026 a 04/05/2026”</em>, anunciando um intervalo que não existe.
+          Num selo cuja função é dar confiança, erro de concordância é o detalhe que faz duvidar
+          do número ao lado dele.
+        </p>
+        <p>
+          Também: o selo âmbar não respondia ao mouse (parecia decoração, não algo com explicação
+          atrás), os textos de ajuda foram encurtados para caberem em uma olhada, e o botão
+          <strong>“Nova conversa”</strong> ganhou uma proteção que faltava — sem ela, uma falha no
+          módulo de memória o interromperia <em>depois</em> de limpar a tela e <em>antes</em> de
+          dizer onde a conversa foi guardada.
+        </p>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">Antes disso</p>
+        <h2><span class="v">v0.45.2</span> Dá para ver que o assistente recebeu as datas — e o que faltou</h2>
         <p>
           As duas versões anteriores puseram a <strong>linha do tempo do processo</strong>
           junto das peças, e ela funcionava sem dizer nada a ninguém: você lia uma resposta
@@ -1500,6 +1526,7 @@
             <tr><th>Versão</th><th>Data</th><th>O que mudou</th></tr>
           </thead>
           <tbody>
+            <tr><td><span class="v">0.45.3</span></td><td>17/08/2026</td><td>Acabamento do selo das datas. Ele <strong>sobrevivia ao “Nova conversa”</strong> (o medidor e o custo eram zerados; o selo ficava, no pior caso mostrando um aviso âmbar sobre uma conversa já arquivada) e errava a concordância no <strong>processo recém-distribuído</strong>, que tem um movimento só: “1 movimento lidos” e a faixa “de 04/05/2026 a 04/05/2026”, um intervalo que não existe. O selo âmbar também não respondia ao mouse, e os textos de ajuda foram encurtados. Fora isso, o botão “Nova conversa” ganhou uma proteção que faltava contra falha do módulo de memória</td></tr>
             <tr><td><span class="v">0.45.2</span></td><td>17/08/2026</td><td>A <strong>linha do tempo do processo</strong> passou a se anunciar na interface. Ela ia junto com as peças desde a v0.45.0 e não dizia nada: dava para ler uma resposta sobre prazo sem saber se veio do <strong>registro oficial de movimentações</strong> ou de uma leitura parcial da tela, nem que a lista havia sido encurtada — os avisos existiam, mas eram escritos para o assistente, não para quem confia na resposta. Agora um selo no rodapé mostra quantos movimentos foram e, no toque do mouse, a fonte e o intervalo coberto; ele fica <strong>âmbar</strong> quando a lista foi cortada, quando não alcança o início do processo ou quando não veio movimento nenhum (<em>“sem linha do tempo”</em>, que é o que explica uma resposta sem data)</td></tr>
             <tr><td><span class="v">0.45.1</span></td><td>17/08/2026</td><td>Revisão da linha do tempo. Em processo com <strong>mais de 140 movimentos</strong> a lista é encurtada para caber, e o corte era pelo <strong>meio</strong> — onde costumam estar a publicação de uma sentença antiga e o trânsito de uma fase anterior —, ainda por cima anunciado como “movimentos de expediente omitidos”. Agora sai só o que é reconhecidamente expediente, as pontas ficam intactas e, quando nem isso basta, o aviso <strong>diz</strong> que o corte alcançou outros atos. A <strong>minuta e o mapa mental</strong> ganharam como citar uma data da linha do tempo (<em>movimentação de 25/06/2026</em>): antes a regra de origem exigia peça, id e folha, e uma data de publicação não tem folha — ela ficava fora do relatório ou saía pendurada numa peça que não a contém. A extensão também <strong>parou de afirmar</strong> que a lista cobre o processo inteiro (avisa quando a linha do tempo da tela mostra ato mais antigo do que a lista alcançou), e a consulta ganhou <strong>tempo limite</strong>, para uma rota que não responda não deixar o Enviar sem resposta e sem mensagem</td></tr>
             <tr class="marco"><td><span class="v">0.45.0</span></td><td>17/08/2026</td><td><span class="dot-marco"></span><strong>O assistente passou a ver as datas do processo.</strong> Perguntar a data do trânsito em julgado devolvia “não é possível determinar” — e estava certo: <strong>publicação, decurso de prazo e trânsito são movimentos</strong>, não peças, e o assistente recebia só os PDFs. Agora vai junto a <strong>linha do tempo processual</strong> (cada ato com data e hora, código e descrição do CNJ, e o complemento que fecha a conta: “Decorrido prazo de … em 16/07/2026 23:59”), mais a <strong>data de juntada</strong> de cada peça anexada e a data na lista das não anexadas. Vem da lista oficial de movimentações do PJe numa única consulta — alcança <strong>além do trecho carregado na tela</strong> e não abre tela nenhuma do sistema; onde ela não existir, a extensão lê a linha do tempo da tela e <strong>avisa que pode estar parcial</strong>. Vale no chat, na minuta e no mapa mental, e o assistente passa a distinguir o que está <strong>registrado</strong> do que ele <strong>calculou</strong></td></tr>

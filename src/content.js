@@ -1196,7 +1196,15 @@
     // As PEÇAS não são tocadas: elas são do processo, custaram download e
     // servem a todas as conversas dele. Para esquecer o processo inteiro há o
     // botão próprio na faixa de retomada.
-    CASO.salvar(casoChave, { convAtual: null });
+    //
+    // A guarda `memoriaDisponivel` estava FALTANDO aqui — era o único dos nove
+    // acessos a `CASO` no arquivo sem ela. Como `caso.js` entra pelo manifest,
+    // na prática nunca faltou; mas se o IIFE dele parar de carregar (erro de
+    // sintaxe numa edição futura), o botão "Nova conversa" morre com
+    // `ReferenceError` no MEIO do trabalho — depois de já ter limpado a tela e
+    // antes de anunciar onde a conversa foi guardada. A guarda é de graça, e é
+    // ela que o resto do arquivo já usa.
+    if (memoriaDisponivel && casoChave) CASO.salvar(casoChave, { convAtual: null });
     atualizarListaConversas();
     // "Nova conversa" APAGA a tela, e uma tela apagada é indistinguível de
     // trabalho perdido — a queixa não é hipotética. O status diz para onde a
@@ -5798,6 +5806,14 @@
     panel.setAlerta(null);
     panel.setPecasEnviadas([]);
     if (panel.setAnexos) panel.setAnexos([]);
+    // O selo da linha do tempo descreve o ÚLTIMO turno, e depois daqui não há
+    // turno nenhum na tela. Sem esta linha ele sobrevivia ao "Nova conversa" e à
+    // troca de conversa — no melhor caso descrevendo uma resposta que saiu do
+    // ecrã, no pior mostrando um AVISO ÂMBAR ("140 de 380") sobre uma conversa
+    // que não está mais ali. Os movimentos em si (`movsOficiais`) NÃO são
+    // esquecidos: eles são do processo, como as peças, e o próximo turno os manda
+    // de novo — é o selo que precisa calar até haver o que descrever.
+    if (panel.setLinhaDoTempo) panel.setLinhaDoTempo(null);
   }
 
   panel.onTrocarConversa((convId) => {

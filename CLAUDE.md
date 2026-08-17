@@ -819,6 +819,12 @@ caro — o `docsCache`, que custou até `200 × 5,6 s ≈ 18 min` da fila serial
 do PJe. O `fileId` sobrevivia em `storage.session` mas era lido de DENTRO do
 `docsCache`: na prática o cache de sessão poupava o upload e nunca o download.
 
+- **TODO acesso a `CASO` passa por `memoriaDisponivel`** (`typeof CASO !==
+  "undefined"`). Não é paranoia: é o que permite testar o `content.js` em jsdom sem
+  carregar o `caso.js`, e é a rede se o IIFE dele parar de carregar. O `CASO.salvar`
+  do `onReset` era o ÚNICO dos nove acessos sem a guarda — ali um `ReferenceError`
+  mataria o "Nova conversa" DEPOIS de limpar a tela e ANTES de dizer onde a
+  conversa foi guardada, que é o pior instante possível.
 - **O banco NÃO PODE viver no content script.** Content scripts rodam na origem
   da PÁGINA: um `indexedDB.open()` em `content.js` abriria o banco de
   `pje.tjce.jus.br` — os autos ficariam legíveis por qualquer script do tribunal
@@ -2174,6 +2180,13 @@ inventário, que ganhou a data de cada peça não marcada.
   - **Todos os `return ""` também anunciam** (`{n:0}`): zero movimento se explica,
     não desaparece (a regra da `.sel-nota` e do estado vazio da biblioteca) — é o
     selo que diz por que a pergunta de prazo vai voltar sem resposta.
+  - **`zerarEstadoDaConversa` APAGA o selo** (`setLinhaDoTempo(null)`), como já
+    fazia com o medidor e o custo. Ele descreve o ÚLTIMO turno, e depois do reset
+    (ou da troca de conversa, que passa pelo mesmo ponto) não há turno na tela: no
+    melhor caso ele descrevia uma resposta que saiu do ecrã, no pior mostrava um
+    AVISO ÂMBAR sobre uma conversa arquivada. Os movimentos (`movsOficiais`) NÃO
+    são esquecidos — são do processo, como as peças, e o próximo turno os manda de
+    novo. Calar não é desligar.
   - Estados, tokens e a razão de o selo morar na `.metarow` (e não na `.docs-tip`)
     estão no DESIGN.md, "Selo da linha do tempo".
 - **A movimentação precisa de FORMA PRÓPRIA de citação na minuta e no mapa**

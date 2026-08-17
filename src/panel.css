@@ -2056,7 +2056,14 @@ button > svg { flex: none; }
 .lt-txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .linhatempo.warn { color: var(--warn-ink); background: var(--warn-bg); }
 .linhatempo.warn svg { color: var(--warn-ink); }
-.linhatempo.warn:hover, .linhatempo.warn:focus-visible { color: var(--warn-ink); }
+/* O estado de aviso precisa do PRÓPRIO hover: a regra `.linhatempo:hover` vem
+   antes e tem a mesma especificidade, então o `--warn-bg` a vence e o selo âmbar
+   ficava sem resposta nenhuma ao mouse — parecia decoração, não algo com
+   explicação atrás. A borda faz o papel do realce, sem trocar o fundo (que aqui
+   é o SINAL). */
+.linhatempo.warn:hover, .linhatempo.warn:focus-visible {
+  color: var(--warn-ink); box-shadow: inset 0 0 0 1px var(--warn);
+}
 
 /* ---------- Medidor de contexto da conversa ---------- */
 .gauge { display: flex; align-items: center; gap: var(--sp-2); margin: 0; cursor: help; min-width: 0; }

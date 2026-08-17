@@ -626,6 +626,16 @@ não documento.
 - **Conjunto vazio se explica** (a regra da `.sel-nota`): sem nenhum movimento o
   selo aparece dizendo `sem linha do tempo`, porque é ele que explica por que uma
   pergunta de prazo vai voltar sem resposta naquele processo.
+- **O estado de aviso precisa do PRÓPRIO `:hover`.** `.linhatempo:hover` vem antes
+  e tem a mesma especificidade, então o `--warn-bg` a vence e o selo âmbar ficava
+  sem resposta nenhuma ao mouse — lia-se como decoração, não como algo que tem
+  explicação atrás. O realce é uma borda por `box-shadow: inset`, e não a troca do
+  fundo, porque ali o fundo é o SINAL.
+- **Concordância no singular não é detalhe**: um movimento só é o processo
+  recém-distribuído, isto é, o primeiro que alguém abre. "1 movimento lidos" e a
+  faixa "de 04/05/2026 a 04/05/2026" (que anuncia um intervalo inexistente) sairiam
+  na estreia do recurso. Num selo cuja função é dar confiança, erro de concordância
+  é o que faz duvidar do número ao lado dele.
 - Ícone de relógio SVG com ponteiros em 10h10 — a 14px, 12h00 vira um traço só.
   Emoji está fora (§5). `role="note"`, `tabindex="0"` e `aria-label` espelhando o
   `title`: em `display:none` o tooltip não é anunciado, e quem navega por teclado
