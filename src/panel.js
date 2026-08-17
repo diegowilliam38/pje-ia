@@ -289,6 +289,10 @@ var PjePanel = (function () {
     mais: '<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
     lista: '<path d="M4 5h13"/><path d="M4 12h10"/><path d="M4 19h7"/>',
     info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5"/><path d="M12 8h.01"/>',
+    // Relógio para o selo da linha do tempo processual. Ponteiros em 10h10 (e
+    // não 12h00, que a 14px vira um traço só): é o desenho que se lê como
+    // "tempo" no tamanho em que ele vai aparecer. Emoji está fora — DESIGN.md §5.
+    relogio: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3.2 1.9"/>',
     doc: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',
     ver: '<circle cx="12" cy="12" r="4.2"/><path d="M12 3.6v2.8"/><path d="M12 17.6v2.8"/><path d="M3.6 12h2.8"/><path d="M17.6 12h2.8"/>',
     // toolbar
@@ -372,6 +376,7 @@ var PjePanel = (function () {
     importarG: ic(P.importar, 24, 1.4), // grande: traço mais fino (DESIGN.md §5)
     // --- demais ---
     info: ic(P.info, 15, 1.8),
+    relogio: ic(P.relogio, 14, 1.8),
     clip: ic(P.clip, 16, 1.8),
     enviar: ic(P.enviar, 14, 2),
     chevron: ic(P.chevron, 11, 2.2),
@@ -895,6 +900,9 @@ var PjePanel = (function () {
                   <div class="custo" hidden>
                     <span class="custo-txt"><span class="g-full"></span><span class="g-short"></span></span>
                   </div>
+                  <div class="linhatempo" hidden tabindex="0" role="note">
+                    ${SVG.relogio}<span class="lt-txt"><span class="g-full"></span><span class="g-short"></span></span>
+                  </div>
                   <button class="modelo-badge" hidden title="Modelo de IA em uso nesta conversa — clique para trocar nas opções da extensão"></button>
                   <span class="cite-note" hidden tabindex="0" role="note" title="Modelos Gemini: as citações de página aparecem no próprio texto da resposta (ex.: “conforme a Contestação, fl. 12”), sem os marcadores [n] automáticos dos modelos Claude." aria-label="Neste modelo as citações de página aparecem no próprio texto da resposta, sem os marcadores numerados dos modelos Claude.">${SVG.info}</span>
                 </div>
@@ -1104,6 +1112,9 @@ var PjePanel = (function () {
     const custoEl = $(".custo");
     const custoFull = $(".custo-txt .g-full");
     const custoShort = $(".custo-txt .g-short");
+    const ltEl = $(".linhatempo");
+    const ltFull = $(".lt-txt .g-full");
+    const ltShort = $(".lt-txt .g-short");
     const citeNote = $(".cite-note");
     const modeloBadge = $(".modelo-badge");
     const alertEl = $(".alertbar");
@@ -6445,6 +6456,96 @@ var PjePanel = (function () {
             fmtMil(u.output_tokens) + " gerados."
           : "Estimativa pela tabela de preços da " + prov + ".";
         custoEl.hidden = false;
+      },
+      // SELO DA LINHA DO TEMPO PROCESSUAL — o que de fato foi ao modelo no
+      // eixo do TEMPO (movimentos: publicação, intimação, decurso, trânsito).
+      //
+      // Existe porque a v0.45 mandava esse bloco e não dizia nada a ninguém: o
+      // usuário lia uma resposta sobre PRAZO sem saber se ela veio do registro
+      // oficial do PJe ou de uma leitura parcial da tela, nem que a lista havia
+      // sido cortada por tamanho. O corte "ia dito" — ao MODELO, que já tinha o
+      // dado, e não a quem decide se confia na resposta.
+      //
+      // Fica na `.metarow` porque é da mesma família do medidor e do custo:
+      // fatos sobre a resposta que acabou de sair. E tem DOIS estados num só
+      // mecanismo (como o ⚠️ da lista e o ⓘ das citações): normal quando a
+      // linha do tempo foi inteira, aviso quando falta pedaço. Tokens SUAVES
+      // (--warn-*), nunca os da `.alertbar` — a lista chegou, só não completa,
+      // e nada está impedido de continuar.
+      //
+      // info: {n, total, fonte:"oficial"|"tela", cortou, cortouChave, truncada,
+      //        parcial, de, ate}. null esconde.
+      setLinhaDoTempo(info) {
+        if (!info) {
+          ltEl.hidden = true;
+          ltFull.textContent = "";
+          ltShort.textContent = "";
+          return;
+        }
+        const n = Number(info.n) || 0;
+        const total = Number(info.total) || n;
+        const oficial = info.fonte !== "tela";
+        const cortou = Math.max(0, total - n);
+        // O aviso é sobre FALTAR pedaço — a fonte mais fraca (a tela) não é
+        // aviso por si, e é o RÓTULO que a distingue: dizer "(da tela)" informa
+        // sem alarmar, e alarmar o caso normal de um tribunal sem a rota REST
+        // faria o selo perder o significado justamente onde ele importa.
+        const alerta = !n || cortou > 0 || !!info.truncada || !!info.parcial;
+        ltEl.classList.toggle("warn", alerta);
+        const partes = [];
+        if (!n) {
+          ltFull.textContent = "sem linha do tempo";
+          ltShort.textContent = "sem datas";
+          partes.push(
+            "Não foi possível obter os movimentos deste processo: a consulta oficial não " +
+              "respondeu e a linha do tempo desta tela não trouxe atos. Perguntas de prazo, " +
+              "publicação, intimação e trânsito em julgado podem ficar sem resposta — e a " +
+              "ausência de um ato aqui NÃO significa que ele não aconteceu."
+          );
+        } else {
+          const fonteTxt = oficial ? "" : " (da tela)";
+          ltFull.textContent =
+            "linha do tempo: " + (cortou ? n + " de " + total : String(n)) +
+            " movimento" + (total > 1 ? "s" : "") + fonteTxt;
+          ltShort.textContent = (cortou ? n + "/" + total : String(n)) + " movs" + fonteTxt;
+          partes.push(
+            "Linha do tempo do processo — " + total + " movimento" + (total > 1 ? "s" : "") +
+              (oficial
+                ? " do registro oficial do PJe"
+                : " lidos da linha do tempo desta tela (a consulta oficial não respondeu neste " +
+                  "tribunal; esta leitura não traz a hora dos atos)") +
+              (info.de && info.ate ? ", de " + info.de + " a " + info.ate : "") +
+              ". Vão junto com as peças em toda pergunta, e são a fonte das datas de publicação, " +
+              "intimação, decurso de prazo e trânsito em julgado."
+          );
+        }
+        if (cortou) {
+          partes.push(
+            info.cortouChave
+              ? cortou + " movimento(s) ficaram de fora para a lista caber, e o corte alcançou " +
+                "atos que NÃO são de expediente: nesse intervalo pode faltar publicação, " +
+                "intimação ou decurso de prazo."
+              : cortou + " movimento(s) de expediente (juntada, petição, certidão, ato " +
+                "ordinatório) ficaram de fora para a lista caber. Publicação, prazo, intimação, " +
+                "decurso e trânsito foram todos preservados."
+          );
+        }
+        if (info.truncada) {
+          partes.push(
+            "A lista NÃO alcança o início do processo: a linha do tempo desta tela mostra ato " +
+              "anterior ao mais antigo listado. Não leia ausência de um ato como inexistência."
+          );
+        }
+        if (info.parcial) {
+          partes.push(
+            "A linha do tempo desta tela está PARCIAL (carrega sob demanda), então podem existir " +
+              "atos anteriores fora da lista."
+          );
+        }
+        const txt = partes.join(" ");
+        ltEl.title = txt;
+        ltEl.setAttribute("aria-label", txt);
+        ltEl.hidden = false;
       },
       // Barra de ALERTA persistente (contexto cheio): diferente do status
       // (transitório), fica visível até ser resolvida — com ação de recomeço.

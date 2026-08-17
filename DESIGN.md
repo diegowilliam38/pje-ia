@@ -598,6 +598,39 @@ emoji nem dot):
 chevron — o chevron sinaliza que o selo é clicável, o que já era o comportamento.
 Ao lado, o `ⓘ` como botão redondo de 26px.
 
+#### Selo da linha do tempo (`.linhatempo`) — dois estados, um elemento
+
+Diz o que foi ao modelo no eixo do **tempo** (os movimentos do processo:
+publicação, intimação, decurso de prazo, trânsito). Fica na `.metarow` porque é
+da mesma família do medidor e do custo — fatos sobre a resposta que acabou de
+sair —, e não na `.docs-tip`, que tem escopo "lista de peças": movimento é ato,
+não documento.
+
+| Estado | Quando | Tokens |
+|---|---|---|
+| neutro | a linha do tempo foi inteira | `--muted` / ícone `--muted-3` |
+| aviso | lista cortada por tamanho, não alcança o início do processo, ou vazia | `--warn-ink` sobre `--warn-bg` |
+
+- **Tokens SUAVES, nunca os da `.alertbar`.** A lista chegou, só não completa, e
+  nada está impedido de continuar — pintar isso de `--alerta` é o "tudo alerta com
+  a mesma intensidade" do §2.
+- **A fonte mais fraca NÃO é aviso; é rótulo.** Quando o registro oficial não
+  responde e a leitura sai do DOM da tela, o texto ganha `(da tela)` e o estado
+  segue neutro. Alarmar o caso normal de um tribunal sem a rota faria o selo
+  perder o significado justamente onde ele importa.
+- **Rótulo em duas versões** (`.g-full`/`.g-short`, a regra global do medidor e do
+  custo): `linha do tempo: 140 de 380 movimentos` nos modos largos, `140/380 movs`
+  onde a linha é estreita. Medido: no flutuante de 484px o estado neutro cabe na
+  MESMA linha do medidor e do custo; o de aviso empurra o selo do modelo para a
+  segunda linha, que desce ancorada à direita como o resto da `.metarow`.
+- **Conjunto vazio se explica** (a regra da `.sel-nota`): sem nenhum movimento o
+  selo aparece dizendo `sem linha do tempo`, porque é ele que explica por que uma
+  pergunta de prazo vai voltar sem resposta naquele processo.
+- Ícone de relógio SVG com ponteiros em 10h10 — a 14px, 12h00 vira um traço só.
+  Emoji está fora (§5). `role="note"`, `tabindex="0"` e `aria-label` espelhando o
+  `title`: em `display:none` o tooltip não é anunciado, e quem navega por teclado
+  precisa alcançar a explicação.
+
 Caixa de entrada com `--r-xl`, borda `--line-input`, foco `--line-focus` + `--ring`.
 Botão **Enviar com gradiente vertical** (`--btn-de`→`--btn-para`, `--sh-btn`) e seta
 → à direita do rótulo; no modo estreito vira quadrado de 38×38 só com a seta.

@@ -94,7 +94,7 @@
              linhas na tabela — defasagem silenciosa de 11 versões, porque nada aqui a
              calcula. Ao lançar, conferir: o valor certo é a contagem de <tr> do
              histórico. -->
-        Da primeira versão (19 de julho de 2026) até hoje foram <strong>77 versões</strong>. Esta
+        Da primeira versão (19 de julho de 2026) até hoje foram <strong>78 versões</strong>. Esta
         página agrupa o que foi feito <strong>por recurso</strong> — é assim que se usa a
         extensão, não versão a versão. O
         <a class="link" href="#historico">histórico completo</a>, com data e uma linha por
@@ -103,7 +103,37 @@
 
       <div class="card destaque">
         <p class="eyebrow" style="color: rgba(255,255,255,0.7)">A novidade mais recente</p>
-        <h2><span class="v novo">v0.45.1</span> Em processo longo, a data que decide o prazo não fica mais de fora</h2>
+        <h2><span class="v novo">v0.45.2</span> Dá para ver que o assistente recebeu as datas — e o que faltou</h2>
+        <p>
+          As duas versões anteriores puseram a <strong>linha do tempo do processo</strong>
+          junto das peças, e ela funcionava sem dizer nada a ninguém: você lia uma resposta
+          sobre <em>prazo</em> sem saber se ela veio do <strong>registro oficial de
+          movimentações do PJe</strong> ou de uma leitura parcial da linha do tempo da tela
+          — nem que a lista havia sido encurtada por tamanho. Os avisos existiam, mas eram
+          escritos <strong>para o assistente</strong>, que já tinha o dado, e não para quem
+          decide se confia na resposta.
+        </p>
+        <p>
+          Agora há um selo no rodapé do painel, ao lado do medidor e do custo:
+          <em>“linha do tempo: 25 movimentos”</em>. Passando o mouse, ele diz a
+          <strong>fonte</strong>, o <strong>intervalo coberto</strong> (de que data a que
+          data) e o que eventualmente ficou de fora. Quando a leitura vem da tela em vez do
+          registro oficial, o rótulo avisa — <em>“(da tela)”</em> —, porque ali não há a
+          hora dos atos.
+        </p>
+        <p>
+          O selo fica <strong>âmbar</strong> em três situações que mudam como ler a
+          resposta: a lista foi <strong>cortada</strong> para caber (diz quantos saíram e
+          que publicação, prazo, intimação e trânsito foram preservados), a lista
+          <strong>não alcança o início do processo</strong>, ou <strong>não veio movimento
+          nenhum</strong> — caso em que ele diz <em>“sem linha do tempo”</em>, que é
+          justamente o que explica uma resposta sem data.
+        </p>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">Antes disso</p>
+        <h2><span class="v">v0.45.1</span> Em processo longo, a data que decide o prazo não fica mais de fora</h2>
         <p>
           A novidade da versão anterior — a linha do tempo do processo indo junto com as
           peças — tinha um limite de tamanho: passando de 140 movimentos, a lista era
@@ -1470,6 +1500,7 @@
             <tr><th>Versão</th><th>Data</th><th>O que mudou</th></tr>
           </thead>
           <tbody>
+            <tr><td><span class="v">0.45.2</span></td><td>17/08/2026</td><td>A <strong>linha do tempo do processo</strong> passou a se anunciar na interface. Ela ia junto com as peças desde a v0.45.0 e não dizia nada: dava para ler uma resposta sobre prazo sem saber se veio do <strong>registro oficial de movimentações</strong> ou de uma leitura parcial da tela, nem que a lista havia sido encurtada — os avisos existiam, mas eram escritos para o assistente, não para quem confia na resposta. Agora um selo no rodapé mostra quantos movimentos foram e, no toque do mouse, a fonte e o intervalo coberto; ele fica <strong>âmbar</strong> quando a lista foi cortada, quando não alcança o início do processo ou quando não veio movimento nenhum (<em>“sem linha do tempo”</em>, que é o que explica uma resposta sem data)</td></tr>
             <tr><td><span class="v">0.45.1</span></td><td>17/08/2026</td><td>Revisão da linha do tempo. Em processo com <strong>mais de 140 movimentos</strong> a lista é encurtada para caber, e o corte era pelo <strong>meio</strong> — onde costumam estar a publicação de uma sentença antiga e o trânsito de uma fase anterior —, ainda por cima anunciado como “movimentos de expediente omitidos”. Agora sai só o que é reconhecidamente expediente, as pontas ficam intactas e, quando nem isso basta, o aviso <strong>diz</strong> que o corte alcançou outros atos. A <strong>minuta e o mapa mental</strong> ganharam como citar uma data da linha do tempo (<em>movimentação de 25/06/2026</em>): antes a regra de origem exigia peça, id e folha, e uma data de publicação não tem folha — ela ficava fora do relatório ou saía pendurada numa peça que não a contém. A extensão também <strong>parou de afirmar</strong> que a lista cobre o processo inteiro (avisa quando a linha do tempo da tela mostra ato mais antigo do que a lista alcançou), e a consulta ganhou <strong>tempo limite</strong>, para uma rota que não responda não deixar o Enviar sem resposta e sem mensagem</td></tr>
             <tr class="marco"><td><span class="v">0.45.0</span></td><td>17/08/2026</td><td><span class="dot-marco"></span><strong>O assistente passou a ver as datas do processo.</strong> Perguntar a data do trânsito em julgado devolvia “não é possível determinar” — e estava certo: <strong>publicação, decurso de prazo e trânsito são movimentos</strong>, não peças, e o assistente recebia só os PDFs. Agora vai junto a <strong>linha do tempo processual</strong> (cada ato com data e hora, código e descrição do CNJ, e o complemento que fecha a conta: “Decorrido prazo de … em 16/07/2026 23:59”), mais a <strong>data de juntada</strong> de cada peça anexada e a data na lista das não anexadas. Vem da lista oficial de movimentações do PJe numa única consulta — alcança <strong>além do trecho carregado na tela</strong> e não abre tela nenhuma do sistema; onde ela não existir, a extensão lê a linha do tempo da tela e <strong>avisa que pode estar parcial</strong>. Vale no chat, na minuta e no mapa mental, e o assistente passa a distinguir o que está <strong>registrado</strong> do que ele <strong>calculou</strong></td></tr>
             <tr><td><span class="v">0.44.0</span></td><td>16/08/2026</td><td><strong>Canal direto para bugs e sugestões.</strong> Um <strong>WhatsApp</strong> no rodapé da configuração, no guia (“Deu problema? Fale comigo”), nas novidades e dentro do painel — e, quando o link parte do painel, a <strong>versão da extensão já vai na mensagem</strong>. A issue no GitHub continua para quem prefere registrar por escrito. Nenhum dos dois canais aceita conteúdo de processo em segredo de justiça. Correções da revisão da v0.43.0: a busca da peça na linha do tempo deixou de <strong>apagar o aviso de progresso</strong> de um envio em andamento, e a rotina de rolagem passou a responder “não encontrei” em vez de nada quando a linha do tempo não existe</td></tr>

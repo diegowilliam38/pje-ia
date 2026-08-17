@@ -2037,6 +2037,27 @@ button > svg { flex: none; }
 .wrap:not(.expanded) .g-full { display: none; }
 .wrap:not(.expanded) .g-short { display: inline; }
 
+/* ---------- Selo da linha do tempo processual ----------
+   Diz o que foi ao modelo no eixo do TEMPO (movimentos do processo). Dois
+   estados num só elemento, como o ⚠️ da lista de peças e o ⓘ das citações:
+   neutro quando a linha do tempo foi inteira, --warn-* quando falta pedaço.
+   Nunca os tokens da .alertbar — a lista chegou, só não completa, e nada está
+   impedido de continuar (DESIGN.md §2: alerta em tudo é alerta em nada). */
+.linhatempo {
+  display: inline-flex; align-items: center; gap: 5px; min-width: 0;
+  font-size: var(--fs-micro); color: var(--muted); cursor: help;
+  border-radius: var(--r-pill); padding: 2px 7px; margin: 0;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+.linhatempo svg { color: var(--muted-3); flex: none; }
+.linhatempo:hover, .linhatempo:focus-visible {
+  background: var(--hover); color: var(--text-2); outline: none;
+}
+.lt-txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.linhatempo.warn { color: var(--warn-ink); background: var(--warn-bg); }
+.linhatempo.warn svg { color: var(--warn-ink); }
+.linhatempo.warn:hover, .linhatempo.warn:focus-visible { color: var(--warn-ink); }
+
 /* ---------- Medidor de contexto da conversa ---------- */
 .gauge { display: flex; align-items: center; gap: var(--sp-2); margin: 0; cursor: help; min-width: 0; }
 .gauge-bar {

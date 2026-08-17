@@ -2160,6 +2160,22 @@ inventário, que ganhou a data de cada peça não marcada.
   **ausência é "não há movimento registrado de X", nunca "X não aconteceu"**:
   registro é o que foi lançado no sistema, não o mundo — um trânsito que ocorreu e
   não foi certificado existe juridicamente e não está ali.
+- **O que vai ao modelo se ANUNCIA na interface** (`panel.setLinhaDoTempo` + o selo
+  `.linhatempo` na `.metarow`, v0.45.2). Até aqui o bloco viajava e a UI não dizia
+  nada: dava para ler uma resposta sobre PRAZO sem saber se ela veio do registro
+  oficial ou de uma leitura parcial da tela, nem que a lista havia sido cortada. O
+  corte "ia dito" — **ao modelo, que já tinha o dado**, e não a quem decide se
+  confia na resposta. Regras:
+  - **O anúncio nasce DENTRO de `linhaDoTempoProcessual`** (`anunciarLinhaDoTempo`),
+    no ponto único que monta o bloco. São TRÊS caminhos que a chamam (chat, minuta,
+    mapa) e um espelho mantido do lado de fora divergiria no primeiro que alguém
+    esquecesse — o selo passaria a descrever uma intenção em vez do request. É
+    best-effort: falhar em pintar um selo não pode derrubar um turno.
+  - **Todos os `return ""` também anunciam** (`{n:0}`): zero movimento se explica,
+    não desaparece (a regra da `.sel-nota` e do estado vazio da biblioteca) — é o
+    selo que diz por que a pergunta de prazo vai voltar sem resposta.
+  - Estados, tokens e a razão de o selo morar na `.metarow` (e não na `.docs-tip`)
+    estão no DESIGN.md, "Selo da linha do tempo".
 - **A movimentação precisa de FORMA PRÓPRIA de citação na minuta e no mapa**
   (`(movimentação de DD/MM/AAAA)` no `SUFIXO_MINUTA` e no `SUFIXO_MAPA`). Os dois
   exigem `(Título da peça, id 123456, fl. 7)` para toda afirmação e proíbem

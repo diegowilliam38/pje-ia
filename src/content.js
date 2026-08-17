@@ -2745,6 +2745,19 @@
     if (RE_MOV_IMPORTA.test(t)) return false;
     return RE_MOV_EXPEDIENTE.test(t);
   }
+  // Retrato do que FOI ao modelo no eixo do tempo, para o selo da `.metarow`.
+  // Mora aqui, no ponto único que monta o bloco, e não num espelho do lado de
+  // fora: são TRÊS caminhos que chamam `linhaDoTempoProcessual` (chat, minuta e
+  // mapa), e um espelho divergiria no primeiro que alguém esquecesse — o selo
+  // passaria a descrever uma intenção em vez do request que saiu. Best-effort:
+  // falhar em pintar um selo não pode derrubar um turno.
+  function anunciarLinhaDoTempo(info) {
+    try {
+      if (panel.setLinhaDoTempo) panel.setLinhaDoTempo(info);
+    } catch (e) {
+      console.warn("[PJe IA] selo da linha do tempo:", e);
+    }
+  }
   function linhaDoTempoProcessual() {
     let itens = null;
     let fonteRest = false;
@@ -2764,9 +2777,16 @@
         eventos = PJE.lerEventos ? PJE.lerEventos() : [];
       } catch (e) {
         console.warn("[PJe IA] linha do tempo:", e);
+        anunciarLinhaDoTempo({ n: 0 });
         return "";
       }
-      if (!Array.isArray(eventos) || !eventos.length) return "";
+      if (!Array.isArray(eventos) || !eventos.length) {
+        // Zero movimento se ANUNCIA, não desaparece (a mesma regra da `.sel-nota`
+        // e do estado vazio da biblioteca): é este selo que explica por que uma
+        // pergunta de prazo vai voltar sem resposta neste processo.
+        anunciarLinhaDoTempo({ n: 0 });
+        return "";
+      }
       // Só entra quem tem MOVIMENTO — um evento sem texto de movimento não
       // informa ato nenhum, e ocuparia linha dizendo apenas uma data.
       itens = eventos
@@ -2778,7 +2798,10 @@
         }))
         .filter((x) => x.mov);
     }
-    if (!itens || !itens.length) return "";
+    if (!itens || !itens.length) {
+      anunciarLinhaDoTempo({ n: 0 });
+      return "";
+    }
     // A ordem tem de ser CRESCENTE, como na exportação e no "Escolher com IA":
     // a cronologia invertida faz o modelo ler a sentença antes da inicial.
     //
@@ -2875,12 +2898,14 @@
     // a parcialidade vai DITA. Ver "Lista completa ≠ linha do tempo carregada".
     let aviso = "";
     let restTruncada = false;
+    let domParcial = false;
     try {
       const naTimeline = PJE.listarDocumentos ? PJE.listarDocumentos().length : 0;
       // A rota REST devolve o processo INTEIRO — o aviso de parcialidade só vale
       // para o fallback pelo DOM. Repeti-lo com a fonte oficial faria o modelo
       // recusar uma data que ele tem em mãos, que é o defeito de origem.
       if (!fonteRest && naTimeline && docsIndex.size > naTimeline) {
+        domParcial = true;
         aviso =
           " ATENÇÃO: a linha do tempo desta tela está PARCIAL — o processo tem " +
           docsIndex.size +
@@ -2933,6 +2958,30 @@
     } catch {
       /* best-effort: sem a medida, o bloco vai sem o aviso */
     }
+    // O selo da barra recebe o MESMO retrato que foi para o texto — inclusive o
+    // corte e as duas formas de lista incompleta. As pontas da faixa saem dos
+    // itens que sobraram (o primeiro e o último COM data): é o intervalo que o
+    // modelo enxergou, não o que o processo tem.
+    // Só o DIA na faixa: a hora é o que distingue dois atos na LISTA, e no
+    // tooltip do selo — que diz apenas "de … a …" — ela virava ruído. O recorte
+    // é por regex, não por posição, pela mesma razão de `datasDasPecas`: cortar
+    // por índice é o que produz data truncada quando o formato muda.
+    const soODia = (s) => {
+      const m = String(s || "").match(/^\d{2}\/\d{2}\/\d{4}/);
+      return m ? m[0] : s || null;
+    };
+    const datados = itens.filter((x) => x.data);
+    anunciarLinhaDoTempo({
+      n: total - cortou,
+      total,
+      fonte: fonteRest ? "oficial" : "tela",
+      cortou,
+      cortouChave,
+      truncada: restTruncada,
+      parcial: domParcial,
+      de: datados.length ? soODia(datados[0].data) : null,
+      ate: datados.length ? soODia(datados[datados.length - 1].data) : null,
+    });
     return (
       "\n\n[LINHA DO TEMPO DO PROCESSO — movimentos " +
       (fonteRest
