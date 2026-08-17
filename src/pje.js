@@ -1102,7 +1102,11 @@ var PJE = (function () {
   // os 90 do teto. Sem o parâmetro, o comportamento é byte a byte o de antes.
   async function carregarTimelineCompleta(onProgress, pararQuando) {
     let tl = document.querySelector("#divTimeLine");
-    if (!tl) return { total: 0, completo: true };
+    // `achou: false` também aqui: quem passou `pararQuando` espera SEMPRE uma
+    // resposta sobre a busca, e um `undefined` neste ramo se leria como "não
+    // perguntei" em vez de "não achei" — a diferença que decide se o chamador
+    // avisa o usuário ou fica calado.
+    if (!tl) return { total: 0, completo: true, achou: pararQuando ? false : undefined };
     // Já está lá: não rola nada. Vale para o caso em que o chamador testou antes
     // e a timeline mudou no meio (o A4J re-renderiza sozinho).
     if (pararQuando && pararQuando()) {

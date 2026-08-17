@@ -99,7 +99,39 @@
 
       <div class="card destaque">
         <p class="eyebrow" style="color: rgba(255,255,255,0.7)">A novidade mais recente</p>
-        <h2><span class="v novo">v0.43.0</span> Processo em segredo de justiça: agora há um caminho — e o “ver na peça” voltou a funcionar</h2>
+        <h2><span class="v novo">v0.44.0</span> Achou um problema? Agora dá para falar comigo direto</h2>
+        <p>
+          A extensão é escrita e testada em <strong>processos reais</strong>, mas o PJe muda
+          de tribunal para tribunal — e o que trava no seu pode não acontecer no meu. Até
+          agora o único caminho para relatar era abrir uma <em>issue</em> no GitHub, o que
+          pressupõe conta e familiaridade com a ferramenta.
+        </p>
+        <p>
+          Agora há um <strong>WhatsApp</strong> no rodapé da configuração, no guia
+          (<em>“Deu problema? Fale comigo”</em>), nesta página e dentro do painel. Quando o
+          link parte do painel, a <strong>versão da extensão já vai na mensagem</strong> —
+          é o dado que todo relato esquece e que decide se o problema é conhecido ou novo.
+          A issue no GitHub continua valendo para quem prefere registrar por escrito e
+          acompanhar depois.
+        </p>
+        <p>
+          <strong>Não envie conteúdo de processo em segredo de justiça</strong> por nenhum
+          dos dois canais: descreva o problema sem os autos — ou anonimize antes, pelo
+          caminho que a versão passada abriu.
+        </p>
+        <p>
+          Nesta versão também entraram duas correções internas encontradas na revisão da
+          v0.43.0: a busca da peça na linha do tempo <strong>deixou de apagar o aviso de
+          progresso</strong> de um envio em andamento (quem clicasse em “ver na peça” e
+          mandasse uma pergunta em seguida ficava sem retorno na tela justamente na parte
+          lenta), e a rotina de rolagem passou a responder <em>“não encontrei”</em> em vez
+          de não responder nada quando a linha do tempo sequer existe.
+        </p>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">Antes disso</p>
+        <h2><span class="v">v0.43.0</span> Processo em segredo de justiça: agora há um caminho — e o “ver na peça” voltou a funcionar</h2>
         <p>
           O guia já dizia que o <strong>art. 19, §3º, IV</strong> da Resolução CNJ 615 veda
           usar IA privada ou externa em documento sigiloso <em>salvo</em>
@@ -1361,6 +1393,7 @@
             <tr><th>Versão</th><th>Data</th><th>O que mudou</th></tr>
           </thead>
           <tbody>
+            <tr><td><span class="v">0.44.0</span></td><td>16/08/2026</td><td><strong>Canal direto para bugs e sugestões.</strong> Um <strong>WhatsApp</strong> no rodapé da configuração, no guia (“Deu problema? Fale comigo”), nas novidades e dentro do painel — e, quando o link parte do painel, a <strong>versão da extensão já vai na mensagem</strong>. A issue no GitHub continua para quem prefere registrar por escrito. Nenhum dos dois canais aceita conteúdo de processo em segredo de justiça. Correções da revisão da v0.43.0: a busca da peça na linha do tempo deixou de <strong>apagar o aviso de progresso</strong> de um envio em andamento, e a rotina de rolagem passou a responder “não encontrei” em vez de nada quando a linha do tempo não existe</td></tr>
             <tr class="marco"><td><span class="v">0.43.0</span></td><td>16/08/2026</td><td><span class="dot-marco"></span><strong>Segredo de justiça ganha um caminho, e o “ver na linha do tempo” volta a funcionar.</strong> O guia enunciava o art. 19, §3º, IV da Res. CNJ 615 (vedado usar IA privada em documento sigiloso, <em>salvo</em> anonimização na origem) sem dizer como cumpri-lo; agora aponta o <strong>TecJustiça Sigilo</strong>, programa separado e gratuito que mascara nomes, CPF, número do processo e endereços <strong>no seu computador</strong> e devolve um <code>.txt</code> que entra pelo clipe de anexo. O convite leva ao guia, não ao download: são ~660 MB, só Windows x64, e a anonimização não é infalível (~91%). <strong>Correção:</strong> o botão que leva da lista até a peça no PJe falhava em parte das peças e mandava usar o ⟳ Carregar tudo, que desde a v0.38 lê a lista por uma via rápida e <strong>não carrega a linha do tempo</strong> — o clique não mudava nada e o aviso voltava. Agora o próprio botão rola a linha do tempo até achar a peça, e para assim que acha. Os <strong>ícones do cabeçalho</strong> foram refeitos (o “painel largo” eram setas ↔, que liam como redimensionar; o lateral era gêmeo do ocultar-peças; a janela livre não dizia que se arrasta), e o modo de janela livre ganhou <strong>pega</strong> no cabeçalho e <strong>alça</strong> no canto. Também: apoio ao projeto por <strong>PIX</strong> (QR e copia-e-cola) na configuração, no guia e nas novidades</td></tr>
             <tr class="marco"><td><span class="v">0.42.0</span></td><td>14/08/2026</td><td><span class="dot-marco"></span><strong>A minuta de ato decisório passa a exigir a sua tese (Resolução CNJ 615/2025).</strong> Ao ligar o modo Minutar você escolhe a <em>espécie do ato</em>; sentença, decisão, acórdão e despacho pedem a <strong>tese e o dispositivo</strong> antes de gerar — ofício, mandado, alvará e ata seguem direto. O Anexo da resolução classifica como <strong>alto risco</strong> (AR4) a “formulação de juízos conclusivos sobre a aplicação da norma jurídica”, e só admite como baixo risco (BR4) o texto de apoio produzido “com base nas instruções do magistrado, especialmente as decisões acerca das preliminares e questões de mérito”; como a extensão usa uma API privada, o art. 19, §3º, V ainda <strong>veda</strong> o uso de alto risco. A instrução padrão deixou de pedir “o ato cabível”. Peça que contraria a tese vira <code>[COMPLETAR: divergência — …]</code>, sem alterar o dispositivo; quem ainda não tem a tese pode pedir um <strong>estudo do que é cabível</strong> pelo chat. Cada minuta guarda a orientação que a gerou, e o guia ganhou a seção sobre a resolução. A tela <strong>Minhas minutas</strong> foi refeita (filtros por espécie e processo, ordenação, busca no texto e o <strong>prazo de validade à vista</strong>). Correções: Jurisprudência era ignorada na minuta e no mapa; processo retomado da memória recusava as peças marcadas; recusa por PJe ocupado perdia o texto digitado; a categoria de peças-modelo grudava entre minutas; modelo grande bloqueava os menores; e a minuta ganhou pré-voo de contexto</td></tr>
             <tr class="marco"><td><span class="v">0.41.0</span></td><td>14/08/2026</td><td><span class="dot-marco"></span><strong>Dá para conversar só com um arquivo anexado, inclusive de outro processo.</strong> Antes, a primeira pergunta sobre um anexo era respondida e a segunda era recusada com “Marque uma peça…”, com o arquivo visível na tela: a extensão contava só os anexos <em>ainda não enviados</em>, e depois do primeiro envio essa conta zerava. Agora vale o que está anexado <strong>agora</strong> — a mesma regra das peças. Sem peça marcada, o assistente também deixa de tratar o processo da tela como o assunto: ele passa a saber que o material é o arquivo anexado e que pode ser de <strong>outro processo</strong>, em vez de responder com uma lista de peças para marcar. Continua avisando uma vez quando o documento é de processo diferente. Marcar uma peça devolve tudo ao normal na hora; <strong>minutar e mapa mental seguem pedindo peças marcadas</strong>. Também nesta versão: a <strong>importação de vários .docx/.rtf</strong> voltou a aparecer em <strong>Modelos</strong> (quem não tinha nenhum modelo caía direto no formulário e nunca via o botão), e o botão que <strong>leva da peça até ela no PJe</strong> deixou de ficar invisível até o mouse passar por cima</td></tr>
@@ -1469,6 +1502,8 @@
 
       <p class="voltar">
         <a class="link" href="help.html">← Ajuda, modelos e preços</a>
+        &nbsp;·&nbsp;
+        <a class="link" href="https://wa.me/5588993650420?text=Ol%C3%A1!%20Sobre%20a%20extens%C3%A3o%20TecJusti%C3%A7a%20PJe%3A%20" target="_blank" rel="noopener">Falar comigo no WhatsApp ↗</a>
       </p>
     </div>
     <!-- Só o botão "Copiar código PIX" (CSP da extensão veta script inline). -->

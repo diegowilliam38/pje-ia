@@ -1200,20 +1200,31 @@
     // Quem popula a timeline é UMA rota só: a rolagem. Então é ela que roda
     // aqui, e para assim que a peça aparece (`temNaTimeline`) em vez de varrer
     // os autos inteiros — numa peça do meio, segundos em vez do teto de 90 s.
+    // A rolagem pode levar segundos, e nesse intervalo o usuário pode mandar uma
+    // pergunta. O `.status` é UM só: sem esta guarda, o progresso da busca
+    // sobrescreveria "Baixando peça 3 de 12…" e, pior, o `setStatus("")` do
+    // sucesso APAGARIA o status do turno em andamento — deixando o envio mudo
+    // justamente na parte lenta. Enquanto há turno, a busca é silenciosa; o que
+    // ela faz de visível (a peça piscando na timeline) não depende do status.
+    // Definido ANTES da guarda de reentrada porque aquela mensagem pisaria do
+    // mesmo jeito.
+    const dizer = (t) => {
+      if (!busy) panel.setStatus(t);
+    };
     if (procurandoNaTimeline) {
-      panel.setStatus("Já estou procurando na linha do tempo — um instante.");
+      dizer("Já estou procurando na linha do tempo — um instante.");
       return;
     }
     procurandoNaTimeline = true;
     const nome = metaDe(id).titulo;
     try {
-      panel.setStatus('Procurando "' + nome + '" na linha do tempo do PJe…');
+      dizer('Procurando "' + nome + '" na linha do tempo do PJe…');
       await PJE.carregarTimelineCompleta(
-        (n) => panel.setStatus("Carregando a linha do tempo do PJe… " + n + " peça(s)."),
+        (n) => dizer("Carregando a linha do tempo do PJe… " + n + " peça(s)."),
         () => PJE.temNaTimeline(id)
       );
       if (PJE.scrollAte(id)) {
-        panel.setStatus("");
+        dizer("");
         return;
       }
       // Chegou ao fim da timeline e a peça não está lá. Não é falha de
@@ -1221,13 +1232,13 @@
       // SUPERCONJUNTO da timeline. Dizer isso é melhor que mandar tentar de
       // novo — o usuário pode abrir a peça pelo preview, que não depende do DOM
       // da timeline.
-      panel.setStatus(
+      dizer(
         'A peça "' + nome + '" está na lista oficial do processo, mas o PJe não a ' +
           "mostra na linha do tempo desta tela. Passe o mouse sobre ela na lista para ver o conteúdo."
       );
     } catch (e) {
       console.warn("[PJe IA] ver na timeline:", e);
-      panel.setStatus("Não foi possível percorrer a linha do tempo: " + ((e && e.message) || e));
+      dizer("Não foi possível percorrer a linha do tempo: " + ((e && e.message) || e));
     } finally {
       procurandoNaTimeline = false;
     }

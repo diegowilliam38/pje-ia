@@ -457,9 +457,20 @@ atualize seu fork: na página dele, **Sync fork** → **Update branch** (e, no c
 
 ### Só quer relatar um problema?
 
-Não precisa de nada disso: abra uma
-**[issue](https://github.com/marcosmarf27/pje-ia/issues/new)** contando o que aconteceu,
-em qual tribunal, e cole a mensagem de erro do painel (o Console do F12 também ajuda).
+Não precisa de nada disso. Dois caminhos, o mesmo destino:
+
+- 💬 **[WhatsApp — (88) 99365-0420](https://wa.me/5588993650420)** — o mais rápido, e o
+  melhor para "não sei se é bug ou se sou eu".
+- 🐛 **[Abrir uma issue](https://github.com/marcosmarf27/pje-ia/issues/new)** — para
+  registrar por escrito e acompanhar depois.
+
+**O que ajuda a resolver rápido:** o **tribunal** e a tela do PJe, o **modelo** em uso
+(aparece no selo ao lado das ferramentas), o que você esperava e o que aconteceu — e
+uma captura, se houver mensagem de erro. O Console do F12 também ajuda.
+
+> ⚠️ **Não envie conteúdo de processo em segredo de justiça** por nenhum dos dois
+> canais. Descreva o problema sem os autos, ou
+> [anonimize antes](https://github.com/marcosmarf27/tecjustica-sigilo).
 
 ## ☕ Apoiar o projeto
 

@@ -1287,10 +1287,18 @@ var PjePanel = (function () {
     // do `setDocs`, derrubando o resto do content script em silêncio (a zona
     // morta temporal descrita no CLAUDE.md).
     let urlApoio = "";
+    let urlWhats = "";
     try {
       urlApoio = chrome.runtime.getURL("src/help.html") + "#apoiar";
+      // A VERSÃO vai na mensagem pronta. É o dado que todo relato esquece e que
+      // decide se o bug é conhecido ou novo — perguntá-lo depois custa uma ida e
+      // volta, e o usuário já fechou a tela onde ele aparece.
+      const v = chrome.runtime.getManifest().version;
+      urlWhats =
+        "https://wa.me/5588993650420?text=" +
+        encodeURIComponent("Olá! Sobre a extensão TecJustiça PJe (v" + v + "): ");
     } catch {
-      /* fora da extensão (harness de teste) — a frase sai sem o link */
+      /* fora da extensão (harness de teste) — as frases saem sem os links */
     }
     let tourInst = null;
     function abrirTour() {
@@ -1402,6 +1410,19 @@ var PjePanel = (function () {
         // de trabalho — pedido de assinatura entre a pergunta e a resposta
         // cobraria pedágio no meio da análise dos autos. A caixa completa vive
         // na ajuda, nas novidades e na configuração.
+        // Canal de suporte DENTRO do guia, e não solto no estado vazio: quem
+        // precisa dele já teve um problema, e um convite a reclamar exposto o
+        // tempo todo sugere que reclamar é o esperado. Fica ANTES do parágrafo
+        // de apoio — primeiro o que resolve a vida de quem está travado.
+        (urlWhats
+          ? "<p><b>Deu problema, ou faltou alguma coisa?</b> Me chame no " +
+            '<a href="' +
+            escapeHtml(urlWhats) +
+            '" target="_blank" rel="noopener">WhatsApp</a> e diga o tribunal e o ' +
+            "que aconteceu — a versão da extensão já vai junto na mensagem. " +
+            "<b>Não mande conteúdo de processo em segredo de justiça</b>: descreva " +
+            "o problema sem os autos.</p>"
+          : "") +
         "<p><b>Gratuita e de código aberto.</b> Se estiver sendo útil, você pode apoiar " +
         'os próximos projetos assinando o <a href="https://tecjustica.substack.com/" ' +
         'target="_blank" rel="noopener">TecJustiça</a> — R$ 10 por mês' +
