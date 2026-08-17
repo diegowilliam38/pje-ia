@@ -747,6 +747,11 @@ e até a v0.23 as dez fontes eram tratadas como equivalentes.
   `PROMPT_INICIO` (compartilhado pelos dois provedores) exige nome + id; o
   `SYSTEM_PROMPT_CIT_TEXTUAL`, o `SUFIXO_MINUTA` e o `SUFIXO_MAPA` usam o mesmo
   formato literal `(Peça, id 123456, fl. 7)`. Ao editar um deles, editar os quatro.
+  - **EXCEÇÃO deliberada: o que vem da LINHA DO TEMPO cita-se
+    `(movimentação de DD/MM/AAAA)`.** Publicação, intimação, decurso e trânsito
+    não têm peça nem folha; exigir o formato de documento para eles empurrava o
+    modelo a omitir a data ou a pendurá-la numa peça qualquer — citação inventada
+    num ato assinado. Ver "A LINHA DO TEMPO PROCESSUAL no contexto".
 - **Contexto do caso no system** (`contextoDoProcesso` em content.js): número CNJ
   (`PJE.getNumeroProcesso`), **ficha do processo** e data de hoje. Sem o CNJ o mapa
   mental titulava com número inventado; sem a data, prazos e "situação atual" saíam
@@ -2055,7 +2060,7 @@ Três blocos passaram a viajar no texto do turno, pelas MESMAS razões do invent
 inventário, que ganhou a data de cada peça não marcada.
 
 - **A fonte é a rota REST `processos/{id}/movimentacoes`**, não o DOM. Melhor em
-  tudo o que importa: cobre o processo INTEIRO (o DOM dá só o trecho rolado), tem
+  tudo o que importa: alcança além do trecho rolado (o DOM dá só o que carregou), tem
   **hora** (`dataAtualizacao` é epoch; o `.media.data` da timeline só dá o dia),
   usa o **vocabulário CNJ** (`codEvento`/`dsEvento`) e traz o `textoFinalExterno`
   — que é o campo que FECHA a conta do prazo: *"Decorrido prazo de EUDES … em
@@ -2070,6 +2075,15 @@ inventário, que ganhou a data de cada peça não marcada.
   `await` no início do turno — em `onSend`, `minutarAgora` e `mapearAgora`, os
   três que montam contexto. Falha de rede **não apaga** o que o turno anterior
   obteve (só substitui em caso de sucesso).
+- **TETO DE TEMPO obrigatório na rota** (`MOVS_TIMEOUT_MS` = 4 s, `AbortController`)
+  **e desistência pela vida da página quando ele estoura** (`movsPendurou`). Ela
+  roda no começo de TODO turno, então um endpoint que aceita a conexão e nunca
+  responde deixaria o Enter **sem efeito nenhum** — sem token, sem erro e sem
+  status, porque `setStatus("")` acabou de rodar. Rota que pendura é pior que rota
+  que falha, e não é hipótese: é o que as rotas fora de `pje-legacy/` fizeram na
+  sondagem. O fallback pelo DOM é instantâneo, então esperar mais não compra nada.
+  A desistência vale **só para o pendura** — erro de HTTP (404 no PJe sem a rota,
+  500 transitório) volta rápido e pode ser passageiro, então continua tentando.
 - **ORDENA SEMPRE, e o desempate depende da FONTE.** Não confiar na ordem de
   quem entregou: a rota devolve fora de ordem, e pular o sort "porque o pje.js já
   ordenou" pôs a distribuição depois da sentença — só o teste viu. O desempate
@@ -2077,6 +2091,13 @@ inventário, que ganhou a data de cada peça não marcada.
   empate é raro (preserva a ordem de origem); no DOM a data é por DIA, todos os
   atos do dia empatam, e como a timeline lista do mais recente para o mais antigo
   o desempate certo é **inverter**.
+  - **Movimento sem data sai do `sort` ANTES**, e vai para o fim. Um comparador
+    que devolve 0 para todo par que envolva `null` **não é ordem total**: com
+    A(1), B(sem data) e C(2) tem-se `cmp(A,B)=0`, `cmp(B,C)=0` e `cmp(A,C)<0` ao
+    mesmo tempo, e diante de comparador inconsistente o `sort` pode devolver
+    qualquer permutação — inclusive **trocando de lugar dois atos datados**.
+    Particionar resolve por construção; o desempate explícito por índice dispensa
+    depender da estabilidade do `sort`.
 - **Hora só quando ela existe.** Ato de meia-noite exata é o que o PJe grava em
   publicação de diário; escrever "00:00" ali afirmaria precisão que o dado não
   tem.
@@ -2086,19 +2107,79 @@ inventário, que ganhou a data de cada peça não marcada.
   CACHEADO, então uma peça anexada antes de a lista oficial chegar ficaria sem
   data para sempre. Na lista separada, recalculada a cada turno, a data aparece
   assim que a lista oficial chega.
-- **Teto `MOV_MAX` (140) com corte pelo MEIO** e o corte DITO — o começo tem
-  distribuição e citação, o fim tem sentença, intimação e trânsito; o miolo é
-  expediente. Mesma regra do "Escolher com IA".
+- **Teto `MOV_MAX` (140), e o corte NÃO pode ser posicional** (`ehExpediente`).
+  Cortar o meio é a regra do "Escolher com IA" e do inventário, e aqui ela estava
+  errada: num processo de 400 movimentos o miolo é exatamente onde mora o ato
+  procurado — a publicação da sentença de 2019, o trânsito da fase anterior. Pior
+  que perder o dado era o RÓTULO: "movimentos de expediente omitidos" afirmava
+  sobre o que ninguém tinha olhado, e um "não consta" nasceria de uma ausência
+  fabricada pela própria extensão.
+  - **Define-se o DESCARTÁVEL, nunca o essencial** (`RE_MOV_EXPEDIENTE`, ancorada
+    em `^` porque o primeiro termo é o nome do evento). Isso inverte o modo de
+    falha para o lado seguro: movimento que a lista não reconhece **fica**.
+  - **VETO por cima, buscado em TODO o texto** (`RE_MOV_IMPORTA`, sem âncora):
+    "Certidão de trânsito em julgado" começa por `certidao`, que é expediente, e é
+    o ato mais importante que a linha do tempo tem a dizer. Ancorar o veto logo
+    após a palavra não serviria — na fonte REST o texto é `evento — complemento`,
+    então entre "certidao" e "de transito" há um travessão.
+  - Fora do descartável **de propósito**: `expedição de…` (é assim que muito PJe
+    registra a comunicação que inicia o prazo) e `vista`/`ciência` (vista ao MP
+    abre prazo). Colateral aceito e no teste: `\bautua` no veto (que protege a
+    "Autuação", marco inicial de processo migrado) mantém "Retificação de
+    autuação", que é expediente puro — errar para o lado de manter custa tokens.
+  - As pontas ficam intactas (35 primeiros, 63 últimos) e o **rótulo do corte diz
+    a verdade**: só afirma "de expediente" quando foi só expediente; quando o
+    excesso obriga a cortar por posição, diz que **não** são só de expediente e
+    que pode faltar publicação, intimação ou decurso naquele intervalo.
+- **NÃO afirmar "lista completa do processo".** A cobertura da rota foi medida em
+  UM processo, de 25 movimentos — nada prova que ela não pagine num de 400 —, e a
+  frase ficava CONTRADITÓRIA logo depois do corte do miolo. O rodapé afirma a
+  **procedência** ("registro oficial do PJe"), que é o que se sabe, mais o total e
+  quantos foram listados. É a procedência que dá ao modelo a confiança de não
+  hedgear, sem prometer o que ninguém conferiu.
+  - **GUARDA ANTI-TRUNCAMENTO**, irmã da que `listarPelaApi` já tem: se a timeline
+    do DOM mostra ato ANTERIOR ao mais antigo da lista oficial, a lista não
+    alcança o início do processo — o aviso sai com as duas datas e o rodapé
+    **para de afirmar** que a fonte não depende do que está carregado na tela. O
+    sinal é POSITIVO (o DOM carrega do mais recente para o mais antigo, então ele
+    nunca ultrapassa a rota por acidente). A folga de **24 h** não é
+    arredondamento: a data do DOM nasce à meia-noite local e a da rota tem hora,
+    então sem ela todo processo teria o aviso.
+- **Data de JUNTADA não é data do ATO**, e isso vai dito no rótulo do bloco e no
+  `PROMPT_FIM`: petição protocolada em papel é juntada dias depois, documento
+  antigo é juntado hoje. Confundir os dois é o erro de prazo mais fácil de cometer
+  e o mais difícil de perceber conferindo a resposta. `datasDasPecas` também não
+  corta a data por posição — `dataBr` REPASSA formato desconhecido (decisão certa
+  lá), e `slice(0,16)` transformava "19 de junho de 2026" em "19 de junho de 20".
 - **A regra no `PROMPT_FIM` não é opcional**: o modelo foi treinado a responder
   pelo CONTEÚDO dos documentos, e prazo é justamente o que não está escrito neles.
   Sem a instrução ele ignora o bloco. Ela manda tratar a linha do tempo como
   fonte **preferencial** de datas, citar movimento + data, distinguir o que está
   REGISTRADO do que ele CALCULOU, e — no fallback parcial — ler ausência como
-  "não carregado", nunca como "não aconteceu".
-- Cobertos por dois testes: a normalização da rota (`fetch` fake com o JSON REAL
-  medido, incluindo ordem, empate, sufixo `Documento: N` e as quatro formas de
-  degradar) e o caminho do envio em jsdom (o bloco no payload, a ordem
-  cronológica, o não-acúmulo no histórico, o fallback e o aviso de parcial).
+  "não carregado", nunca como "não aconteceu". E, mesmo com a lista completa,
+  **ausência é "não há movimento registrado de X", nunca "X não aconteceu"**:
+  registro é o que foi lançado no sistema, não o mundo — um trânsito que ocorreu e
+  não foi certificado existe juridicamente e não está ali.
+- **A movimentação precisa de FORMA PRÓPRIA de citação na minuta e no mapa**
+  (`(movimentação de DD/MM/AAAA)` no `SUFIXO_MINUTA` e no `SUFIXO_MAPA`). Os dois
+  exigem `(Título da peça, id 123456, fl. 7)` para toda afirmação e proíbem
+  inventar data — e a data da linha do tempo **não tem peça nem folha**. Sem forma
+  própria o modelo ficava entre duas saídas ruins: omitir a data, e o relatório da
+  sentença sai sem os atos que o fundamentam (o defeito que esta rodada existe
+  para resolver), ou pendurar a data numa peça qualquer para satisfazer o formato
+  — citação inventada num documento que vai ao PJe assinado. É a exceção
+  DELIBERADA à regra "peça · id · folha nas cinco saídas": o eixo do tempo tem
+  origem diferente do eixo do documento.
+- Cobertos por três testes: a normalização da rota (`fetch` fake com o JSON REAL
+  medido, incluindo ordem, empate, sufixo `Documento: N`, as quatro formas de
+  degradar e a **rota que pendura**), a tabela de `ehExpediente` (49 movimentos do
+  vocabulário CNJ, extraídos do fonte real por varredura e rodados em `vm`) e o
+  caminho do envio em jsdom — o bloco no payload, a ordem cronológica, o
+  não-acúmulo no histórico, o fallback, o aviso de parcial, o **processo de 200
+  movimentos** (o trânsito do miolo sobrevive; o rótulo do corte confessa quando
+  precisa), o **movimento sem data que não embaralha os datados**, a guarda
+  anti-truncamento (com o negativo do mesmo dia) e a citação da movimentação
+  chegando ao request da minuta e do mapa.
 
 ## Lista completa ≠ linha do tempo carregada (o laço do "ver na timeline")
 

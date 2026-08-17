@@ -93,6 +93,20 @@
     "se o cálculo depender de um dado que não consta, diga qual dado falta.",
     "Se o bloco avisar que a linha do tempo está PARCIAL, trate a ausência de um",
     "ato como 'não carregado', nunca como 'não aconteceu'.",
+    // A linha do tempo é REGISTRO, e registro é o que foi lançado no sistema —
+    // não é o mundo. A diferença tem consequência prática: um trânsito que
+    // ocorreu e não foi certificado existe juridicamente e não está ali. Dizer
+    // "não há movimento registrado de X" é verdadeiro e útil; dizer "X não
+    // aconteceu" é conclusão que o dado não sustenta.
+    "Mesmo com a linha do tempo completa, ela é o que está REGISTRADO no sistema:",
+    "se um ato não aparece, diga 'não há movimento registrado de X', e não 'X não",
+    "aconteceu'.",
+    // Confundir os dois é o erro de prazo mais fácil de cometer e o mais difícil
+    // de perceber conferindo a resposta.
+    "A data de JUNTADA de uma peça é quando ela entrou nos autos e NÃO é",
+    "necessariamente a data do ato que ela documenta (uma petição protocolada em",
+    "papel é juntada dias depois; um documento antigo pode ser juntado hoje). Para",
+    "prazo, use o movimento correspondente da linha do tempo.",
     "Você pode receber, ao fim da mensagem, a lista das peças do processo que NÃO",
     "foram anexadas — apenas id e título. NUNCA afirme nada sobre o conteúdo",
     "delas: você não as leu. Use-a só para uma coisa — quando a resposta não",
@@ -2696,6 +2710,41 @@
     if (!comHora || (d.getHours() === 0 && d.getMinutes() === 0)) return dia;
     return dia + " " + p(d.getHours()) + ":" + p(d.getMinutes());
   }
+  // Normalizador local (minúsculas, sem acento). O `norm` do painel classifica
+  // TÍTULO de peça; aqui o vocabulário é outro — movimento CNJ —, e manter as
+  // duas leituras em arquivos separados é o que impede que uma regra escrita
+  // para peça mude a classificação de um movimento sem ninguém ver.
+  const normMov = (s) =>
+    String(s || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  // VETO — qualquer sinal de prazo, ciência ou decisão MANTÉM o movimento, e é
+  // buscado em todo o texto (não ancorado): "Certidão de trânsito em julgado"
+  // começa por "certidao", que é expediente, e é o ato mais importante que a
+  // linha do tempo tem a dizer. Ancorar o veto logo depois da palavra não
+  // serviria: na fonte REST o texto é `evento — complemento`, então entre
+  // "certidao" e "de transito" há um travessão.
+  const RE_MOV_IMPORTA =
+    /\b(transit|decurso|decorrid|prazo|public|disponibiliza|intima|cita|notific|sentenc|acordao|acordo|decisao|decid|julga|proced|homologa|extin|arquiv|desarquiv|baixa|suspens|sobresta|reativ|remessa|recurso|apela|agravo|embarg|liminar|tutela|penhora|leilao|hasta|prescri|perici|audienc|conclus|distribu|redistribu|autua)/;
+  // EXPEDIENTE — o que PODE ser descartado quando a lista não cabe. Definir o
+  // descartável, e não o essencial, inverte o modo de falha para o lado seguro:
+  // movimento que esta lista não reconhece FICA. Ancorado no início porque o
+  // primeiro termo é o nome do evento (na fonte REST, o `dsEvento`).
+  // Deliberadamente FORA dela: "expedição de…" (é assim que muito PJe registra
+  // a comunicação que inicia o prazo) e "vista/ciência" (vista ao MP abre
+  // prazo). Errar para o lado de manter custa tokens; errar para o outro apaga
+  // a resposta e ainda a chama de expediente.
+  const RE_MOV_EXPEDIENTE =
+    /^(juntada|peticao|documento|ato ordinatorio|mero expediente|certidao|carga|guia|alterac|retificac|cadastr|atualizac|inclusao|exclusao|reclassificac|anexac|desanexac|apensament|desapensament|impressao|conversao|migrac)/;
+  function ehExpediente(mov) {
+    const t = normMov(mov);
+    if (!t) return true; // sem texto de movimento não informa ato nenhum
+    if (RE_MOV_IMPORTA.test(t)) return false;
+    return RE_MOV_EXPEDIENTE.test(t);
+  }
   function linhaDoTempoProcessual() {
     let itens = null;
     let fonteRest = false;
@@ -2746,27 +2795,58 @@
     //   • DOM: a data é por DIA, então todos os atos de um dia empatam; e a
     //     timeline lista do mais recente para o mais antigo, logo o desempate
     //     certo é INVERTER a ordem em que vieram.
-    // Quem não tem data nenhuma mantém a posição relativa: inventar cronologia
-    // é pior que preservá-la.
-    itens = itens
-      .map((x, i) => ({ x, i }))
-      .sort((a, b) => {
-        const A = a.x.ord;
-        const B = b.x.ord;
-        if (A != null && B != null && A !== B) return A - B;
-        if (A == null || B == null) return 0;
-        return fonteRest ? a.i - b.i : b.i - a.i;
-      })
-      .map((p) => p.x);
+    //
+    // Quem NÃO tem data sai do sort e vai para o FIM, na ordem em que veio — não
+    // se inventa posição na cronologia para quem não trouxe data. A separação é
+    // ANTES de ordenar de propósito: um comparador que devolve 0 para todo par
+    // que envolva `null` não define uma ordem total — com A(1), B(sem data) e
+    // C(2) tem-se cmp(A,B)=0, cmp(B,C)=0 e cmp(A,C)<0 ao mesmo tempo. Diante de
+    // comparador inconsistente o `sort` pode devolver QUALQUER permutação,
+    // inclusive trocando de lugar dois atos datados, e cronologia embaralhada em
+    // silêncio é o pior defeito que este bloco poderia ter. Particionar resolve
+    // por construção, e o desempate explícito por índice dispensa depender da
+    // estabilidade do `sort`.
+    const comData = [];
+    const semData = [];
+    itens.forEach((x, i) => (x.ord != null ? comData : semData).push({ x, i }));
+    comData.sort((a, b) =>
+      a.x.ord !== b.x.ord ? a.x.ord - b.x.ord : fonteRest ? a.i - b.i : b.i - a.i
+    );
+    itens = comData.concat(semData).map((p) => p.x);
     const total = itens.length;
     let cortou = 0;
+    let cortouChave = false;
+    let marcaEm = 0;
     if (total > MOV_MAX) {
-      // Corte pelo MEIO (mesma regra do "Escolher com IA"): o começo tem a
-      // distribuição e a citação, o fim tem sentença, intimação e trânsito — o
-      // miolo é o expediente repetitivo.
-      const metade = Math.floor(MOV_MAX / 2);
-      cortou = total - MOV_MAX;
-      itens = itens.slice(0, metade).concat(itens.slice(total - (MOV_MAX - metade)));
+      // O corte pelo meio é CEGO, e aqui isso custava caro: num processo de 400
+      // movimentos o miolo é exatamente onde mora o ato procurado (a publicação
+      // da sentença de 2019, o trânsito da fase anterior). Pior que perder o
+      // dado era o rótulo — "movimentos de expediente omitidos" afirmava sobre
+      // o que ninguém tinha olhado.
+      //
+      // Então descarta-se só o que é RECONHECIDAMENTE expediente, e só no
+      // miolo: as pontas ficam intactas (o começo tem distribuição e citação; o
+      // fim, sentença, intimação, decurso e trânsito).
+      const excesso = total - MOV_MAX;
+      const ini = Math.min(Math.floor(MOV_MAX * 0.25), total);
+      const fim = Math.max(total - Math.floor(MOV_MAX * 0.45), ini);
+      marcaEm = ini;
+      const sacrificar = new Set();
+      // Do mais ANTIGO do miolo para frente: expediente recente tem mais chance
+      // de pertencer ao prazo que está sendo perguntado agora.
+      for (let i = ini; i < fim && sacrificar.size < excesso; i++) {
+        if (ehExpediente(itens[i].mov)) sacrificar.add(i);
+      }
+      if (sacrificar.size < excesso) {
+        // Nem só de expediente se faz o excesso. O resto sai por posição — e
+        // isso vai DITO na linha do corte: omitir um ato que não é expediente e
+        // chamá-lo de expediente é justamente a mentira que este bloco existe
+        // para não contar.
+        for (let i = ini; i < fim && sacrificar.size < excesso; i++) sacrificar.add(i);
+        cortouChave = true;
+      }
+      cortou = sacrificar.size;
+      itens = itens.filter((_, i) => !sacrificar.has(i));
     }
     const linhas = itens.map(
       (x) =>
@@ -2775,13 +2855,26 @@
         x.mov +
         (x.pecas.length ? " (peça" + (x.pecas.length > 1 ? "s " : " ") + x.pecas.join(", ") + ")" : "")
     );
-    if (cortou) linhas.splice(Math.floor(MOV_MAX / 2), 0, "… (" + cortou + " movimentos de expediente omitidos aqui) …");
+    if (cortou) {
+      linhas.splice(
+        marcaEm,
+        0,
+        cortouChave
+          ? "… (" +
+              cortou +
+              " movimento(s) omitidos aqui por limite de tamanho — NÃO são só de expediente: " +
+              "pode faltar publicação, intimação ou decurso de prazo neste intervalo) …"
+          : "… (" + cortou + " movimento(s) de expediente omitidos aqui — juntada, petição, " +
+              "certidão, ato ordinatório e afins; nenhum de publicação, prazo, intimação ou trânsito) …"
+      );
+    }
     // COBERTURA: `lerEventos` lê o DOM da linha do tempo, que carrega sob
     // demanda — e a lista de peças pode vir completa pela rota REST sem que um
     // único movimento novo entre na tela. Afirmar uma data de trânsito sobre um
     // trecho parcial é exatamente o erro que este bloco existe para evitar, então
     // a parcialidade vai DITA. Ver "Lista completa ≠ linha do tempo carregada".
     let aviso = "";
+    let restTruncada = false;
     try {
       const naTimeline = PJE.listarDocumentos ? PJE.listarDocumentos().length : 0;
       // A rota REST devolve o processo INTEIRO — o aviso de parcialidade só vale
@@ -2795,6 +2888,47 @@
           naTimeline +
           " estão carregados nela. Podem existir atos ANTERIORES não listados aqui; " +
           "não conclua data de trânsito, decurso ou publicação a partir de ausência.";
+      }
+      // GUARDA ANTI-TRUNCAMENTO da rota REST, irmã da que `listarPelaApi` já
+      // tem ("lista MENOR que a timeline é recusada"). A cobertura da rota foi
+      // medida em UM processo, de 25 movimentos: nada prova que ela não pagine
+      // num processo de 400, e afirmar procedência oficial sobre uma lista
+      // truncada é o pior desfecho possível aqui — o modelo passaria a negar
+      // com confiança um ato que existe.
+      //
+      // O sinal é POSITIVO e é o único disponível de graça: a timeline do DOM
+      // carrega do mais RECENTE para o mais antigo, então ela nunca alcança um
+      // ato ANTERIOR ao mais antigo da lista oficial — a menos que a lista
+      // oficial não chegue lá. Se isso acontecer, quem sabe menos é a rota.
+      //
+      // A folga de 24 h não é arredondamento: a data do DOM é por DIA (nasce à
+      // meia-noite local) e a da rota tem hora, então um ato do MESMO dia
+      // registrado às 14:48 fica "depois" da meia-noite dele sem que nada
+      // esteja faltando.
+      if (fonteRest && PJE.lerEventos) {
+        const maisAntigoRest = Math.min(
+          ...movsOficiais.map((m) => (m.ms == null ? Infinity : m.ms))
+        );
+        let maisAntigoDom = Infinity;
+        for (const ev of PJE.lerEventos()) {
+          const t = ev && ev.data && ev.data.getTime ? ev.data.getTime() : null;
+          if (t != null && t < maisAntigoDom) maisAntigoDom = t;
+        }
+        if (
+          Number.isFinite(maisAntigoRest) &&
+          Number.isFinite(maisAntigoDom) &&
+          maisAntigoDom < maisAntigoRest - 86400000
+        ) {
+          restTruncada = true;
+          aviso =
+            " ATENÇÃO: a linha do tempo desta tela mostra atos ANTERIORES ao mais antigo " +
+            "listado aqui (" +
+            fmtData(new Date(maisAntigoDom)) +
+            " contra " +
+            fmtData(new Date(maisAntigoRest)) +
+            "), então esta lista NÃO alcança o início do processo. Não conclua data de " +
+            "trânsito, decurso ou publicação a partir de ausência.";
+        }
       }
     } catch {
       /* best-effort: sem a medida, o bloco vai sem o aviso */
@@ -2811,7 +2945,21 @@
       "\n(" +
       total +
       " movimento(s)" +
-      (fonteRest ? " — lista completa do processo." : " na linha do tempo carregada.") +
+      (cortou ? " no processo, " + (total - cortou) + " listados aqui" : "") +
+      // NÃO dizer "lista completa do processo": é afirmação que não foi medida
+      // (nada garante que a rota não pagine em processo muito longo) e que
+      // ficava CONTRADITÓRIA logo depois de cortar o miolo. O que se sabe com
+      // certeza é a PROCEDÊNCIA — e é ela que dá ao modelo a confiança de que
+      // ele precisa, sem prometer o que ninguém conferiu. A regra de ler
+      // ausência como "não registrado" está no PROMPT_FIM.
+      // A vantagem da rota ("não depende do que está carregado na tela") deixa
+      // de ser verdade justamente no caso que a guarda acima detecta — e
+      // repeti-la ali seria contradizer o aviso na mesma linha.
+      (fonteRest && !restTruncada
+        ? " — registro oficial do PJe, não depende do que está carregado na tela."
+        : fonteRest
+          ? " — registro oficial do PJe."
+          : " na linha do tempo carregada.") +
       aviso +
       ")"
     );
@@ -2826,10 +2974,25 @@
     for (const id of idsAnexados) {
       if (ehIdAnexo(id)) continue; // arquivo do usuário: não tem juntada nos autos
       const d = docsIndex.get(id);
-      if (d && d.juntadoEm) linhas.push(d.titulo + " — juntada em " + String(d.juntadoEm).slice(0, 16));
+      if (!d || !d.juntadoEm) continue;
+      // `dataBr` já normaliza "AAAA-MM-DD HH:mm:ss" para "DD/MM/AAAA HH:mm",
+      // mas ele REPASSA sem tocar o que vier em formato desconhecido (é a
+      // decisão certa lá: não inventar). Cortar por posição aqui, então,
+      // produziria data truncada — "19 de junho de 20" — num bloco cujo único
+      // conteúdo é data. Só encurta o que casa o formato esperado.
+      const q = String(d.juntadoEm).trim();
+      const m = q.match(/^(\d{2}\/\d{2}\/\d{4})(?:[ T](\d{2}:\d{2}))?/);
+      linhas.push(d.titulo + " — juntada em " + (m ? m[1] + (m[2] ? " " + m[2] : "") : q));
     }
     if (!linhas.length) return "";
-    return "\n\n[Data de juntada das peças anexadas]\n" + linhas.join("\n");
+    // O rótulo diz JUNTADA, e diz o que ela não é. A data de juntada é quando o
+    // documento entrou nos autos: petição protocolada em papel entra dias
+    // depois, e documento antigo é juntado hoje. Tratá-la como data do ato erra
+    // o prazo por uma distância que ninguém percebe conferindo a resposta.
+    return (
+      "\n\n[Data de JUNTADA das peças anexadas — quando o documento entrou nos autos, " +
+      "que não é necessariamente a data do ato que ele documenta]\n" + linhas.join("\n")
+    );
   }
 
   function inventarioNaoMarcadas(idsAnexados) {
@@ -4721,6 +4884,18 @@
     " no formato (Título da peça, id 123456, fl. 7) — o id é o número que abre o título de" +
     " cada peça na lista abaixo e a folha é a do PDF daquela peça. Sem folha identificável," +
     " use (Título da peça, id 123456)." +
+    // A LINHA DO TEMPO do processo viaja neste MESMO request (publicação,
+    // intimação, decurso, trânsito) e não tem peça nem folha. Sem um formato
+    // próprio para ela, a regra acima deixava o modelo entre duas saídas ruins:
+    // omitir a data — e o relatório da sentença sai sem os atos que a
+    // fundamentam, que é o defeito que esta rodada existe para resolver — ou
+    // pendurar a data numa peça qualquer para satisfazer o formato, isto é, uma
+    // citação INVENTADA num documento que vai ao PJe assinado. A saída é dar à
+    // movimentação a sua própria forma de citar.
+    " Fato que vier da LINHA DO TEMPO do processo (distribuição, publicação, intimação," +
+    " decurso de prazo, trânsito em julgado, conclusão) é citado como (movimentação de" +
+    " DD/MM/AAAA): nunca atribua a uma peça uma data que veio da linha do tempo, e nunca" +
+    " invente folha para ela." +
     " NUNCA invente nome de parte, número de processo, data, valor, dispositivo legal ou" +
     " precedente: se algo necessário não constar das peças anexadas, escreva no lugar" +
     " [COMPLETAR: o que falta], para quem for assinar preencher." +
@@ -5237,6 +5412,12 @@
     " parênteses, no formato (Título da peça, id 123456, fl. 7) — o id é o número que abre o" +
     " título de cada peça na lista abaixo e a folha é a do PDF daquela peça. Sem folha" +
     " identificável, use (Título da peça, id 123456). NUNCA invente id, folha, data ou valor." +
+    // Mesma razão da nota no SUFIXO_MINUTA: as seções Prazos, Situação atual e
+    // Fatos vivem de datas que estão na LINHA DO TEMPO, não em peça nenhuma —
+    // sem um formato próprio, ou o nó sai sem data ou a data sai pendurada numa
+    // peça que não a contém.
+    " Item que vier da LINHA DO TEMPO do processo (publicação, intimação, decurso de prazo," +
+    " trânsito em julgado) termina com (movimentação de DD/MM/AAAA), nunca com uma peça." +
     " RECURSOS: use **negrito** no rótulo do item e ==destaque== no que for decisivo; quando a" +
     " informação for tabular (partes, linha do tempo, valores, prazos), use UMA tabela Markdown" +
     " na seção correspondente, com no máximo 3 colunas e células curtas. NÃO use emojis," +

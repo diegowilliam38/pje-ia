@@ -1520,6 +1520,20 @@ var PJE = (function () {
     }
   }
 
+  // TETO DE TEMPO da rota de movimentações, e ele não é zelo: ela roda no começo
+  // de TODO turno, então um endpoint que aceita a conexão e nunca responde
+  // deixaria o Enter sem efeito NENHUM — sem token, sem erro, sem status —, e
+  // para sempre. Rota que pendura é pior que rota que falha justamente por isso,
+  // e não é hipótese: foi o que as rotas fora de `pje-legacy/` fizeram na
+  // sondagem (ver docs/pje-api-rest.md). O fallback pelo DOM é instantâneo,
+  // então esperar mais que isto não compra nada.
+  const MOVS_TIMEOUT_MS = 4000;
+  // Desistir pela vida da PÁGINA vale só para o pendura: no tribunal em que a
+  // rota não responde, pagar 4 s a cada pergunta seria trocar um defeito por
+  // outro. Erro de HTTP (404 num PJe sem a rota, 500 transitório) NÃO desiste —
+  // ele volta rápido e pode ser passageiro.
+  let movsPendurou = false;
+
   /**
    * MOVIMENTAÇÕES do processo pela API REST — a linha do tempo PROCESSUAL, que
    * é coisa diferente da lista de peças. Devolve
@@ -1541,13 +1555,16 @@ var PJE = (function () {
    */
   async function listarMovimentacoes() {
     const proc = getIdProcesso();
-    if (!proc) return null;
+    if (!proc || movsPendurou) return null;
+    const ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const relogio = ctl ? setTimeout(() => ctl.abort(), MOVS_TIMEOUT_MS) : null;
     try {
       const url =
         "/" + getBase() + "/seam/resource/rest/pje-legacy/processos/" + proc + "/movimentacoes";
       const r = await fetch(url, {
         credentials: "include",
         headers: { Accept: "application/json" },
+        signal: ctl ? ctl.signal : undefined,
       });
       if (!r.ok) {
         dlog("movimentações: HTTP " + r.status + " — caindo para a timeline");
@@ -1589,8 +1606,15 @@ var PJE = (function () {
       dlog("movimentações: " + movs.length + " movimento(s) pela API REST, zero tela JSF");
       return movs;
     } catch (e) {
-      dlog("movimentações: " + ((e && e.message) || e) + " — caindo para a timeline");
+      if (ctl && ctl.signal.aborted) {
+        movsPendurou = true;
+        dlog("movimentações: sem resposta em " + MOVS_TIMEOUT_MS + " ms — desistindo nesta página");
+      } else {
+        dlog("movimentações: " + ((e && e.message) || e) + " — caindo para a timeline");
+      }
       return null;
+    } finally {
+      if (relogio) clearTimeout(relogio);
     }
   }
 

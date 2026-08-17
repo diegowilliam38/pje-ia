@@ -135,7 +135,7 @@ Medido no 3000167-23.2025.8.06.0203 (17/08/2026, sessão real): 25 movimentos,
 
 | | `lerEventos()` (DOM) | `movimentacoes` (REST) |
 |---|---|---|
-| Cobertura | só o trecho rolado da timeline | **o processo inteiro** |
+| Cobertura | só o trecho rolado da timeline | **alcança além do que a tela carregou** |
 | Precisão da data | o DIA (`19 jun 2026`) | **epoch ms** — data e **hora** |
 | Nome do ato | o texto que aparece na tela | **`codEvento` + `dsEvento` do CNJ** |
 | Complemento | — | **`textoFinalExterno`**: *"Decorrido prazo de EUDES … em 16/07/2026 23:59"* |
@@ -144,7 +144,7 @@ Medido no 3000167-23.2025.8.06.0203 (17/08/2026, sessão real): 25 movimentos,
 O `textoFinalExterno` é o campo que fecha a conta: é ele que traz **a parte e a
 hora exata do fim do prazo**. Sem ele há a data do decurso; com ele há o prazo.
 
-Duas armadilhas do parsing, ambas cobertas por teste:
+Armadilhas do parsing e do consumo, todas cobertas por teste:
 
 - **A rota devolve FORA DE ORDEM** (medido: o 1º item era o mais recente). Quem
   consome ordena — e ordena SEMPRE, sem confiar na entrega: pular o sort "porque
@@ -153,6 +153,20 @@ Duas armadilhas do parsing, ambas cobertas por teste:
 - **`textoFinalExterno` repete o `dsEvento`** em metade dos casos, e termina em
   `Documento: 207691389` quando há peça. Guardar os dois escrevia o mesmo número
   duas vezes na linha; o sufixo sai do texto e o id volta como `docs`.
+- **A COBERTURA não foi medida em processo longo.** 25 movimentos não provam que a
+  rota não pagine num processo de 400 — e é por isso que nem o código nem o bloco
+  enviado ao modelo afirmam "lista completa do processo": afirmam a
+  **procedência**. A verificação disponível de graça é POSITIVA: se a timeline do
+  DOM mostra ato ANTERIOR ao mais antigo que a rota devolveu, a rota não alcançou
+  o início do processo (o DOM carrega do mais recente para o mais antigo, então
+  nunca a ultrapassa por acidente). Se algum dia der para medir num processo com
+  centenas de movimentos, **anotar o número aqui** — é o que fecha a questão.
+- **Toda chamada desta rota no caminho de um turno precisa de TETO DE TEMPO**
+  (`AbortController`, 4 s, com desistência pela vida da página). Ela roda no
+  começo de cada turno: um endpoint que aceita a conexão e nunca responde deixaria
+  o Enter sem efeito nenhum e sem mensagem. Não é hipótese — é o que as rotas fora
+  de `pje-legacy/` fizeram nesta mesma sondagem ("penduraram, que é pior que
+  erro").
 
 ## Catálogo — família por família
 
