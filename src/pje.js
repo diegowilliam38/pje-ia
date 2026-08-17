@@ -1532,6 +1532,24 @@ var PJE = (function () {
   // rota não responde, pagar 4 s a cada pergunta seria trocar um defeito por
   // outro. Erro de HTTP (404 num PJe sem a rota, 500 transitório) NÃO desiste —
   // ele volta rápido e pode ser passageiro.
+  //
+  // Mas são precisas DUAS expirações seguidas, e isso não é frouxidão: a v0.46.0
+  // passou a chamar esta rota também no BOOT (o `setTimeout` de 600 ms no fim de
+  // `iniciar()`), que é o instante mais congestionado da aba — o PJe ainda está
+  // carregando, no MESMO host. Com o desligamento armado na primeira expiração,
+  // um soluço de rede de 4 s ali degradava a SESSÃO INTEIRA para o fallback do
+  // DOM: linha do tempo parcial, sem hora, e o selo anunciando "(da tela)" e
+  // "PARCIAL" como se fosse limitação do tribunal. Silencioso, irreversível sem
+  // F5, e é exatamente a resposta ruim sobre prazo que a rodada da linha do
+  // tempo existe para eliminar.
+  //
+  // O preço no pior caso (rota REALMENTE pendurada) não muda de ordem: o boot
+  // gasta a 1ª expiração e o 1º turno gasta a 2ª, isto é, UM Enter de 4 s por
+  // página — o mesmo que o desenho anterior pagaria se a chamada do boot não
+  // existisse. Sucesso zera o contador: o que desliga a rota é ela pendurar
+  // SEMPRE, não ter pendurado uma vez.
+  const MOVS_TIMEOUTS_ATE_DESISTIR = 2;
+  let movsTimeouts = 0;
   let movsPendurou = false;
 
   /**
@@ -1602,13 +1620,32 @@ var PJE = (function () {
       // CRESCENTE: a rota devolve em ordem arbitrária (medido: o 1º item era o
       // mais recente). Sem data não há como ordenar — esses ficam no fim, na
       // ordem em que vieram, em vez de inventarem posição na cronologia.
-      movs.sort((a, b) => (a.ms == null ? 1 : b.ms == null ? -1 : a.ms - b.ms));
-      dlog("movimentações: " + movs.length + " movimento(s) pela API REST, zero tela JSF");
-      return movs;
+      //
+      // PARTICIONA antes de ordenar, e não é estilo: o comparador de uma linha
+      // (`a.ms == null ? 1 : b.ms == null ? -1 : a.ms - b.ms`) devolve 1 para os
+      // DOIS lados de um par de movimentos SEM data — cmp(a,b) === cmp(b,a) === 1
+      // viola antissimetria, e diante de comparador inconsistente o `sort` pode
+      // devolver qualquer permutação. É a mesma lição que `linhaDoTempoProcessual`
+      // já registrou em content.js, que faltava aqui. O `sort` do V8 é estável,
+      // então entre `ms` iguais a ordem da API é preservada — que é o que o
+      // desempate da fonte REST no content.js (`a.i - b.i`) pressupõe.
+      const comData = movs.filter((m) => m.ms != null).sort((a, b) => a.ms - b.ms);
+      const semData = movs.filter((m) => m.ms == null);
+      const ordenados = comData.concat(semData);
+      dlog("movimentações: " + ordenados.length + " movimento(s) pela API REST, zero tela JSF");
+      // Sucesso zera o contador de expirações: o que desliga a rota pela vida da
+      // página é ela pendurar SEMPRE, não ter pendurado uma vez.
+      movsTimeouts = 0;
+      return ordenados;
     } catch (e) {
       if (ctl && ctl.signal.aborted) {
-        movsPendurou = true;
-        dlog("movimentações: sem resposta em " + MOVS_TIMEOUT_MS + " ms — desistindo nesta página");
+        movsTimeouts++;
+        if (movsTimeouts >= MOVS_TIMEOUTS_ATE_DESISTIR) movsPendurou = true;
+        dlog(
+          "movimentações: sem resposta em " + MOVS_TIMEOUT_MS + " ms (" +
+            movsTimeouts + "ª expiração)" +
+            (movsPendurou ? " — desistindo nesta página" : " — tentando de novo no próximo turno")
+        );
       } else {
         dlog("movimentações: " + ((e && e.message) || e) + " — caindo para a timeline");
       }

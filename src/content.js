@@ -221,6 +221,20 @@
       "no formato '(Contestação, id 123456, fl. 12)' — indique sempre a página do",
       "PDF de origem quando conseguir identificá-la; sem folha identificável, use",
       "'(Contestação, id 123456)'.",
+      // EXCEÇÃO da LINHA DO TEMPO, a mesma que o SUFIXO_MINUTA e o SUFIXO_MAPA
+      // ganharam: movimento não tem peça nem folha. Sem dizê-la AQUI, a regra de
+      // cima ficava sozinha no trecho mais próximo e empurrava o modelo para uma
+      // de duas saídas ruins — omitir a data (e a pergunta de prazo volta sem
+      // resposta, que é o defeito que esta linha do tempo existe para eliminar)
+      // ou pendurá-la numa peça qualquer para satisfazer o formato, isto é,
+      // citação inventada. Vale mais aqui do que em qualquer outro lugar: este é
+      // o caminho dos modelos SEM citação nativa (Gemini e OpenAI), e o padrão da
+      // extensão é o `gpt-5.6-luna`. O `PROMPT_FIM` já pede a forma; o que
+      // faltava era a DISPENSA explícita do formato de documento.
+      "Fato que vier da LINHA DO TEMPO do processo (distribuição, publicação,",
+      "intimação, decurso de prazo, trânsito em julgado, conclusão) não tem peça nem",
+      "folha: cite-o como '(movimentação de DD/MM/AAAA)' e NUNCA o pendure numa peça",
+      "para satisfazer o formato acima.",
     ],
     PROMPT_BUSCA,
     PROMPT_FIM,
@@ -2718,6 +2732,19 @@
     if (!comHora || (d.getHours() === 0 && d.getMinutes() === 0)) return dia;
     return dia + " " + p(d.getHours()) + ":" + p(d.getMinutes());
   }
+  // Só o DIA de uma data já formatada. Mora AQUI, junto de `fmtData`, e não
+  // junto do primeiro consumidor: `linhaDoTempoProcessual` a usa em dois pontos
+  // distantes um do outro (o rótulo do corte, no meio da função, e a faixa do
+  // selo, no fim), e uma `const` declarada entre os dois lançaria "Cannot access
+  // before initialization" no primeiro — a zona morta temporal descrita no
+  // CLAUDE.md. O recorte é por REGEX, nunca por posição: `slice(0, 10)` produz
+  // data truncada assim que o formato muda (foi o que fez "19 de junho de 2026"
+  // virar "19 de junho de 20" em `datasDasPecas`). Formato desconhecido volta
+  // inteiro.
+  const soODia = (s) => {
+    const m = String(s || "").match(/^\d{2}\/\d{2}\/\d{4}/);
+    return m ? m[0] : s || null;
+  };
   // Normalizador local (minúsculas, sem acento). O `norm` do painel classifica
   // TÍTULO de peça; aqui o vocabulário é outro — movimento CNJ —, e manter as
   // duas leituras em arquivos separados é o que impede que uma regra escrita
@@ -2858,6 +2885,10 @@
     let cortou = 0;
     let cortouChave = false;
     let marcaEm = 0;
+    // Intervalo de datas efetivamente atingido pelo corte. Ver a nota do rótulo,
+    // logo abaixo do laço.
+    let corteDe = null;
+    let corteAte = null;
     if (total > MOV_MAX) {
       // O corte pelo meio é CEGO, e aqui isso custava caro: num processo de 400
       // movimentos o miolo é exatamente onde mora o ato procurado (a publicação
@@ -2887,8 +2918,27 @@
         cortouChave = true;
       }
       cortou = sacrificar.size;
+      // O QUE SAIU está ESPALHADO pelo miolo, não concentrado num ponto — são os
+      // movimentos de expediente encontrados entre `ini` e `fim`. A marca, porém,
+      // entra numa posição só (`marcaEm`), e dizer apenas "omitidos aqui"
+      // localiza num ponto o que aconteceu ao longo de um TRECHO: depois da marca
+      // as datas seguem saltando, sem nada que explique. Dizer o INTERVALO
+      // resolve pelo lado certo — o leitor (modelo ou usuário) passa a saber
+      // exatamente em que faixa do processo a lista está rala.
+      const idxCortados = [...sacrificar].sort((a, b) => a - b);
+      corteDe = soODia(itens[idxCortados[0]].data);
+      corteAte = soODia(itens[idxCortados[idxCortados.length - 1]].data);
       itens = itens.filter((_, i) => !sacrificar.has(i));
     }
+    // "entre DD/MM/AAAA e DD/MM/AAAA" só quando as DUAS pontas têm data (e são
+    // distintas): movimento sem data existe, e uma faixa com metade em branco
+    // afirmaria menos do que o silêncio.
+    const faixaCorte =
+      corteDe && corteAte
+        ? corteDe === corteAte
+          ? " (em " + corteDe + ")"
+          : " (entre " + corteDe + " e " + corteAte + ")"
+        : "";
     const linhas = itens.map(
       (x) =>
         (x.data || "sem data") +
@@ -2903,10 +2953,11 @@
         cortouChave
           ? "… (" +
               cortou +
-              " movimento(s) omitidos aqui por limite de tamanho — NÃO são só de expediente: " +
-              "pode faltar publicação, intimação ou decurso de prazo neste intervalo) …"
-          : "… (" + cortou + " movimento(s) de expediente omitidos aqui — juntada, petição, " +
-              "certidão, ato ordinatório e afins; nenhum de publicação, prazo, intimação ou trânsito) …"
+              " movimento(s) omitidos" + faixaCorte + " por limite de tamanho — NÃO são só de " +
+              "expediente: pode faltar publicação, intimação ou decurso de prazo neste intervalo) …"
+          : "… (" + cortou + " movimento(s) de expediente omitidos" + faixaCorte + " — juntada, " +
+              "petição, certidão, ato ordinatório e afins; nenhum de publicação, prazo, intimação " +
+              "ou trânsito) …"
       );
     }
     // COBERTURA: `lerEventos` lê o DOM da linha do tempo, que carrega sob
@@ -2918,19 +2969,31 @@
     let restTruncada = false;
     let domParcial = false;
     try {
-      const naTimeline = PJE.listarDocumentos ? PJE.listarDocumentos().length : 0;
       // A rota REST devolve o processo INTEIRO — o aviso de parcialidade só vale
       // para o fallback pelo DOM. Repeti-lo com a fonte oficial faria o modelo
       // recusar uma data que ele tem em mãos, que é o defeito de origem.
-      if (!fonteRest && naTimeline && docsIndex.size > naTimeline) {
-        domParcial = true;
-        aviso =
-          " ATENÇÃO: a linha do tempo desta tela está PARCIAL — o processo tem " +
-          docsIndex.size +
-          " documentos e só " +
-          naTimeline +
-          " estão carregados nela. Podem existir atos ANTERIORES não listados aqui; " +
-          "não conclua data de trânsito, decurso ou publicação a partir de ausência.";
+      //
+      // A medida da timeline nasce DENTRO deste ramo, e não antes dele: quem a
+      // produz é `PJE.listarDocumentos()`, que varre `#divTimeLine a` com regex
+      // por link E chama `lerEventos()` por dentro (recursão pela árvore inteira
+      // da timeline). Calculada fora, ela rodava também no caminho comum — o da
+      // rota REST, em que ninguém a lê —, somando uma varredura completa por
+      // turno na janela entre o Enter e o request, num processo que pode ter
+      // centenas de peças. Os dois ramos deste `try` já eram mutuamente
+      // exclusivos por `fonteRest`; o que faltava era a MEDIDA nascer junto do
+      // ramo que a lê.
+      if (!fonteRest) {
+        const naTimeline = PJE.listarDocumentos ? PJE.listarDocumentos().length : 0;
+        if (naTimeline && docsIndex.size > naTimeline) {
+          domParcial = true;
+          aviso =
+            " ATENÇÃO: a linha do tempo desta tela está PARCIAL — o processo tem " +
+            docsIndex.size +
+            " documentos e só " +
+            naTimeline +
+            " estão carregados nela. Podem existir atos ANTERIORES não listados aqui; " +
+            "não conclua data de trânsito, decurso ou publicação a partir de ausência.";
+        }
       }
       // GUARDA ANTI-TRUNCAMENTO da rota REST, irmã da que `listarPelaApi` já
       // tem ("lista MENOR que a timeline é recusada"). A cobertura da rota foi
@@ -2981,13 +3044,9 @@
     // itens que sobraram (o primeiro e o último COM data): é o intervalo que o
     // modelo enxergou, não o que o processo tem.
     // Só o DIA na faixa: a hora é o que distingue dois atos na LISTA, e no
-    // tooltip do selo — que diz apenas "de … a …" — ela virava ruído. O recorte
-    // é por regex, não por posição, pela mesma razão de `datasDasPecas`: cortar
-    // por índice é o que produz data truncada quando o formato muda.
-    const soODia = (s) => {
-      const m = String(s || "").match(/^\d{2}\/\d{2}\/\d{4}/);
-      return m ? m[0] : s || null;
-    };
+    // tooltip do selo — que diz apenas "de … a …" — ela virava ruído. `soODia`
+    // vive no topo do IIFE, junto de `fmtData`, porque o rótulo do corte (bem
+    // acima) também a usa.
     const datados = itens.filter((x) => x.data);
     // A lista que o painel mostra é a MESMA que foi ao modelo, já cortada — e o
     // corte entra nela como uma LINHA, não só como um número no cabeçalho: sem a
@@ -3006,8 +3065,9 @@
         lacuna:
           cortou +
           (cortouChave
-            ? " movimento(s) omitidos aqui por limite de tamanho — NÃO só de expediente"
-            : " movimento(s) de expediente omitidos aqui"),
+            ? " movimento(s) omitidos por limite de tamanho — NÃO só de expediente"
+            : " movimento(s) de expediente omitidos") +
+          faixaCorte,
         pecas: [],
       });
     }

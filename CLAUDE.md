@@ -752,6 +752,15 @@ e até a v0.23 as dez fontes eram tratadas como equivalentes.
     não têm peça nem folha; exigir o formato de documento para eles empurrava o
     modelo a omitir a data ou a pendurá-la numa peça qualquer — citação inventada
     num ato assinado. Ver "A LINHA DO TEMPO PROCESSUAL no contexto".
+    - Ela vive em **TRÊS** lugares, e a v0.45.1 só acertou dois: além do
+      `SUFIXO_MINUTA` e do `SUFIXO_MAPA`, o **`SYSTEM_PROMPT_CIT_TEXTUAL`**
+      precisa dela — é o caminho dos modelos SEM citação nativa (Gemini e
+      OpenAI), e o padrão da extensão é o `gpt-5.6-luna`. Ali a cláusula de
+      citação textual pedia `(Peça, id, fl.)` para todo fato relevante e a
+      dispensa não estava no trecho vizinho; o `PROMPT_FIM` já pedia a FORMA
+      ("cite o movimento e a data"), mas não dispensava o formato de documento.
+      No `PROMPT_INICIO` (compartilhado, caminho Anthropic) ela **não** entra:
+      lá as citações são nativas por página e não há formato literal a dispensar.
 - **Contexto do caso no system** (`contextoDoProcesso` em content.js): número CNJ
   (`PJE.getNumeroProcesso`), **ficha do processo** e data de hoje. Sem o CNJ o mapa
   mental titulava com número inventado; sem a data, prazos e "situação atual" saíam
@@ -2090,6 +2099,18 @@ inventário, que ganhou a data de cada peça não marcada.
   sondagem. O fallback pelo DOM é instantâneo, então esperar mais não compra nada.
   A desistência vale **só para o pendura** — erro de HTTP (404 no PJe sem a rota,
   500 transitório) volta rápido e pode ser passageiro, então continua tentando.
+  - **E só depois de DUAS expirações seguidas** (`MOVS_TIMEOUTS_ATE_DESISTIR`;
+    sucesso zera o contador). Armar o desligamento na PRIMEIRA foi um defeito de
+    escala introduzido pela v0.46.0, que passou a chamar a rota também **no
+    BOOT** — o instante mais congestionado da aba, com o PJe ainda carregando no
+    MESMO host. Um soluço de rede de 4 s ali degradava a **sessão inteira** para
+    o fallback do DOM (linha do tempo parcial, sem hora), e o selo anunciava
+    "(da tela)" e "PARCIAL" como se fosse limitação do tribunal: silencioso,
+    irreversível sem F5, e exatamente a resposta ruim sobre prazo que esta seção
+    existe para eliminar. O preço no pior caso não muda de ordem — com a rota
+    realmente pendurada, o boot gasta a 1ª expiração e o 1º turno a 2ª, isto é,
+    UM Enter de 4 s por página. O que desliga a rota é ela pendurar SEMPRE, não
+    ter pendurado uma vez.
 - **ORDENA SEMPRE, e o desempate depende da FONTE.** Não confiar na ordem de
   quem entregou: a rota devolve fora de ordem, e pular o sort "porque o pje.js já
   ordenou" pôs a distribuição depois da sentença — só o teste viu. O desempate
@@ -2137,6 +2158,15 @@ inventário, que ganhou a data de cada peça não marcada.
     a verdade**: só afirma "de expediente" quando foi só expediente; quando o
     excesso obriga a cortar por posição, diz que **não** são só de expediente e
     que pode faltar publicação, intimação ou decurso naquele intervalo.
+  - **E diz o INTERVALO de datas atingido**, não só "omitidos aqui". O que sai
+    está ESPALHADO pelo miolo (são os movimentos de expediente entre `ini` e
+    `fim`), mas a marca entra numa posição só: dizer apenas "aqui" localiza num
+    ponto o que aconteceu ao longo de um trecho, e depois da marca as datas
+    seguem saltando sem nada que explique. Vale para o texto que vai ao modelo e
+    para a `.mv-gap` da lista. O recorte da data usa `soODia`, que por causa
+    disso mora no TOPO do IIFE, junto de `fmtData`: os dois consumidores estão
+    em pontos distantes da mesma função, e uma `const` declarada entre eles
+    lançaria "Cannot access before initialization" no primeiro.
 - **NÃO afirmar "lista completa do processo".** A cobertura da rota foi medida em
   UM processo, de 25 movimentos — nada prova que ela não pagine num de 400 —, e a
   frase ficava CONTRADITÓRIA logo depois do corte do miolo. O rodapé afirma a
@@ -2151,6 +2181,13 @@ inventário, que ganhou a data de cada peça não marcada.
     nunca ultrapassa a rota por acidente). A folga de **24 h** não é
     arredondamento: a data do DOM nasce à meia-noite local e a da rota tem hora,
     então sem ela todo processo teria o aviso.
+  - **A medida da timeline nasce DENTRO do ramo que a lê.** `PJE.listarDocumentos()`
+    varre `#divTimeLine a` com regex por link E chama `lerEventos()` por dentro
+    (recursão pela árvore inteira); ela só serve à guarda de parcialidade do
+    **fallback**. Calculada antes do `if`, rodava também no caminho comum — o da
+    rota REST, em que ninguém a lê —, somando uma varredura completa por turno na
+    janela entre o Enter e o request. Coberto por teste (zero chamadas no turno
+    com a rota REST viva; ≥ 1 no fallback).
 - **Data de JUNTADA não é data do ATO**, e isso vai dito no rótulo do bloco e no
   `PROMPT_FIM`: petição protocolada em papel é juntada dias depois, documento
   antigo é juntado hoje. Confundir os dois é o erro de prazo mais fácil de cometer
@@ -2232,6 +2269,23 @@ inventário, que ganhou a data de cada peça não marcada.
   - Esc fecha com **`stopPropagation`** (senão a cascata do painel cancelaria o
     modo minuta junto) e `setLinhaDoTempo` fecha a caixa ao trocar o retrato —
     nunca mostrar movimentos de um estado anterior.
+  - **O clique fora fecha pelo `document`, NÃO pelo `wrap`** (é a diferença desta
+    caixa para o `.selmenu`, que só ouve o `wrap`). O `wrap` enxerga apenas o
+    Shadow DOM, e nos modos lateral, livre e flutuante a página do tribunal fica
+    visível e CLICÁVEL ao lado, com a caixa em `position: fixed` por cima dela:
+    ancorado ali, clicar nos autos não fechava nada e a lista ficava aberta sobre
+    o processo (o `.selmenu` sobrevive a isso porque ainda fecha em todo
+    `setDocs`; esta caixa não). Os gestos DENTRO do painel — ✕, troca de modo,
+    backdrop, arrasto do modo livre — já eram cobertos pelo `pointerdown` que
+    borbulha até ali; o que faltava era o lado de fora.
+  - **A decisão é por `composedPath()`, nunca por `e.target`**: no `document` o
+    alvo de dentro do Shadow DOM chega RETARGETADO para o host, então
+    `e.target.closest(".movbox")` daria `null` e o clique dentro da própria caixa
+    a fecharia — inclusive o do botão "peça N", que morreria antes do `click`.
+    `capture: true` e a guarda `!movbox` na primeira linha: fora desse estado o
+    listener não custa nada. Testar isso exige `pointerdown` + `click`, nunca só
+    `click`: com evento sintético incompleto o teste acusa fechamentos que na
+    verdade funcionam (foi assim que dois falsos positivos entraram numa revisão).
 - **A movimentação precisa de FORMA PRÓPRIA de citação na minuta e no mapa**
   (`(movimentação de DD/MM/AAAA)` no `SUFIXO_MINUTA` e no `SUFIXO_MAPA`). Os dois
   exigem `(Título da peça, id 123456, fl. 7)` para toda afirmação e proíbem

@@ -103,7 +103,40 @@
 
       <div class="card destaque">
         <p class="eyebrow" style="color: rgba(255,255,255,0.7)">A novidade mais recente</p>
-        <h2><span class="v novo">v0.46.1</span> A lista das datas ajustada aos modos do painel</h2>
+        <h2><span class="v novo">v0.46.2</span> A consulta das datas deixa de desistir por um soluço de rede</h2>
+        <p>
+          Revisão das cinco versões da linha do tempo, linha por linha. Nenhum recurso novo:
+          o que mudou é a <strong>confiabilidade</strong> do que já estava lá.
+        </p>
+        <p>
+          O mais importante: a consulta oficial das datas tem um limite de espera de 4 segundos,
+          e uma única espera estourada <strong>desligava a consulta pelo resto da sessão</strong>.
+          A versão anterior passou a fazer essa consulta assim que o processo abre — o momento
+          mais congestionado da aba —, então bastava a rede engasgar uma vez ali para a extensão
+          passar a resposta inteira a ler as datas da tela, que vem incompleta e sem hora, e a
+          avisar isso como se fosse limitação do tribunal. Agora são precisas
+          <strong>duas esperas estouradas seguidas</strong>, e qualquer resposta boa zera a
+          contagem.
+        </p>
+        <p>
+          A lista das datas também passou a <strong>fechar quando você clica na página do
+          tribunal</strong> — antes ela ficava aberta por cima do processo, e só o Esc a tirava.
+          E quando a lista precisa ser encurtada, ela agora diz <strong>entre que datas</strong>
+          isso aconteceu, em vez de só "omitidos aqui": as datas saltavam no meio da lista sem
+          nada que explicasse.
+        </p>
+        <p>
+          Por dentro, mais duas: cada pergunta deixou de varrer a linha do tempo da tela sem
+          precisar (a extensão fazia isso a cada mensagem, mesmo quando a consulta oficial já
+          tinha respondido) e o assistente passou a saber, também no chat, que uma data de
+          publicação ou trânsito <strong>não tem peça nem folha</strong> — a regra já existia na
+          minuta e no mapa mental, e faltava justamente onde mais se pergunta por prazo.
+        </p>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">Antes disso</p>
+        <h2><span class="v">v0.46.1</span> A lista das datas ajustada aos modos do painel</h2>
         <p>
           Duas correções na lista que a versão anterior estreou, encontradas ao conferi-la em
           <strong>todos os modos de janela</strong>, e não só no que eu havia testado.
@@ -1577,6 +1610,7 @@
             <tr><th>Versão</th><th>Data</th><th>O que mudou</th></tr>
           </thead>
           <tbody>
+            <tr><td><span class="v">0.46.2</span></td><td>17/08/2026</td><td>Revisão das cinco versões da linha do tempo, sem recurso novo. A consulta oficial das datas <strong>desistia pelo resto da sessão</strong> na primeira espera estourada — e a versão anterior passou a fazê-la assim que o processo abre, o momento mais congestionado da aba, de modo que um soluço de rede ali degradava a sessão inteira para a leitura da tela (incompleta e sem hora), anunciando isso como se fosse limitação do tribunal; agora são precisas duas seguidas, e uma resposta boa zera a contagem. A lista das datas passou a fechar ao clicar na página do tribunal, e quando é encurtada diz <strong>entre que datas</strong>. Por dentro: cada pergunta deixou de varrer a linha do tempo da tela sem precisar, e o assistente passou a saber também no chat que data de publicação ou trânsito não tem peça nem folha</td></tr>
             <tr><td><span class="v">0.46.1</span></td><td>17/08/2026</td><td>A lista das datas ajustada aos modos do painel, depois de conferi-la em <strong>todos eles</strong>. No modo <strong>lateral</strong> a caixa vazava para fora do painel, sobre a página do tribunal, e encostava na borda da janela; agora as bordas do painel são o limite, na largura e na altura. E quando o processo <strong>não tem movimento nenhum</strong>, clicar no selo não fazia nada — o cursor prometia um clique que não acontecia; agora abre a caixa explicando por que não há datas e que a ausência de um ato não significa que ele não aconteceu</td></tr>
             <tr class="marco"><td><span class="v">0.46.0</span></td><td>17/08/2026</td><td><span class="dot-marco"></span><strong>Agora dá para LER a linha do tempo do processo.</strong> As datas iam para o assistente e não apareciam em lugar nenhum — só voltavam se ele as citasse. O selo do rodapé passou a ser <strong>clicável</strong> e abre a lista dentro do painel: cada movimento com data e hora, o nome oficial do ato, o complemento que fecha a conta do prazo e a peça correspondente, que leva à linha do tempo do PJe num clique. É a mesma lista, na mesma ordem, que o assistente recebeu, e serve para conferir a resposta dele; onde ela foi encurtada, uma faixa no meio diz quantos movimentos ficaram de fora. O selo também <strong>deixou de esperar a primeira pergunta</strong>: aparece quando o painel abre, porque quem quer conferir olha, não pergunta</td></tr>
             <tr><td><span class="v">0.45.3</span></td><td>17/08/2026</td><td>Acabamento do selo das datas. Ele <strong>sobrevivia ao “Nova conversa”</strong> (o medidor e o custo eram zerados; o selo ficava, no pior caso mostrando um aviso âmbar sobre uma conversa já arquivada) e errava a concordância no <strong>processo recém-distribuído</strong>, que tem um movimento só: “1 movimento lidos” e a faixa “de 04/05/2026 a 04/05/2026”, um intervalo que não existe. O selo âmbar também não respondia ao mouse, e os textos de ajuda foram encurtados. Fora isso, o botão “Nova conversa” ganhou uma proteção que faltava contra falha do módulo de memória</td></tr>

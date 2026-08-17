@@ -3288,9 +3288,35 @@ var PjePanel = (function () {
     // Fecha em clique fora e no Esc. O `stopPropagation` no Esc é obrigatório:
     // sem ele a cascata do painel (`/` → `@` → modal → modo minuta) cancelaria
     // outra coisa junto — mesma regra do Esc do preview.
-    wrap.addEventListener("pointerdown", (e) => {
-      if (movbox && !e.target.closest(".movbox") && !e.target.closest(".linhatempo")) fecharMov();
-    });
+    //
+    // O listener vive no `document`, e não no `wrap` como o do `.selmenu`: o
+    // `wrap` só enxerga o que acontece DENTRO do Shadow DOM, e nos modos
+    // lateral, livre e flutuante a página do tribunal fica visível e CLICÁVEL ao
+    // lado — com a caixa em `position: fixed` por cima dela. Ancorado no `wrap`,
+    // clicar nos autos não fechava nada: a lista ficava aberta sobre o processo
+    // enquanto o usuário trabalhava, e só o Esc a tirava. (O `.selmenu` tem o
+    // mesmo desenho, mas ele ainda fecha em todo `setDocs`; esta caixa não.)
+    //
+    // A decisão é por `composedPath()`, NUNCA por `e.target`: no `document` o
+    // alvo de dentro do Shadow DOM chega RETARGETADO para o host, então
+    // `e.target.closest(".movbox")` daria `null` e o clique dentro da própria
+    // caixa a fecharia — inclusive o clique no botão "peça N", que morreria
+    // antes do `click`. `composedPath` atravessa a fronteira e devolve os nós
+    // reais.
+    //
+    // `capture: true` para o fechamento não depender de ninguém deixar o evento
+    // subir, e a guarda `!movbox` na primeira linha para que, fora deste estado,
+    // o listener não custe nada.
+    document.addEventListener(
+      "pointerdown",
+      (e) => {
+        if (!movbox) return;
+        const caminho = e.composedPath ? e.composedPath() : [];
+        if (caminho.indexOf(movbox) >= 0 || caminho.indexOf(ltEl) >= 0) return;
+        fecharMov();
+      },
+      true
+    );
     window.addEventListener(
       "keydown",
       (e) => {
