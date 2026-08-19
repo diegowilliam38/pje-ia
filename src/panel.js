@@ -6,6 +6,26 @@ var PjePanel = (function () {
     );
   }
 
+  // Nome de exibição de cada modelo. Vive no TOPO do IIFE porque DOIS pontos
+  // distantes a consomem — o selo do modelo (`setModelo`) e a nota de perfil da
+  // minuta —, e uma const declarada entre eles lançaria "Cannot access before
+  // initialization" no primeiro (a zona morta temporal). O fallback é o id cru,
+  // que não quebra nada mas põe "gpt-5.6-luna" num selo cujo trabalho é dizer
+  // ao usuário, na língua dele, qual modelo respondeu: ao somar um modelo em
+  // MODEL_CAPS, somar aqui também.
+  const NOMES_MODELO = {
+    "claude-haiku-4-5": "Claude Haiku 4.5",
+    "claude-sonnet-5": "Claude Sonnet 5",
+    "claude-opus-4-8": "Claude Opus 4.8",
+    "claude-fable-5": "Claude Fable 5",
+    "gemini-3.7-flash": "Gemini 3.7 Flash",
+    "gemini-3.6-flash": "Gemini 3.6 Flash",
+    "gemini-3.5-flash-lite": "Gemini 3.5 Flash-Lite",
+    "gpt-5.6-sol": "GPT-5.6 Sol",
+    "gpt-5.6-terra": "GPT-5.6 Terra",
+    "gpt-5.6-luna": "GPT-5.6 Luna",
+  };
+
   // ---------------------------------------------------------------------------
   // Renderizador markdown seguro (escapa primeiro, depois formata).
   // Suporta: títulos, negrito/itálico, código inline, blocos ```, listas,
@@ -929,6 +949,7 @@ var PjePanel = (function () {
                   <span class="mm-vazio" hidden>nenhuma cadastrada — a minuta sai no estilo padrão</span>
                   <button class="mm-add" hidden title="Cadastre uma sentença, decisão, despacho ou ofício seu: nas próximas minutas o assistente segue a estrutura e o estilo dela.">${SVG.novo}<span class="lbl">Cadastrar</span></button>
                 </div>
+                <div class="perfil-nota" hidden></div>
               </div>
               <div class="mapabar" hidden>
                 <span class="docxbar-t">${SVG.mapa} <b>Modo mapa mental ligado</b> — revise a instrução abaixo e clique em <b>Gerar mapa</b>: a resposta vira um mapa mental interativo, que abre em nova aba.</span>
@@ -1895,6 +1916,53 @@ var PjePanel = (function () {
     let minutaCb = null;
     let minutaMode = false;
 
+    // ---- Perfil do modelo × modo minuta -------------------------------------
+    // O modelo mais barato para LER os autos costuma ser o mais fraco para
+    // ESCREVER o expediente — não é defeito, é a estrutura de preço: analisar
+    // é dominado pelo input (centenas de páginas entram, poucos milhares de
+    // tokens saem) e redigir é dominado pelo output. Quem liga o modo minuta
+    // com um modelo de perfil `analise` merece saber disso ANTES de gerar.
+    //
+    // INFORMA, NUNCA BLOQUEIA (tokens `--warn-*`, como a `.sel-nota`; jamais a
+    // `.alertbar`): barrar seria a extensão julgando o trabalho de quem assina,
+    // o oposto do que a Res. CNJ 615 estabelece sobre a autoridade final.
+    const perfilNota = $(".perfil-nota");
+    let perfilModelo = null; // "analise" | "redacao" | "ambos" | null
+    let sugestaoModelo = null; // {model, mesmoProvedor} | null
+    let modeloAtualId = null; // preenchido por setModelo, para nomear o ativo
+
+    function nomeModelo(id) {
+      return NOMES_MODELO[id] || id || "o modelo ativo";
+    }
+
+    function atualizarPerfilNota() {
+      if (!perfilNota) return;
+      if (!minutaMode || perfilModelo !== "analise") {
+        perfilNota.hidden = true;
+        perfilNota.textContent = "";
+        return;
+      }
+      const atual = escapeHtml(nomeModelo(modeloAtualId));
+      let h =
+        "<b>" +
+        atual +
+        "</b> rende melhor para <b>ler e analisar</b> os autos; para redigir, " +
+        "costuma sair abaixo dos modelos voltados a texto.";
+      if (sugestaoModelo && sugestaoModelo.model) {
+        const alvo = escapeHtml(nomeModelo(sugestaoModelo.model));
+        h += sugestaoModelo.mesmoProvedor
+          ? " Experimente o <b>" +
+            alvo +
+            "</b> — mesmo provedor, mesma chave: é só trocar nas opções da extensão."
+          : " Experimente o <b>" +
+            alvo +
+            "</b> (exige a chave do provedor dele, configurada nas opções).";
+      }
+      h += " A minuta funciona assim mesmo — isto é uma sugestão, não um impedimento.";
+      perfilNota.innerHTML = h;
+      perfilNota.hidden = false;
+    }
+
     // ---- Orientação obrigatória (Resolução CNJ 615/2025) --------------------
     // O Anexo da resolução separa a "formulação de juízos conclusivos sobre a
     // aplicação da norma jurídica" (AR4, ALTO risco) da "produção de textos de
@@ -2098,6 +2166,7 @@ var PjePanel = (function () {
         if (minutaModeloSel) minutaModeloSel.value = "";
         catModeloTocada = false;
       }
+      atualizarPerfilNota();
       atualizarLinhaTese();
       atualizarSeletorMinuta(on); // popula/oculta o seletor de peça-modelo
     }
@@ -6288,6 +6357,14 @@ var PjePanel = (function () {
       // Habilita a biblioteca de modelos só nos modelos de 1M tokens (chamada
       // pelo content.js quando as caps chegam/mudam).
       setModelosHabilitado,
+      // Perfil de uso do modelo ativo + qual sugerir para redigir. Chamado pelo
+      // content.js quando as caps chegam/mudam; a nota só aparece no modo
+      // minuta, então trocar de modelo com o modo ligado a reescreve na hora.
+      setPerfilModelo(perfil, sugestao) {
+        perfilModelo = perfil || null;
+        sugestaoModelo = sugestao || null;
+        atualizarPerfilNota();
+      },
       // Número CNJ do processo, exibido sob o nome do produto no cabeçalho.
       setProcesso(num) {
         const el = $(".cnj");
@@ -6805,27 +6882,13 @@ var PjePanel = (function () {
       // raciocínio alto") — o usuário vê na hora que a troca nas opções
       // valeu, sem precisar confiar às cegas. info: {model, effort, comEffort}.
       setModelo(info) {
+        modeloAtualId = (info && info.model) || null;
         if (!info || !info.model) {
           modeloBadge.hidden = true;
           return;
         }
-        const NOMES = {
-          "claude-haiku-4-5": "Claude Haiku 4.5",
-          "claude-sonnet-5": "Claude Sonnet 5",
-          "claude-opus-4-8": "Claude Opus 4.8",
-          "claude-fable-5": "Claude Fable 5",
-          "gemini-3.7-flash": "Gemini 3.7 Flash",
-          "gemini-3.6-flash": "Gemini 3.6 Flash",
-          "gemini-3.5-flash-lite": "Gemini 3.5 Flash-Lite",
-          // Os três GPT faltavam desde que a OpenAI entrou: o fallback abaixo
-          // não quebra nada, mas põe o id cru ("gpt-5.6-luna") num selo cujo
-          // trabalho é dizer ao usuário, na língua dele, qual modelo respondeu.
-          "gpt-5.6-sol": "GPT-5.6 Sol",
-          "gpt-5.6-terra": "GPT-5.6 Terra",
-          "gpt-5.6-luna": "GPT-5.6 Luna",
-        };
         const EFFORTS = { high: "alto", medium: "médio", low: "baixo" };
-        let txt = NOMES[info.model] || info.model;
+        let txt = NOMES_MODELO[info.model] || info.model;
         // modelos sem suporte a effort (Haiku) não mostram o nível — exibir
         // um valor que a API não recebe seria mentira
         if (info.comEffort && EFFORTS[info.effort]) {

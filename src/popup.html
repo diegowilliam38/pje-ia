@@ -70,6 +70,19 @@
         <span class="dot"></span><span id="chipText">Chave não configurada</span>
       </div>
 
+      <!-- Faixa de novidades. A Chrome Web Store não tem canal de push para
+           quem já instalou: o único canal é a própria ATUALIZAÇÃO. O worker
+           acende um badge no ícone quando o MARCO (major.minor) muda — nunca a
+           cada patch, senão o badge vira ruído em uma semana — e esta faixa é o
+           que o badge prometia. Abrir uma aba sozinho foi descartado: o Chrome
+           atualiza em segundo plano, e a aba nasceria no meio do trabalho.
+           Nasce hidden e só o popup.js a revela, quando há aviso pendente. -->
+      <div class="novbar" id="avisoNov" hidden>
+        <span class="nb-t" id="avisoNovTxt"></span>
+        <a class="nb-a" href="changelog.html" target="_blank" id="avisoNovLink">Ver o que mudou →</a>
+        <button type="button" class="nb-x" id="avisoNovX" aria-label="Dispensar o aviso de novidades" title="Dispensar">✕</button>
+      </div>
+
       <!-- PROVEDOR EM PRIMEIRO PLANO. Antes eram três acordeões de chave
            competindo por atenção; agora escolhe-se o provedor e só a chave dele
            aparece. O provedor NÃO é estado novo: continua derivado do `model`
@@ -179,6 +192,11 @@
           <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite (1M tokens — o mais barato)</option>
         </optgroup>
       </select>
+      <!-- Indicação de uso do modelo, preenchida por popup.js (pintarPerfil).
+           É AJUDA, não regra: nenhum modelo é impedido de nada. O texto sai do
+           campo `perfil` espelhado do MODEL_CAPS, e só o Luna e o Gemini 3.7
+           foram medidos em uso real — o resto é inferência do tier. -->
+      <span class="perfil-hint" id="perfilHint" hidden></span>
 
       <div class="pc-head pc-head-sp">
         <label class="field" id="effortLab">Nível de raciocínio</label>
@@ -279,6 +297,7 @@
         <b>me pague uma Heineken</b> — PIX <span class="pix-k">(88) 99365-0420</span>,
         Nubank.</p>
         <div class="ap-acts">
+          <a class="ap-star" href="https://chromewebstore.google.com/detail/imgfakkieoijdhdpafjjlefcckbmbppm/reviews" target="_blank" rel="noopener">★ Avaliar</a>
           <button type="button" class="pix-copy" data-pix="00020101021126360014br.gov.bcb.pix0114+55889936504205204000053039865802BR5921MARCOS A R DA FONSECA6009FORTALEZA62070503***6304D296"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 5H6a2 2 0 0 0-2 2v9"/></svg><span class="lbl">Copiar código PIX</span></button>
           <a class="ap-sub" href="https://tecjustica.substack.com/" target="_blank" rel="noopener">Assinar — R$ 10/mês ↗</a>
         </div>

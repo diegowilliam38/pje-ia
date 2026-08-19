@@ -2270,6 +2270,21 @@ button > svg { flex: none; }
   border-radius: var(--r-tight); padding: var(--sp-2) var(--sp-2b);
 }
 .mt-nota[hidden] { display: none; }
+
+/* ---------- Perfil do modelo × minuta ----------
+   Aviso SUAVE (tokens --warn-*), irmão da .mt-nota e da .sel-nota — nunca a
+   .alertbar, que é para o que IMPEDE de continuar. Aqui a minuta funciona: o
+   que se diz é que outro modelo provavelmente escreve melhor. Ocupa a linha
+   inteira da faixa (que é flex-wrap) para não espremer os seletores. */
+.perfil-nota {
+  flex-basis: 100%;
+  font-size: var(--fs-micro); line-height: 1.45;
+  color: var(--warn-ink); background: var(--warn-bg);
+  border: 1px solid var(--warn-line); border-radius: var(--r-tight);
+  padding: var(--sp-2) var(--sp-2b); margin-top: 2px;
+}
+.perfil-nota b { font-weight: 700; }
+.perfil-nota[hidden] { display: none; }
 .mt-como {
   border: none; background: transparent; color: var(--pje-2); cursor: pointer;
   font: inherit; font-size: var(--fs-micro); font-weight: 600; padding: 0;

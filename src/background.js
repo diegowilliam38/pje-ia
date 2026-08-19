@@ -42,9 +42,28 @@ import {
 // preço (US$ por 1M de tokens, tabela pública da Anthropic — Sonnet 5 usa o
 // preço de tabela, não o promocional, para nunca subestimar). Cache de prompt:
 // gravação ≈ 1,25× o preço de input (TTL 5 min); leitura ≈ 0,1×.
+//
+// `perfil` responde "para QUE serve este modelo?" e existe para a orientação
+// de uso não virar um `if (model === "...")` espalhado pela UI: `panel.js` e
+// `content.js` só condicionam por **caps**, nunca por nome de modelo (é o que
+// permitiu somar Gemini e OpenAI sem tocar no ramo da Anthropic), e um modelo
+// novo passa a precisar só de uma linha nesta tabela.
+//   analise → ler, explorar e triar os autos. Fraco para redigir.
+//   redacao → produzir o expediente (minuta, despacho, ofício).
+//   ambos   → serve para os dois.
+// O eixo NÃO é "modelo bom/ruim": os dois trabalhos pagam metades diferentes
+// da tabela de preços. Analisar autos é dominado pelo INPUT (centenas de
+// páginas entram, poucos milhares de tokens saem); redigir tem o mesmo input
+// mas o que se compra é o OUTPUT — e é ali que os tiers se separam. Por isso
+// o mais barato para varrer costuma ser o mais fraco para escrever.
+// ATENÇÃO: é o campo mais PERECÍVEL da tabela — mais que o preço. Vale como
+// recomendação ("costuma render melhor"), nunca como veredito, e mora só aqui
+// para uma revisão custar uma palavra por linha. Hoje apenas `gpt-5.6-luna` e
+// `gemini-3.7-flash` foram MEDIDOS em uso real; o resto é inferência do tier.
 const MODEL_CAPS = {
   "claude-sonnet-5": {
     provider: "anthropic",
+    perfil: "ambos", // Inferido: 3/15 e citacao nativa por folha em 1M.
     contextTokens: 1000000,
     maxPages: 600,
     webSearch: "web_search_20260209",
@@ -55,6 +74,7 @@ const MODEL_CAPS = {
   },
   "claude-opus-4-8": {
     provider: "anthropic",
+    perfil: "ambos", // Inferido: 5/25, citacao nativa.
     contextTokens: 1000000,
     maxPages: 600,
     webSearch: "web_search_20260209",
@@ -65,6 +85,7 @@ const MODEL_CAPS = {
   },
   "claude-fable-5": {
     provider: "anthropic",
+    perfil: "redacao", // Inferido: 10/50 — pagar isso para LER e desperdicio; para redigir, rende.
     contextTokens: 1000000,
     maxPages: 600,
     // fable não está na lista das variantes _20260209 — usa as básicas
@@ -76,6 +97,7 @@ const MODEL_CAPS = {
   },
   "claude-haiku-4-5": {
     provider: "anthropic",
+    perfil: "analise", // Inferido: janela de 200k/100 pags. nao aguenta autos volumosos.
     contextTokens: 200000,
     maxPages: 100,
     webSearch: "web_search_20250305",
@@ -101,6 +123,7 @@ const MODEL_CAPS = {
   // de preço igual não aparecerem com custos diferentes na mesma conversa).
   "gemini-3.7-flash": {
     provider: "gemini",
+    perfil: "redacao", // MEDIDO em uso real: o melhor para expedientes.
     contextTokens: 1000000,
     maxPages: 1000,
     googleSearch: true,
@@ -112,6 +135,7 @@ const MODEL_CAPS = {
   },
   "gemini-3.6-flash": {
     provider: "gemini",
+    perfil: "redacao", // Inferido: mesma familia e mesmo preco da 3.7.
     contextTokens: 1000000,
     maxPages: 1000,
     googleSearch: true,
@@ -123,6 +147,7 @@ const MODEL_CAPS = {
   },
   "gemini-3.5-flash-lite": {
     provider: "gemini",
+    perfil: "analise", // Inferido: 0,30/2,50 — o mais barato para varredura.
     contextTokens: 1000000,
     maxPages: 1000,
     googleSearch: true,
@@ -142,6 +167,7 @@ const MODEL_CAPS = {
   // input, cache automático sem cobrança de gravação). Contexto 1.05M tokens.
   "gpt-5.6-sol": {
     provider: "openai",
+    perfil: "ambos", // Inferido do tier: 5/30 (10/45 acima de 272k) — caro para só ler.
     contextTokens: 1050000,
     maxPages: 500,
     webSearch: true,
@@ -158,6 +184,7 @@ const MODEL_CAPS = {
   },
   "gpt-5.6-terra": {
     provider: "openai",
+    perfil: "ambos", // Inferido do tier: 2/12 (4/18 acima de 272k).
     contextTokens: 1050000,
     maxPages: 500,
     webSearch: true,
@@ -174,6 +201,7 @@ const MODEL_CAPS = {
   },
   "gpt-5.6-luna": {
     provider: "openai",
+    perfil: "analise", // MEDIDO em uso real: fraco para redigir. 0,20/1,20 — imbatível para varrer autos.
     contextTokens: 1050000,
     maxPages: 500,
     webSearch: true,
@@ -262,6 +290,25 @@ const FALLBACK_POR_PROVEDOR = {
 };
 function capsDe(model) {
   return MODEL_CAPS[model] || MODEL_CAPS[FALLBACK_POR_PROVEDOR[providerDe(model)]];
+}
+
+// Qual modelo sugerir a quem está no modo minuta com um modelo de perfil
+// `analise`. Prefere DELIBERADAMENTE um irmão do MESMO provedor: mandar quem
+// usa a OpenAI trocar para o Gemini é pedir que ele crie outra conta e cole
+// outra chave só para seguir um conselho — atrito alto o bastante para o
+// conselho não ser seguido. Entre os candidatos, o mais barato (o custo de
+// redigir é dominado pelo output, e o degrau de preço acima de 272k tokens
+// dos GPT já está embutido na comparação por `out`). Sem irmão no provedor,
+// cai no melhor de qualquer um. Devolve null quando o próprio modelo já serve.
+function sugestaoRedacao(model) {
+  const caps = capsDe(model);
+  if (!caps || caps.perfil !== "analise") return null;
+  const cands = Object.entries(MODEL_CAPS).filter(([, c]) => c.perfil !== "analise");
+  const mesmo = cands.filter(([, c]) => c.provider === caps.provider);
+  const pool = mesmo.length ? mesmo : cands;
+  if (!pool.length) return null;
+  const [id] = pool.sort((a, b) => (a[1].preco.out || 0) - (b[1].preco.out || 0))[0];
+  return { model: id, mesmoProvedor: mesmo.length > 0 };
 }
 
 // Default: GPT-5.6 Luna — 1,05M de tokens cobrem os autos inteiros sem a
@@ -411,6 +458,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         model: cfg.model,
         effort: cfg.effort,
         caps: capsDe(cfg.model),
+        // Qual modelo sugerir para REDIGIR quando o ativo é de perfil
+        // `analise`. Calculado aqui, e não no painel, porque a tabela de
+        // modelos mora só no worker — o painel condiciona por caps e nunca
+        // conhece nome de modelo. `null` quando o ativo já serve para redigir.
+        sugestao: sugestaoRedacao(cfg.model),
         chaveHash,
       });
     })();
@@ -641,6 +693,48 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Aviso de novidades: a ATUALIZAÇÃO é o canal
+//
+// A Chrome Web Store não tem push para quem já instalou. O único canal real é
+// a própria atualização (`onInstalled` com `reason === "update"`), e o único
+// aviso que respeita a disciplina deste projeto — nada entre a pergunta e a
+// resposta — é o BADGE do ícone: ele espera ser olhado, em vez de exigir
+// atenção. Abrir uma aba sozinho foi descartado (o Chrome atualiza extensões
+// em segundo plano, então a aba nasceria no meio do trabalho do usuário), e
+// buscar avisos num servidor exigiria `host_permissions` novo e mudaria a
+// história de privacidade da extensão.
+//
+// COMPARA SÓ MAJOR.MINOR, nunca o patch: foram 7 versões em dois dias
+// (v0.45.0 → v0.46.2). Um badge por bump treina o usuário a ignorá-lo em uma
+// semana, que é o oposto do objetivo. v0.46.1 → v0.46.2 não acende nada.
+const CHAVE_AVISO = "avisoNovidades";
+
+function marcoDe(v) {
+  const [maj, min] = String(v || "").split(".");
+  return maj === undefined ? null : maj + "." + (min || "0");
+}
+
+function acenderBadge() {
+  try {
+    chrome.action.setBadgeText({ text: "novo" });
+    chrome.action.setBadgeBackgroundColor({ color: "#12729f" });
+  } catch {
+    /* best-effort: falhar em pintar um badge não pode derrubar nada */
+  }
+}
+
+// O badge é estado da UI do navegador, não do worker: ele sobrevive à morte do
+// service worker (o que resolve o caso comum), mas é ZERADO ao reiniciar o
+// Chrome. Sem este `onStartup` o aviso sumiria para quem fecha o navegador
+// antes de abrir o popup — justamente o usuário que atualizou e foi dormir.
+chrome.runtime.onStartup.addListener(() => {
+  chrome.storage.local.get(CHAVE_AVISO, (v) => {
+    if (chrome.runtime.lastError) return;
+    if (v && v[CHAVE_AVISO]) acenderBadge();
+  });
+});
+
 // Faxina única: apaga o texto que a extração de peças (removida na v0.22.0)
 // deixou gravado. Enquanto o recurso existiu, o texto extraído das peças ficava
 // em chrome.storage.local sob o prefixo `texto:` — trecho dos autos no disco,
@@ -650,7 +744,22 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 // o `set` de uma minuta falhar. Roda na atualização da extensão e nunca mais.
 // Junto vão a chave da Mistral e o modelo de OCR: credencial que nenhum código
 // lê mais não deve continuar no disco.
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((detalhes) => {
+  // `previousVersion` só existe NESTE instante — se não for gravado agora,
+  // some quando o worker morrer, e o popup não teria como dizer "novidades
+  // DESDE a sua versão" em vez de um "novo" genérico.
+  try {
+    const de = detalhes && detalhes.previousVersion;
+    const para = chrome.runtime.getManifest().version;
+    if (detalhes && detalhes.reason === "update" && de && marcoDe(de) !== marcoDe(para)) {
+      chrome.storage.local.set({ [CHAVE_AVISO]: { de, para } }, () => {
+        void chrome.runtime.lastError;
+        acenderBadge();
+      });
+    }
+  } catch {
+    /* best-effort: nunca impedir a faxina abaixo de rodar */
+  }
   chrome.storage.local.get(null, (tudo) => {
     if (chrome.runtime.lastError) return;
     const antigas = Object.keys(tudo || {}).filter(

@@ -146,6 +146,11 @@
               <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite (1M tokens — o mais barato)</option>
             </optgroup>
           </select>
+          <!-- Indicação de uso do modelo, preenchida por popup.js (pintarPerfil).
+               É AJUDA, não regra: nenhum modelo é impedido de nada. O texto sai do
+               campo `perfil` espelhado do MODEL_CAPS, e só o Luna e o Gemini 3.7
+               foram medidos em uso real — o resto é inferência do tier. -->
+          <span class="perfil-hint" id="perfilHint" hidden></span>
           <span class="hint">
             A janela do modelo decide quantas peças cabem numa conversa. Para
             autos volumosos prefira um modelo de 1 milhão de tokens.
@@ -323,6 +328,15 @@
           <p><b>A extensão é gratuita e de código aberto</b>, e recebe melhorias toda
           semana — o que custa horas de trabalho e tokens de API nos testes com processos
           reais. Nenhum recurso é pago: você usa tudo com a sua própria chave.</p>
+          <!-- O pedido mais BARATO para quem lê: grátis e meio minuto. Vem antes
+               dos dois de dinheiro de propósito — pedir o caro primeiro faz o
+               barato parecer consolo. A política da Chrome Web Store PROÍBE
+               incentivar avaliação: nada é oferecido em troca, aqui nem em
+               lugar nenhum. -->
+          <p>Há uma forma de ajudar que não custa nada: <b>uma avaliação na Chrome Web
+          Store</b>. É o que mais ajuda outras pessoas a encontrarem a extensão —
+          e leva meio minuto.</p>
+          <p><a class="ap-star" href="https://chromewebstore.google.com/detail/imgfakkieoijdhdpafjjlefcckbmbppm/reviews" target="_blank" rel="noopener">★ Avaliar a extensão ↗</a></p>
           <p>Se ela está sendo útil, dá para retribuir de duas formas:</p>
           <div class="pix">
             <img class="pix-qr" src="../icons/pix-qr.svg" width="108" height="108"

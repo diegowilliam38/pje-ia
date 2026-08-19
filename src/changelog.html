@@ -94,7 +94,7 @@
              linhas na tabela — defasagem silenciosa de 11 versões, porque nada aqui a
              calcula. Ao lançar, conferir: o valor certo é a contagem de <tr> do
              histórico. -->
-        Da primeira versão (19 de julho de 2026) até hoje foram <strong>81 versões</strong>. Esta
+        Da primeira versão (19 de julho de 2026) até hoje foram <strong>82 versões</strong>. Esta
         página agrupa o que foi feito <strong>por recurso</strong> — é assim que se usa a
         extensão, não versão a versão. O
         <a class="link" href="#historico">histórico completo</a>, com data e uma linha por
@@ -103,7 +103,48 @@
 
       <div class="card destaque">
         <p class="eyebrow" style="color: rgba(255,255,255,0.7)">A novidade mais recente</p>
-        <h2><span class="v novo">v0.46.2</span> A consulta das datas deixa de desistir por um soluço de rede</h2>
+        <h2><span class="v novo">v0.47.0</span> Qual modelo serve para quê — dito onde você escolhe</h2>
+        <p>
+          Os modelos não são intercambiáveis, e a diferença não é "melhor ou pior": o mais
+          barato para <strong>ler</strong> os autos costuma ser o mais fraco para
+          <strong>escrever</strong> o expediente. Isso não é acaso — analisar um processo é
+          dominado pelo que ENTRA (centenas de páginas), e redigir é dominado pelo que SAI.
+          Até agora essa informação não estava em lugar nenhum: quem escolhia o modelo
+          escolhia no escuro.
+        </p>
+        <p>
+          Agora a tela de configuração diz, embaixo do seletor, <strong>para que serve o
+          modelo escolhido</strong>. E quem liga o modo minuta com um modelo de análise
+          recebe um aviso na própria faixa da minuta, com a sugestão de qual usar — de
+          preferência um <strong>do mesmo provedor</strong>, para não exigir outra conta e
+          outra chave só para seguir o conselho. É sugestão, nunca impedimento: a minuta
+          funciona igual, e quem decide é quem assina.
+        </p>
+        <p>
+          Na prática, hoje: o <strong>GPT-5.6 Luna</strong> (o padrão) é imbatível para ler,
+          explorar e triar os autos, e fica abaixo na redação; o <strong>Gemini 3.7
+          Flash</strong> é o que tem rendido melhor para minuta, despacho e ofício. Quem usa
+          a OpenAI e não quer uma segunda chave tem no <strong>GPT-5.6 Terra</strong> o irmão
+          do Luna voltado a texto. A tabela do guia ganhou uma coluna com isso para todos os
+          dez modelos.
+        </p>
+        <p>
+          A segunda novidade é sobre estas notas: quando a extensão é atualizada, o ícone
+          dela na barra do Chrome passa a mostrar um <strong>selo "novo"</strong>, e o
+          painel de configuração abre com uma linha levando até aqui. Só em versões com
+          novidade de verdade — correções pequenas não acendem nada. Antes não havia
+          absolutamente nenhum aviso: as melhorias chegavam em silêncio.
+        </p>
+        <p>
+          E, já que a extensão é gratuita: se ela está sendo útil no seu trabalho,
+          <strong>uma avaliação na Chrome Web Store</strong> é o que mais ajuda outras
+          pessoas a encontrá-la. Leva meio minuto e não custa nada.
+        </p>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">Antes disso</p>
+        <h2><span class="v">v0.46.2</span> A consulta das datas deixa de desistir por um soluço de rede</h2>
         <p>
           Revisão das cinco versões da linha do tempo, linha por linha. Nenhum recurso novo:
           o que mudou é a <strong>confiabilidade</strong> do que já estava lá.
@@ -1610,6 +1651,7 @@
             <tr><th>Versão</th><th>Data</th><th>O que mudou</th></tr>
           </thead>
           <tbody>
+            <tr><td><span class="v">0.47.0</span></td><td>19/08/2026</td><td>A tela de configuração passa a dizer <strong>para que serve cada modelo</strong> — analisar os autos, redigir expedientes ou os dois —, e quem liga o modo minuta com um modelo de análise recebe a sugestão de qual usar, de preferência do mesmo provedor (sem exigir outra chave); é sugestão, nunca impedimento. A tabela do guia ganhou a coluna para os dez modelos. Além disso, atualizações com novidade de verdade passam a acender um selo <strong>"novo"</strong> no ícone da extensão, com uma linha no painel levando a estas notas — antes as melhorias chegavam em silêncio. E o pedido de avaliação na Chrome Web Store entrou nas telas de apoio</td></tr>
             <tr><td><span class="v">0.46.2</span></td><td>17/08/2026</td><td>Revisão das cinco versões da linha do tempo, sem recurso novo. A consulta oficial das datas <strong>desistia pelo resto da sessão</strong> na primeira espera estourada — e a versão anterior passou a fazê-la assim que o processo abre, o momento mais congestionado da aba, de modo que um soluço de rede ali degradava a sessão inteira para a leitura da tela (incompleta e sem hora), anunciando isso como se fosse limitação do tribunal; agora são precisas duas seguidas, e uma resposta boa zera a contagem. A lista das datas passou a fechar ao clicar na página do tribunal, e quando é encurtada diz <strong>entre que datas</strong>. Por dentro: cada pergunta deixou de varrer a linha do tempo da tela sem precisar, e o assistente passou a saber também no chat que data de publicação ou trânsito não tem peça nem folha</td></tr>
             <tr><td><span class="v">0.46.1</span></td><td>17/08/2026</td><td>A lista das datas ajustada aos modos do painel, depois de conferi-la em <strong>todos eles</strong>. No modo <strong>lateral</strong> a caixa vazava para fora do painel, sobre a página do tribunal, e encostava na borda da janela; agora as bordas do painel são o limite, na largura e na altura. E quando o processo <strong>não tem movimento nenhum</strong>, clicar no selo não fazia nada — o cursor prometia um clique que não acontecia; agora abre a caixa explicando por que não há datas e que a ausência de um ato não significa que ele não aconteceu</td></tr>
             <tr class="marco"><td><span class="v">0.46.0</span></td><td>17/08/2026</td><td><span class="dot-marco"></span><strong>Agora dá para LER a linha do tempo do processo.</strong> As datas iam para o assistente e não apareciam em lugar nenhum — só voltavam se ele as citasse. O selo do rodapé passou a ser <strong>clicável</strong> e abre a lista dentro do painel: cada movimento com data e hora, o nome oficial do ato, o complemento que fecha a conta do prazo e a peça correspondente, que leva à linha do tempo do PJe num clique. É a mesma lista, na mesma ordem, que o assistente recebeu, e serve para conferir a resposta dele; onde ela foi encurtada, uma faixa no meio diz quantos movimentos ficaram de fora. O selo também <strong>deixou de esperar a primeira pergunta</strong>: aparece quando o painel abre, porque quem quer conferir olha, não pergunta</td></tr>
@@ -1706,6 +1748,15 @@
         <p><b>Gratuita, de código aberto e mantida toda semana.</b> Cada uma dessas
         versões custou tempo de desenvolvimento e tokens de API — os recursos são testados
         em processos reais antes de chegar aqui.</p>
+        <!-- O pedido mais BARATO para quem lê: grátis e meio minuto. Vem antes
+             dos dois de dinheiro de propósito — pedir o caro primeiro faz o
+             barato parecer consolo. A política da Chrome Web Store PROÍBE
+             incentivar avaliação: nada é oferecido em troca, aqui nem em
+             lugar nenhum. -->
+        <p>Há uma forma de ajudar que não custa nada: <b>uma avaliação na Chrome Web
+        Store</b>. É o que mais ajuda outras pessoas a encontrarem a extensão —
+        e leva meio minuto.</p>
+        <p><a class="ap-star" href="https://chromewebstore.google.com/detail/imgfakkieoijdhdpafjjlefcckbmbppm/reviews" target="_blank" rel="noopener">★ Avaliar a extensão ↗</a></p>
         <p>Se a extensão está sendo útil, dá para retribuir de duas formas. A extensão
         continua inteira e gratuita para todo mundo, com ou sem apoio.</p>
         <div class="pix">

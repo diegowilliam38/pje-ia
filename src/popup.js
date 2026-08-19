@@ -79,6 +79,7 @@ const abrirOpcoes = document.getElementById("abrirOpcoes");
 const provCount = document.getElementById("provCount");
 const testKey = document.getElementById("testKey");
 const effortHint = document.getElementById("effortHint");
+const perfilHint = document.getElementById("perfilHint");
 const provs = [...document.querySelectorAll(".prov")];
 const keySecs = [...document.querySelectorAll(".pc-sec[data-prov]")];
 const personas = [...document.querySelectorAll(".persona")];
@@ -99,6 +100,77 @@ const PADRAO = { anthropic: "claude-haiku-4-5", gemini: "gemini-3.7-flash", open
 // <option> do <select> nas duas telas, então mesmo o fallback do navegador
 // (quando `value` não casa nenhum id) cai no mesmo modelo que o worker usa.
 const MODELO_PADRAO = "gpt-5.6-luna";
+
+// Para QUE serve cada modelo. Espelho do campo `perfil` do MODEL_CAPS
+// (background.js) — mesma duplicação deliberada do MODELO_PADRAO acima e pela
+// mesma razão: este script é clássico e aquele é ES module. Coberta por teste
+// que extrai as duas tabelas dos fontes e exige que batam.
+// O eixo não é "modelo bom/ruim": analisar autos é dominado pelo INPUT
+// (centenas de páginas entram, poucos milhares de tokens saem) e redigir é
+// dominado pelo OUTPUT — por isso o mais barato para varrer costuma ser o mais
+// fraco para escrever. Só `gpt-5.6-luna` e `gemini-3.7-flash` foram MEDIDOS em
+// uso real; o resto é inferência do tier. É o dado mais perecível daqui.
+const PERFIS = {
+  "gpt-5.6-luna": "analise",
+  "gpt-5.6-terra": "ambos",
+  "gpt-5.6-sol": "ambos",
+  "claude-haiku-4-5": "analise",
+  "claude-sonnet-5": "ambos",
+  "claude-opus-4-8": "ambos",
+  "claude-fable-5": "redacao",
+  "gemini-3.7-flash": "redacao",
+  "gemini-3.6-flash": "redacao",
+  "gemini-3.5-flash-lite": "analise",
+};
+
+// Qual modelo sugerir a quem escolheu um de perfil `analise`. Varre os
+// <option> do MESMO provedor na ordem em que aparecem e pega o primeiro que
+// serve para redigir — deliberadamente do mesmo provedor, porque mandar quem
+// usa a OpenAI trocar para o Google é pedir outra conta e outra chave só para
+// seguir um conselho. Sai do DOM, e não de uma tabela de preços duplicada
+// aqui; o teste confere que a escolha bate com a do worker (`sugestaoRedacao`).
+function sugestaoDeRedacao() {
+  const atual = String(modelEl.value || "");
+  if (PERFIS[atual] !== "analise") return null;
+  const grupo = modelEl.selectedOptions && modelEl.selectedOptions[0]
+    ? modelEl.selectedOptions[0].parentElement
+    : null;
+  if (!grupo) return null;
+  for (const op of grupo.querySelectorAll("option")) {
+    if (PERFIS[op.value] && PERFIS[op.value] !== "analise") {
+      return op.textContent.split(" (")[0].trim();
+    }
+  }
+  return null;
+}
+
+// A linha de indicação abaixo do <select>. É AJUDA, não regra: nenhum modelo é
+// impedido de nada — a extensão só diz o que a experiência de uso mostrou.
+function pintarPerfil() {
+  if (!perfilHint) return;
+  const perfil = PERFIS[String(modelEl.value || "")];
+  if (!perfil) {
+    perfilHint.textContent = "";
+    perfilHint.hidden = true;
+    return;
+  }
+  let txt;
+  if (perfil === "redacao") {
+    txt = "Indicado para redigir expedientes — minuta, despacho, ofício.";
+  } else if (perfil === "ambos") {
+    txt = "Serve tanto para analisar os autos quanto para redigir expedientes.";
+  } else {
+    const sug = sugestaoDeRedacao();
+    txt =
+      "Indicado para ler, explorar e triar os autos" +
+      (sug
+        ? ". Para redigir expedientes, o " + sug + " costuma render melhor."
+        : ". Para redigir expedientes, prefira um modelo voltado a texto.");
+  }
+  perfilHint.textContent = txt;
+  perfilHint.className = "perfil-hint " + perfil;
+  perfilHint.hidden = false;
+}
 
 // O chip reflete a chave do PROVEDOR do modelo selecionado: escolher um modelo
 // de um provedor sem a chave dele avisa na hora, antes mesmo de salvar. O
@@ -156,6 +228,7 @@ function setChip() {
     provCount.textContent = n + " de 3 configurados";
   }
   if (effortHint) effortHint.textContent = EFFORT_TXT[getEffort()] || "";
+  pintarPerfil();
   pintarProvedores(prov);
 }
 function marcarChave(el, valor) {
@@ -404,3 +477,48 @@ saveBtn.addEventListener("click", () => {
     setTimeout(() => (saveStatus.textContent = ""), 2500);
   });
 });
+
+
+// ---------------------------------------------------------------------------
+// Faixa de novidades (só existe no popup — na página de opções os elementos não
+// estão no DOM, e como todo elemento exclusivo de uma tela ele é OPCIONAL).
+//
+// O badge do ícone é apagado assim que o popup abre: ele já fez o trabalho de
+// chamar a atenção e foi atendido. O AVISO, não — ele sobrevive até ser lido ou
+// dispensado, porque quem abriu o popup para trocar de modelo pode não ter
+// olhado a faixa, e um aviso que se apaga sozinho na primeira abertura some
+// justamente para quem veio fazer outra coisa.
+// ---------------------------------------------------------------------------
+(function novidades() {
+  const cx = document.getElementById("avisoNov");
+  if (!cx) return;
+  try {
+    chrome.action.setBadgeText({ text: "" });
+  } catch {
+    /* best-effort: falhar em apagar um badge não pode quebrar o popup */
+  }
+  const txt = document.getElementById("avisoNovTxt");
+  const link = document.getElementById("avisoNovLink");
+  const fechar = document.getElementById("avisoNovX");
+  function esquecer() {
+    cx.hidden = true;
+    try {
+      chrome.storage.local.remove("avisoNovidades", () => void chrome.runtime.lastError);
+    } catch {
+      /* idem */
+    }
+  }
+  try {
+    chrome.storage.local.get("avisoNovidades", (v) => {
+      if (chrome.runtime.lastError) return;
+      const a = v && v.avisoNovidades;
+      if (!a || !a.para) return;
+      txt.textContent = "Atualizada para a versão " + a.para + ".";
+      cx.hidden = false;
+    });
+  } catch {
+    /* sem storage: a faixa simplesmente não aparece */
+  }
+  if (link) link.addEventListener("click", esquecer);
+  if (fechar) fechar.addEventListener("click", esquecer);
+})();

@@ -1070,6 +1070,14 @@
       }
     );
     panel.setModoCitacoes(modelCaps.citacoesNativas === false ? "textual" : "nativa");
+    // Perfil de uso do modelo (analise | redacao | ambos): o painel orienta
+    // quem liga o modo minuta com um modelo bom de LEITURA e fraco de
+    // REDAÇÃO. Vem por CAPS, nunca por nome de modelo — a sugestão de troca
+    // é calculada no worker, que é onde a tabela de modelos mora.
+    panel.setPerfilModelo(
+      modelCaps.perfil || null,
+      (modelInfo && modelInfo.sugestao) || null
+    );
     // A biblioteca de modelos assume 1M tokens (a minuta manda os autos + vários
     // modelos): habilitada só nesses; nos menores (Haiku) a feature some.
     panel.setModelosHabilitado((modelCaps.contextTokens || 0) >= 1000000);
@@ -1096,7 +1104,7 @@
         if (r && "chaveHash" in r) chaveHashAtual = r.chaveHash || null;
         if (r && r.caps) {
           modelCaps = r.caps;
-          modelInfo = { model: r.model, effort: r.effort };
+          modelInfo = { model: r.model, effort: r.effort, sugestao: r.sugestao || null };
           aplicarCapsNaUI();
         }
       });
@@ -1117,7 +1125,7 @@
           void chrome.runtime.lastError;
           if (r && r.caps) {
             modelCaps = r.caps;
-            modelInfo = { model: r.model, effort: r.effort };
+            modelInfo = { model: r.model, effort: r.effort, sugestao: r.sugestao || null };
             aplicarCapsNaUI();
           }
           resolve(); // sem caps segue mesmo assim: count_tokens e a API guardam

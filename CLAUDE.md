@@ -3013,6 +3013,98 @@ que não podem quebrar:
   navegador — a saída visual é a impressão/PDF, com `beforeprint` → `mm.fit()`
   para nada sair cortado.
 
+## Perfil do modelo (`perfil` no MODEL_CAPS) e o aviso de novidades
+
+Duas coisas que a extensão não dizia: **para que serve cada modelo** e **que ela
+foi atualizada**.
+
+### `perfil` — para QUE serve o modelo
+
+O eixo **não é "modelo bom/ruim"**, e é isso que o torna estável: os dois
+trabalhos pagam metades diferentes da tabela de preços. **Analisar** os autos é
+dominado pelo INPUT (centenas de páginas entram, poucos milhares de tokens
+saem); **redigir** um expediente tem o mesmo input, mas o que se compra é o
+OUTPUT. Por isso o mais barato para varrer costuma ser o mais fraco para
+escrever — o `gpt-5.6-luna` (0,20/1,20) é o caso exemplar, e foi a queixa real
+que abriu a rodada.
+
+- **É uma CAP, nunca um `if (model === "…")`.** A regra do projeto —
+  `content.js` e `panel.js` condicionam por caps e jamais por nome de modelo —
+  vale aqui apesar de o conteúdo ser editorial: `perfil: "analise" | "redacao" |
+  "ambos"` entra em `MODEL_CAPS` e um modelo novo passa a precisar de uma linha
+  na tabela, não de um ramo novo na UI.
+- **`sugestaoRedacao(model)` (background.js) prefere o MESMO provedor**, e isso
+  não é detalhe: mandar quem usa a OpenAI trocar para o Gemini é pedir outra
+  conta e outra chave só para seguir um conselho — atrito alto o bastante para o
+  conselho não ser seguido. Entre os candidatos do provedor, o mais barato por
+  `preco.out` (o custo de redigir é dominado pela saída). Sem irmão que sirva,
+  cai no melhor de qualquer um. Hoje os três de perfil `analise` acham irmão:
+  Luna→Terra, Haiku→Sonnet 5, Flash-Lite→3.7 Flash.
+- **Viaja na resposta de `caps`** (`sugestao`), que já roda no boot e a cada
+  `storage.onChanged` de chave/modelo — a orientação se atualiza sozinha na troca
+  de modelo, sem caminho novo.
+- **A nota da minuta INFORMA, NUNCA BLOQUEIA** (`.perfil-nota`, tokens
+  `--warn-*`, irmã da `.mt-nota` e da `.sel-nota`; jamais a `.alertbar`, que é
+  para o que impede de continuar). Barrar seria a extensão julgando o trabalho de
+  quem assina — o oposto do que a Res. CNJ 615 estabelece sobre a autoridade
+  final. A minuta funciona igual; o que se diz é que outro modelo provavelmente
+  escreve melhor.
+- **`NOMES_MODELO` subiu para o TOPO do IIFE do `panel.js`** por causa disso: os
+  consumidores agora são DOIS e distantes (o selo do modelo, ~linha 6800, e a
+  nota de perfil, ~1930), e uma `const` declarada entre eles lançaria "Cannot
+  access before initialization" no primeiro — a zona morta temporal de sempre.
+- **`PERFIS` em `popup.js` é duplicata deliberada** do campo, pela MESMA razão do
+  `MODELO_PADRAO`: aquele é ES module do worker e este é script clássico. A
+  sugestão do popup sai da ORDEM DOS `<option>` do mesmo `<optgroup>` (o primeiro
+  que serve), e não de uma tabela de preços copiada — hoje os três casos batem
+  com o worker, e é isso que o teste cobre.
+- **É o campo mais PERECÍVEL da tabela, mais que o preço.** Vale como
+  recomendação ("costuma render melhor"), nunca como veredito, e mora num lugar
+  só para uma revisão custar uma palavra por linha. **Só `gpt-5.6-luna` e
+  `gemini-3.7-flash` foram MEDIDOS em uso real** (19/08/2026); os outros oito são
+  inferência do tier, e isso está dito no comentário de cada linha.
+
+### O aviso de novidades: a ATUALIZAÇÃO é o canal
+
+**A Chrome Web Store não tem push para quem já instalou** — não existe API para
+mandar mensagem a quem tem a extensão. Os únicos mecanismos são a própria
+atualização (`onInstalled` com `reason === "update"` e `details.previousVersion`)
+e o badge do ícone. Buscar avisos num servidor foi descartado: exigiria
+`host_permissions` novo e mudaria a história de privacidade da extensão (mesmo
+argumento que manteve a permissão `downloads` fora).
+
+- **Badge, nunca abrir aba.** O Chrome atualiza extensões em segundo plano, então
+  uma aba nasceria no meio do trabalho do usuário. O badge espera ser olhado, em
+  vez de exigir atenção — é o único aviso compatível com a regra de nunca entrar
+  entre a pergunta e a resposta.
+- **Compara só MAJOR.MINOR** (`marcoDe`). Foram 7 versões em dois dias
+  (v0.45.0 → v0.46.2): um badge por bump treina o usuário a ignorá-lo em uma
+  semana, que é o oposto do objetivo.
+- **`onStartup` re-acende o badge.** Ele é estado da UI do navegador: sobrevive à
+  morte do service worker (o caso comum) mas é ZERADO ao reiniciar o Chrome — sem
+  isso o aviso sumiria justamente para quem atualizou e foi dormir.
+- **Abrir o popup apaga o BADGE, não o AVISO.** O badge já fez o trabalho de
+  chamar atenção e foi atendido; a faixa sobrevive até ser lida ou dispensada,
+  porque quem abriu o popup para trocar de modelo pode não ter olhado.
+- **`previousVersion` só existe naquele instante** — por isso vai ao
+  `storage.local` na hora, senão some com o worker e a faixa não teria como dizer
+  "desde a sua versão".
+
+### Pedido de avaliação na Web Store
+
+Link para `.../<ID>/reviews` nas QUATRO telas de apoio (popup, opções, ajuda,
+novidades) — nunca no painel, pela mesma regra do PIX e do Substack.
+
+- **Vem ANTES dos pedidos de dinheiro** na fileira: é o mais barato para quem lê
+  (grátis, meio minuto), e pedir o caro primeiro faz o barato parecer consolo.
+- **A política da Store PROÍBE incentivar avaliação** — nada é oferecido em
+  troca, aqui nem em lugar nenhum. Pedir é permitido; recompensar, não.
+- **Só a quem já tem chave salva**, no popup: o `#apoiarBox` já seguia essa regra
+  (`mostrarApoio`), e ela vale igual — pedir avaliação a quem ainda está
+  configurando rende uma estrela ("não entendi como usa").
+- O **ID da extensão** (`imgfakkieoijdhdpafjjlefcckbmbppm`) não estava em lugar
+  nenhum do repositório; ele é o que monta as URLs públicas da ficha.
+
 ## Desenvolvimento e teste
 
 - **ARMADILHA DA ZONA MORTA TEMPORAL no `content.js`** (já derrubou o painel

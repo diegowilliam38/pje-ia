@@ -185,6 +185,26 @@ body {
 label.field { display: block; margin: 14px 0 6px; font-weight: 600; font-size: var(--fs-ui); }
 label.field .hint { display: block; font-weight: 400; font-size: var(--fs-meta); color: var(--muted); margin-top: 2px; }
 
+/* ---------- Indicação de uso do modelo ----------
+   Linha logo abaixo do <select> de modelo, escrita por popup.js. É o ponto da
+   DECISÃO: é ali que a pessoa escolhe, e é ali que a orientação rende.
+   Três estados, e a cor é deliberadamente contida — `analise` usa o token de
+   aviso SUAVE porque não há erro nenhum em usar um modelo de análise (a minuta
+   funciona), só uma escolha provavelmente melhor logo ao lado. */
+.perfil-hint {
+  display: block; margin-top: 6px;
+  font-size: var(--fs-meta); line-height: 1.45;
+  border-radius: var(--r-sm); padding: 6px 9px;
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--muted);
+}
+.perfil-hint[hidden] { display: none; }
+.perfil-hint.analise {
+  background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn-ink);
+}
+.perfil-hint.redacao {
+  background: var(--ok-bg); border-color: var(--ok-line); color: var(--ok-ink);
+}
+
 /* Estado de CADA chave: o chip do topo fala só do provedor do modelo ativo,
    então sem isto não dá para saber, de relance, se a outra chave está salva (o
    caso comum de quem usa Claude e Gemini). O seletor NÃO pode ser escopado em
@@ -708,6 +728,41 @@ input:focus, select:focus, textarea:focus {
   padding: 6px var(--sp-3); cursor: pointer; transition: 140ms ease;
 }
 .apoiar .pix-copy:hover { background: var(--hover-2); border-color: var(--pje); }
+
+/* ---------- Faixa de novidades (só no popup) ----------
+   O aviso que o badge do ícone prometia. Discreta de propósito: ela informa,
+   não convoca — a tarefa de quem abriu o popup continua sendo configurar. */
+.novbar {
+  display: flex; align-items: center; gap: var(--sp-2);
+  margin-bottom: var(--sp-3); padding: 7px 10px;
+  background: var(--hover-2); border: 1px solid var(--line);
+  border-left: 3px solid var(--pje); border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  font-size: var(--fs-meta); color: var(--text-2);
+}
+.novbar[hidden] { display: none; }
+.novbar .nb-t { flex: 1; min-width: 0; }
+.novbar .nb-a { font-weight: 600; color: var(--pje-2); text-decoration: none; white-space: nowrap; }
+.novbar .nb-a:hover { text-decoration: underline; }
+.novbar .nb-x {
+  flex: none; border: none; background: transparent; color: var(--muted);
+  cursor: pointer; font-size: var(--fs-meta); line-height: 1;
+  padding: 3px 5px; border-radius: var(--r-tight);
+}
+.novbar .nb-x:hover { background: var(--line-strong); color: var(--ink); }
+
+/* ---------- Avaliar na Web Store ----------
+   Fica ANTES do PIX na fileira de ações, de propósito: é o pedido mais barato
+   para quem lê (grátis, meio minuto), e pedir o caro primeiro faz o barato
+   parecer um consolo. A política da Store proíbe INCENTIVAR avaliação — nada
+   é oferecido em troca, aqui nem em lugar nenhum. */
+.ap-star, .apoio .ap-star {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--fs-meta); font-weight: 600;
+  color: var(--warn-ink); background: var(--warn-bg);
+  border: 1px solid var(--warn-line); border-radius: var(--r-tight);
+  padding: 6px var(--sp-3); text-decoration: none; transition: 140ms ease;
+}
+.ap-star:hover, .apoio .ap-star:hover { filter: brightness(0.97); text-decoration: none; }
 .apoiar .pix-copy.feito { color: var(--ok-ink); border-color: var(--ok-line); background: var(--ok-bg); }
 .apoiar .pix-k { font-family: var(--ff-mono); color: var(--text-2); }
 .apoiar .ap-qr { margin-top: var(--sp-2b); }

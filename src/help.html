@@ -528,18 +528,27 @@
         raciocínio <strong>ativos</strong>. Preços em US$ por 1 milhão de tokens
         (entrada / saída) — o cache automático reduz a entrada repetida em ~90% nos
         turnos seguintes da mesma conversa.</p>
+        <p><b>“Melhor para” não é “modelo bom ou ruim”</b>: os dois trabalhos pagam
+        metades diferentes da tabela de preços. <b>Analisar</b> os autos é dominado pela
+        ENTRADA (centenas de páginas entram, poucos milhares de tokens saem);
+        <b>redigir</b> um expediente tem a mesma entrada, mas o que se compra é a SAÍDA —
+        e é ali que os modelos se separam. Por isso o mais barato para varrer costuma ser
+        o mais fraco para escrever. A extensão avisa sozinha quando você liga o modo
+        minuta com um modelo de análise; ela nunca impede — quem decide é você.
+        Só o <b>GPT-5.6 Luna</b> e o <b>Gemini 3.7 Flash</b> foram medidos em uso real;
+        os demais seguem o comportamento típico da sua faixa.</p>
         <table>
-          <tr><th>Modelo</th><th>Janela / PDF</th><th>Preço</th><th>Perfil</th></tr>
-          <tr><td><strong>Claude Haiku 4.5</strong></td><td>200 mil tokens / 100 págs.</td><td>1 / 5</td><td>Rápido e barato; citações [n] clicáveis. Bom quando você quer a citação por página.</td></tr>
-          <tr><td><strong>Claude Sonnet 5</strong></td><td>1M tokens / 600 págs.</td><td>3 / 15</td><td>Autos volumosos; mais lento e caro que o Haiku.</td></tr>
-          <tr><td><strong>Claude Opus 4.8</strong></td><td>1M tokens / 600 págs.</td><td>5 / 25</td><td>Qualidade superior para análises delicadas.</td></tr>
-          <tr><td><strong>Claude Fable 5</strong></td><td>1M tokens / 600 págs.</td><td>10 / 50</td><td>O mais capaz — e o mais caro e lento. Para casos excepcionais.</td></tr>
-          <tr><td><strong>Gemini 3.7 Flash</strong></td><td>1M tokens / 1000 págs.</td><td>1,50 / 7,50</td><td>O Gemini mais novo e o indicado do provedor — rápido, multimodal e direto ao ponto. Citações no texto.</td></tr>
-          <tr><td><strong>Gemini 3.6 Flash</strong></td><td>1M tokens / 1000 págs.</td><td>1,50 / 7,50</td><td>A geração anterior do Flash, ainda disponível. Mesmo preço e mesma janela do 3.7.</td></tr>
-          <tr><td><strong>Gemini 3.5 Flash-Lite</strong></td><td>1M tokens / 1000 págs.</td><td>0,30 / 2,50</td><td>O Gemini mais barato e veloz — para triagens e resumos rápidos. Citações no texto.</td></tr>
-          <tr><td><strong>GPT-5.6 Luna</strong> (padrão)</td><td>1,05M tokens</td><td>0,20 / 1,20</td><td>O mais barato dos modelos de janela grande e o melhor ponto de partida. Citações no texto, e é um dos que permitem <strong>restringir a busca aos sites oficiais</strong>.</td></tr>
-          <tr><td><strong>GPT-5.6 Terra</strong></td><td>1,05M tokens</td><td>2 / 12</td><td>GPT equilibrado entre custo e capacidade. Citações no texto.</td></tr>
-          <tr><td><strong>GPT-5.6 (Sol)</strong></td><td>1,05M tokens</td><td>5 / 30</td><td>O GPT mais capaz — para análises delicadas. Citações no texto.</td></tr>
+          <tr><th>Modelo</th><th>Janela / PDF</th><th>Preço</th><th>Melhor para</th><th>Perfil</th></tr>
+          <tr><td><strong>Claude Haiku 4.5</strong></td><td>200 mil tokens / 100 págs.</td><td>1 / 5</td><td>Analisar</td><td>Rápido e barato; citações [n] clicáveis. Bom quando você quer a citação por página.</td></tr>
+          <tr><td><strong>Claude Sonnet 5</strong></td><td>1M tokens / 600 págs.</td><td>3 / 15</td><td>Analisar e redigir</td><td>Autos volumosos; mais lento e caro que o Haiku.</td></tr>
+          <tr><td><strong>Claude Opus 4.8</strong></td><td>1M tokens / 600 págs.</td><td>5 / 25</td><td>Analisar e redigir</td><td>Qualidade superior para análises delicadas.</td></tr>
+          <tr><td><strong>Claude Fable 5</strong></td><td>1M tokens / 600 págs.</td><td>10 / 50</td><td>Redigir</td><td>O mais capaz — e o mais caro e lento. Para casos excepcionais.</td></tr>
+          <tr><td><strong>Gemini 3.7 Flash</strong></td><td>1M tokens / 1000 págs.</td><td>1,50 / 7,50</td><td>Redigir</td><td>O Gemini mais novo e o indicado do provedor — rápido, multimodal e direto ao ponto. Citações no texto.</td></tr>
+          <tr><td><strong>Gemini 3.6 Flash</strong></td><td>1M tokens / 1000 págs.</td><td>1,50 / 7,50</td><td>Redigir</td><td>A geração anterior do Flash, ainda disponível. Mesmo preço e mesma janela do 3.7.</td></tr>
+          <tr><td><strong>Gemini 3.5 Flash-Lite</strong></td><td>1M tokens / 1000 págs.</td><td>0,30 / 2,50</td><td>Analisar</td><td>O Gemini mais barato e veloz — para triagens e resumos rápidos. Citações no texto.</td></tr>
+          <tr><td><strong>GPT-5.6 Luna</strong> (padrão)</td><td>1,05M tokens</td><td>0,20 / 1,20</td><td>Analisar</td><td>O mais barato dos modelos de janela grande e o melhor ponto de partida. Citações no texto, e é um dos que permitem <strong>restringir a busca aos sites oficiais</strong>.</td></tr>
+          <tr><td><strong>GPT-5.6 Terra</strong></td><td>1,05M tokens</td><td>2 / 12</td><td>Analisar e redigir</td><td>GPT equilibrado entre custo e capacidade. Citações no texto.</td></tr>
+          <tr><td><strong>GPT-5.6 (Sol)</strong></td><td>1,05M tokens</td><td>5 / 30</td><td>Analisar e redigir</td><td>O GPT mais capaz — para análises delicadas. Citações no texto.</td></tr>
         </table>
         <p style="margin-top:10px"><em>Regra prática: GPT-5.6 Luna (o padrão) para o dia a
         dia e para autos volumosos — é o de melhor custo entre os de janela grande; Gemini 3.7
@@ -547,6 +556,12 @@
         Haiku 4.5 quando você quer as citações [n] clicáveis e o processo é pequeno
         (100 págs.), ou Sonnet 5 para tê-las em autos volumosos; Opus/Fable ou GPT-5.6 (Sol)
         quando a qualidade da análise vale o preço.</em></p>
+        <p style="margin-top:10px"><em>E para <b>redigir</b> — minuta, despacho, ofício:
+        o <b>Gemini 3.7 Flash</b> é o que tem rendido melhor. Quem já usa a OpenAI e não
+        quer uma segunda chave tem no <b>GPT-5.6 Terra</b> o irmão do Luna voltado a texto.
+        Vale trocar só para gerar o expediente e voltar ao Luna para a leitura do próximo
+        processo: a chave de cada provedor fica salva, e a troca é um clique nas
+        opções.</em></p>
       </div>
 
       <h1 class="serif">Como usar bem o chat (fluxo recomendado)</h1>
@@ -849,6 +864,15 @@
         <p><b>Esta extensão é gratuita e de código aberto</b>, e continua recebendo
         melhorias toda semana — cada recurso é escrito e <b>testado em processos reais</b>
         antes de chegar até você, o que custa horas de trabalho e tokens de API.</p>
+        <!-- O pedido mais BARATO para quem lê: grátis e meio minuto. Vem antes
+             dos dois de dinheiro de propósito — pedir o caro primeiro faz o
+             barato parecer consolo. A política da Chrome Web Store PROÍBE
+             incentivar avaliação: nada é oferecido em troca, aqui nem em
+             lugar nenhum. -->
+        <p>Há uma forma de ajudar que não custa nada: <b>uma avaliação na Chrome Web
+        Store</b>. É o que mais ajuda outras pessoas a encontrarem a extensão —
+        e leva meio minuto.</p>
+        <p><a class="ap-star" href="https://chromewebstore.google.com/detail/imgfakkieoijdhdpafjjlefcckbmbppm/reviews" target="_blank" rel="noopener">★ Avaliar a extensão ↗</a></p>
         <p>Se ela está sendo útil no seu trabalho, há duas maneiras de retribuir — e
         nenhuma delas muda nada na extensão: não há recurso pago nem limite para quem não
         apoia.</p>
