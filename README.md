@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <a href="https://chromewebstore.google.com/detail/imgfakkieoijdhdpafjjlefcckbmbppm"><img alt="Disponível na Chrome Web Store" src="https://img.shields.io/badge/Chrome%20Web%20Store-instalar-0078aa?style=flat-square&logo=googlechrome&logoColor=white"></a>
   <a href="https://tecjustica.substack.com/"><img alt="Blog TecJustiça" src="https://img.shields.io/badge/blog-TecJusti%C3%A7a-0078aa?style=flat-square"></a>
   <a href="LICENSE"><img alt="Licença MIT" src="https://img.shields.io/badge/licen%C3%A7a-MIT-0078aa?style=flat-square"></a>
   <img alt="Chrome Manifest V3" src="https://img.shields.io/badge/Chrome-Manifest%20V3-005f88?style=flat-square&logo=googlechrome&logoColor=white">
@@ -127,24 +128,40 @@ investigação aberta, um agente com MCP é o caminho — o próprio painel suge
 ## 🚀 Instalação
 
 <p align="center">
-  <a href="https://github.com/marcosmarf27/pje-ia/releases/latest/download/pje-ia.zip">
-    <img alt="⬇️ Baixar a extensão (.zip)" src="https://img.shields.io/badge/⬇️%20Baixar%20a%20extens%C3%A3o-pje--ia.zip-0078aa?style=for-the-badge&labelColor=0a3d5c">
+  <a href="https://chromewebstore.google.com/detail/imgfakkieoijdhdpafjjlefcckbmbppm">
+    <img alt="Instalar na Chrome Web Store" src="https://img.shields.io/badge/⬇️%20Instalar%20na-Chrome%20Web%20Store-0078aa?style=for-the-badge&labelColor=0a3d5c&logo=googlechrome&logoColor=white">
   </a>
 </p>
 
-> A extensão ainda não está na Chrome Web Store — instale em modo desenvolvedor (leva 1 minuto):
+**A extensão está na Chrome Web Store.** É o caminho recomendado: um clique, e o
+Chrome passa a atualizá-la sozinho.
+
+1. **[Instale pela Chrome Web Store](https://chromewebstore.google.com/detail/imgfakkieoijdhdpafjjlefcckbmbppm)**.
+2. Clique no ícone **TecJustiça PJe** na barra do Chrome, cole sua chave de API — da
+   **OpenAI** (modelos GPT), da **Anthropic** (modelos Claude) e/ou do **Google**
+   (modelos Gemini) — escolha o modelo e salve.
+   - Não tem chave? O popup traz um **guia passo a passo**, com o endereço do console de
+     cada provedor: [platform.openai.com](https://platform.openai.com/api-keys),
+     [console.anthropic.com](https://console.anthropic.com/settings/keys) e
+     [aistudio.google.com](https://aistudio.google.com/apikey).
+
+<details>
+<summary><b>Prefere instalar pelo <code>.zip</code>, em modo desenvolvedor?</b> (para testar uma versão antes de ela chegar à Store, ou onde a Store é bloqueada)</summary>
+
+<br>
 
 1. **[Baixe o pje-ia.zip](https://github.com/marcosmarf27/pje-ia/releases/latest/download/pje-ia.zip)** (última versão) e **extraia** para uma pasta fixa (ex.: `Documentos\pje-ia`).
    - O Chrome carrega a extensão dessa pasta — não a apague depois.
 2. Abra `chrome://extensions` e ative o **Modo do desenvolvedor** (canto superior direito).
 3. Clique em **Carregar sem compactação** e selecione a pasta extraída (a que contém o `manifest.json`).
-4. Clique no ícone **TecJustiça PJe** na barra do Chrome, cole sua chave de API — da **Anthropic**
-   (modelos Claude) e/ou do **Google** (modelos Gemini) — escolha o modelo e salve.
-   - Não tem chave? O popup traz um **guia passo a passo** para criar a chave: Anthropic no
-     [console.anthropic.com](https://console.anthropic.com), Google no
-     [aistudio.google.com](https://aistudio.google.com/apikey).
+4. Configure a chave como no passo 2 acima.
 
-**Para atualizar:** baixe o novo `.zip`, extraia por cima da mesma pasta e clique em **↺ Atualizar** em `chrome://extensions`. (Quem preferir pode continuar usando `git clone` + carregar a pasta do repositório.)
+**Para atualizar por este caminho:** baixe o novo `.zip`, extraia por cima da mesma pasta e
+clique em **↺ Atualizar** em `chrome://extensions`. Ao contrário da Store, aqui a
+atualização é manual. (Quem preferir pode usar `git clone` + carregar a pasta do
+repositório.)
+
+</details>
 
 ## ⌨️ `pje` — baixar autos em lote pela linha de comando
 
