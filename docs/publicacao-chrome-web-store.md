@@ -1,9 +1,13 @@
 # Publicação na Chrome Web Store — guia passo a passo
 
-> **Status: enviada para análise em 21/07/2026** (v0.9.9, pacote `pje-ia-v0.9.9.zip`).
-> Aguardando revisão — pode demorar mais que o normal pela revisão aprofundada do host
-> permission `*.jus.br` (esperado, não é problema). Acompanhar pelo painel e pelo
-> e-mail de contato. Se vier rejeição, ver o item 7 abaixo.
+> **Status: PUBLICADA.** Versão no ar: **0.47.0** (confirmada em 20/08/2026).
+> ID da extensão: `imgfakkieoijdhdpafjjlefcckbmbppm` — é ele que monta a
+> [ficha](https://chromewebstore.google.com/detail/imgfakkieoijdhdpafjjlefcckbmbppm)
+> e as [avaliações](https://chromewebstore.google.com/detail/imgfakkieoijdhdpafjjlefcckbmbppm/reviews).
+>
+> Os itens 0 a 7 descrevem a PRIMEIRA publicação e ficam como registro. Para subir
+> uma nova versão, o que vale é o **item 8** — e, se o painel recusar o upload, o
+> **item 8.1** provavelmente já responde.
 
 Estado da extensão frente às políticas (avaliado em 21/07/2026, já contra as regras
 novas que entram em vigor em **01/08/2026**): **apta a publicar**. Sem código remoto,
@@ -36,8 +40,26 @@ levar de alguns dias a algumas semanas.
 pwsh ./empacotar.ps1
 ```
 
-Gera `pje-ia-v<versão>.zip` na raiz (só `manifest.json`, `src/`, `icons/` — valida a
-sintaxe dos scripts antes). É esse ZIP que sobe na loja.
+Gera **dois** arquivos na raiz, ambos ignorados pelo git (`*.zip`):
+
+- `tecjustica-pje-v<versão>.zip` — **é este que sobe na loja.** Leva só o que a
+  extensão precisa em runtime: `manifest.json`, `src/`, `icons/` e `vendor/` (d3 +
+  markmap-view, usados pela página do mapa mental).
+- `pje-ia.zip` — cópia de nome FIXO, para o release do GitHub. O botão
+  "⬇️ Baixar a extensão" do README aponta para
+  `releases/latest/download/pje-ia.zip`, endereço que só continua valendo se o asset
+  tiver sempre o mesmo nome. Anexe **os dois** ao release:
+  `gh release create <tag> tecjustica-pje-v*.zip pje-ia.zip`.
+
+O script roda `node --check` em todos os `src/*.js` antes de empacotar e ABORTA se
+algum falhar. Lembre que `node --check` valida só a SINTAXE: variável inexistente
+passa por ele e derruba a função inteira em runtime (ver a nota do `no-undef` no
+`CLAUDE.md`).
+
+**`empacotar.ps1` copia `src/` inteira e sem filtro.** Arquivo de laboratório deixado
+ali entra no pacote publicado — inclusive os `*.local.html`, que o `.gitignore`
+esconde do `git status` e que, por isso, iriam calados para a loja. Laboratório mora
+no scratchpad ou na raiz, nunca em `src/`.
 
 ## 2. Criar o item e enviar o pacote
 
@@ -156,11 +178,79 @@ Motivos prováveis e resposta:
 Cada reenvio reinicia a fila de revisão; responder pelo próprio painel (há campo de
 apelação/observações do desenvolvedor).
 
-## 8. Atualizações futuras
+## 8. Atualizações futuras — o caminho de toda nova versão
 
-Cada nova versão: subir a `version` no `manifest.json` → `pwsh ./empacotar.ps1` →
-painel → **Pacote** → **Enviar novo pacote** → reenviar para revisão (atualizações
-costumam ser mais rápidas). As respostas das abas de privacidade ficam salvas — só
-precisam mudar se as práticas de dados mudarem (e, pela política de 08/2026, mudanças
-de prática exigem divulgação proativa aos usuários: atualizar PRIVACY.md + notas de
-versão).
+Ordem, sem pular passos:
+
+1. **Confira qual versão já está publicada** (painel → *Pacote*, ou a própria ficha).
+   É o passo que quase ninguém faz, e é ele que evita o 8.1.
+2. **Suba a `version` no `manifest.json`** — estritamente maior que a publicada.
+3. **Meça a `description`** (limite de 132; ver 8.2):
+
+   ```powershell
+   node -e "const m=require('./manifest.json');console.log(m.version, m.description.length)"
+   ```
+
+4. `pwsh ./empacotar.ps1` (item 1).
+5. Painel → **Pacote** → **Enviar novo pacote** → arraste o
+   `tecjustica-pje-v<versão>.zip` → **Enviar para revisão**. Atualizações costumam
+   ser mais rápidas que a primeira análise.
+6. Release no GitHub com os DOIS zips (item 1).
+
+As respostas das abas de privacidade ficam salvas — só precisam mudar se as práticas
+de dados mudarem (e, pela política de 08/2026, mudança de prática exige divulgação
+proativa aos usuários: atualizar `PRIVACY.md` + notas de versão).
+
+### 8.1 "Número de versão inválido no manifesto: X" é CONFIRMAÇÃO, não erro
+
+Mensagem do painel, na íntegra:
+
+> Ocorreu um problema ao fazer upload do seu arquivo.
+> Número de versão inválido no manifesto: **X**. Certifique-se de que o último pacote
+> enviado tenha uma versão maior no manifest.json do que o pacote publicado: **X**.
+
+A Store exige versão **estritamente crescente** e não olha o conteúdo do `.zip`: a
+única identidade de um pacote é o número da versão. Logo, essa frase só aparece
+quando aquele pacote **já subiu e já está publicado** — repare que ela NOMEIA a
+versão publicada, e a versão publicada é a sua.
+
+O que engana é a moldura: o painel envolve a recusa num banner genérico ("Ocorreu um
+problema ao fazer upload do seu arquivo"), que se lê como queda de rede e convida a
+tentar de novo — ou a bumpar a versão para "destravar".
+
+**Antes de bumpar, confirme que existe algo novo para subir:**
+
+```bash
+git status            # limpo?
+git log -1 --oneline  # é o commit daquela versão?
+```
+
+Árvore limpa em cima do commit da versão publicada significa que o que está no ar é
+byte a byte o que está no disco: **não há o que subir**. Bumpar ali publica um pacote
+idêntico — queima um número de versão, põe a extensão numa fila de revisão à toa e
+dispara, na base instalada, um `onInstalled` de update que não corresponde a mudança
+nenhuma.
+
+Ocorrido em 20/08/2026 com a 0.47.0, que havia sido publicada no dia anterior.
+
+### 8.2 `description` do manifest acima de 132 caracteres
+
+Já barrou o upload DUAS vezes (v0.9.9: 136→130; v0.14.0: 146→118). É o campo
+`description` do `manifest.json`, que vira o **Resumo** da ficha — não confundir com
+a descrição longa da loja (~16 mil caracteres, item 3). Medir sempre no passo 3.
+
+### 8.3 A loja não tem fila de versões
+
+Subir a mais recente entrega todas as anteriores de uma vez — não é preciso publicar
+0.44, depois 0.45, depois 0.46. Salto acumulado é o normal aqui; o que precisa cobrir
+o intervalo inteiro são as **notas de versão** (conferir `gh release list` antes de
+escrever, porque a distância entre o `main` e o último release costuma ser de várias
+versões).
+
+### 8.4 Não existe push para quem já instalou
+
+A Store não tem canal de aviso para a base instalada. Os únicos mecanismos são a
+própria ATUALIZAÇÃO (`chrome.runtime.onInstalled` com `reason === "update"` e
+`details.previousVersion`), o badge do ícone e as telas satélites da extensão — é o
+que a v0.47.0 passou a usar. Buscar avisos num servidor exigiria `host_permissions`
+novo e mudaria a história de privacidade da extensão; descartado.
