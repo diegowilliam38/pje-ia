@@ -29,6 +29,12 @@ do próprio PJe.
   <img src="docs/painel-expandido.png" alt="Painel expandido sobre a tela de autos do PJe: a lista de peças categorizadas por cor à esquerda, os três passos e as perguntas de exemplo no centro, e a barra com Jurisprudência, Minutar, Mapa mental, Prompts e Modelos no rodapé" width="820">
 </p>
 
+> **Também neste repositório:** **[`pje`](cli/README.md)**, uma ferramenta de
+> **linha de comando** que baixa os autos em lote — você passa números CNJ e ela
+> grava uma pasta por processo, com as peças separadas e índice, para trabalhar
+> fora do navegador. Roda no Windows e no WSL/Linux/macOS.
+> [Instalação e conceitos →](cli/README.md)
+
 ## 🎯 O que ele é — e o que ele não é
 
 **TecJustiça PJe é um chat simplificado sobre os autos, não um agente autônomo.** Ele não navega
@@ -139,6 +145,45 @@ investigação aberta, um agente com MCP é o caminho — o próprio painel suge
      [aistudio.google.com](https://aistudio.google.com/apikey).
 
 **Para atualizar:** baixe o novo `.zip`, extraia por cima da mesma pasta e clique em **↺ Atualizar** em `chrome://extensions`. (Quem preferir pode continuar usando `git clone` + carregar a pasta do repositório.)
+
+## ⌨️ `pje` — baixar autos em lote pela linha de comando
+
+Junto da extensão vive uma ferramenta **separada**, para quem precisa dos autos
+**fora** do navegador — num script, numa pasta de caso, no Claude Code. Você
+passa números CNJ e ela grava uma pasta por processo, com as peças separadas e
+índice.
+
+```
+pje login --sessao-atual                  # aproveita a sessão já aberta no seu navegador
+pje baixar 0000000-00.0000.0.00.0000
+pje baixar 0000000-00.0000.0.00.0000      # de novo: busca só o que apareceu depois
+```
+
+Instalação em uma linha — **Windows:**
+
+```powershell
+irm https://raw.githubusercontent.com/marcosmarf27/pje-ia/main/instalar.ps1 | iex
+```
+
+**WSL, Linux ou macOS:**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/marcosmarf27/pje-ia/main/instalar.sh | sh
+```
+
+Sem dependências, sem `npm install` (Node 22+). O pacote sai **idêntico** ao do
+botão ⬇ do painel, porque é o mesmo `src/exportar.js` — e por isso rodar os dois
+sobre o mesmo processo é um teste de que não divergiram.
+
+> **A sessão do PJe é uma credencial ao portador.** Quem tiver o arquivo entra no
+> PJe como você. Ele fica fora do repositório, o valor do cookie nunca aparece em
+> saída nenhuma, e `pje logout` apaga. **Leia o [`cli/README.md`](cli/README.md)**
+> — ele explica os conceitos de sessão, o incremental, os limites conhecidos e
+> por que um `403` normalmente significa *peça cancelada*, não falta de permissão.
+
+A extensão **não é tocada** por nada disso: o CLI só **lê** `src/exportar.js`, e
+`empacotar.ps1` copia apenas `manifest.json`, `src/`, `icons/` e `vendor/` —
+então `cli/` fica fora do pacote da Web Store por construção.
 
 ## 📖 Como usar
 
@@ -306,45 +351,6 @@ flowchart LR
 | `src/mapa.html` + `mapa.js` / `mapa.css` | Página do **mapa mental**: converte o Markdown da resposta em árvore de nós (com ícones por eixo, tabelas e realces de fl./id) e desenha com markmap (d3), em aba própria da extensão. |
 | `vendor/` | `d3.min.js` e `markmap-view.js` oficiais, sem modificação, usados **só** pela página do mapa (nunca carregados nas páginas do PJe). Licenças em `vendor/LICENSES.md`. |
 | `src/popup.html` | Configuração em 1 clique no ícone da barra (chave, modelo, guia de primeiros passos). |
-
-## ⌨️ `pje` — baixar autos em lote pela linha de comando
-
-Junto da extensão vive uma ferramenta **separada**, para quem precisa dos autos
-**fora** do navegador — num script, numa pasta de caso, no Claude Code. Você
-passa números CNJ e ela grava uma pasta por processo, com as peças separadas e
-índice.
-
-```
-pje login --sessao-atual                  # aproveita a sessão já aberta no seu navegador
-pje baixar 0000000-00.0000.0.00.0000
-pje baixar 0000000-00.0000.0.00.0000      # de novo: busca só o que apareceu depois
-```
-
-Instalação em uma linha — **Windows:**
-
-```powershell
-irm https://raw.githubusercontent.com/marcosmarf27/pje-ia/main/instalar.ps1 | iex
-```
-
-**WSL, Linux ou macOS:**
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/marcosmarf27/pje-ia/main/instalar.sh | sh
-```
-
-Sem dependências, sem `npm install` (Node 22+). O pacote sai **idêntico** ao do
-botão ⬇ do painel, porque é o mesmo `src/exportar.js` — e por isso rodar os dois
-sobre o mesmo processo é um teste de que não divergiram.
-
-> **A sessão do PJe é uma credencial ao portador.** Quem tiver o arquivo entra no
-> PJe como você. Ele fica fora do repositório, o valor do cookie nunca aparece em
-> saída nenhuma, e `pje logout` apaga. **Leia o [`cli/README.md`](cli/README.md)**
-> — ele explica os conceitos de sessão, o incremental, os limites conhecidos e
-> por que um `403` normalmente significa *peça cancelada*, não falta de permissão.
-
-A extensão **não é tocada** por nada disso: o CLI só **lê** `src/exportar.js`, e
-`empacotar.ps1` copia apenas `manifest.json`, `src/`, `icons/` e `vendor/` —
-então `cli/` fica fora do pacote da Web Store por construção.
 
 ## 🔒 Privacidade e segurança
 
