@@ -283,6 +283,7 @@ async function cmdLogin(args, config) {
   let ultimaValidacao = 0;
   let urlAnterior = "";
   let voltasAoLogin = 0;
+  let avisouLeituraLenta = false;
 
   const ehTelaDeLogin = (u) =>
     /\/(auth|sso|login|realms)\b/i.test(u) || /openid-connect/i.test(u);
@@ -328,12 +329,36 @@ async function cmdLogin(args, config) {
         continue;
       }
 
-      const cookies = await colherCookies(cdp, host);
+      // NUMA ESPERA LONGA, NENHUMA CHAMADA ISOLADA PODE SER FATAL.
+      //
+      // Estas duas estavam NUAS dentro do `try { while } finally`, e um
+      // `finally` não engole exceção: ele fechava o CDP e deixava o erro subir,
+      // matando o comando. Relatado no WSL: `Storage.getCookies` pendurou aos
+      // 12 s e o "estou esperando dez minutos" acabou ANTES de o usuário digitar
+      // o CPF — a janela seguiu aberta, ele logou nela, e o CLI já tinha morrido.
+      //
+      // A paciência estava no `while` e era desfeita por um `await` sem guarda
+      // três linhas abaixo. Mesma regra de "falha de download não derruba o
+      // turno": o que falha nesta volta pode dar certo na próxima, e dar certo
+      // na próxima é literalmente o que este laço existe para fazer.
+      let cookies, sso;
+      try {
+        cookies = await colherCookies(cdp, host);
+        // Ter o JSESSIONID NÃO é estar logado: ele nasce no primeiro acesso.
+        // Quem atesta o login concluído é o cookie do Keycloak.
+        sso = cookies.has("JSESSIONID") ? await estadoDoSso(cdp) : null;
+      } catch (e) {
+        // Dito UMA vez, e não a cada 1,5 s: repetir a cada volta viraria ruído
+        // que esconde a instrução de logar, que é o que o usuário precisa ler.
+        if (!avisouLeituraLenta) {
+          avisouLeituraLenta = true;
+          console.log("  (o navegador demorou a responder a leitura dos cookies —");
+          console.log("   sigo tentando; pode continuar o login normalmente)");
+        }
+        continue;
+      }
       if (!cookies.has("JSESSIONID")) continue;
-      // Ter o JSESSIONID NÃO é estar logado: ele nasce no primeiro acesso. Quem
-      // atesta o login concluído é o cookie do Keycloak.
-      const sso = await estadoDoSso(cdp);
-      if (!sso.concluido) continue;
+      if (!sso || !sso.concluido) continue;
       if (Date.now() - ultimaValidacao < ESPACO_VALIDACAO_MS) continue;
       ultimaValidacao = Date.now();
 

@@ -217,7 +217,10 @@ export class Cdp {
     });
   }
 
-  enviar(method, params = {}, teto = 10000) {
+  // `sessionId` (opcional) endereça um alvo ANEXADO — é o modo "flatten" do CDP,
+  // em que a sessão viaja como campo de topo da mesma conexão em vez de exigir
+  // um segundo WebSocket. Sem ele o comando vai para o alvo do NAVEGADOR.
+  enviar(method, params = {}, teto = 10000, sessionId) {
     const id = this.proximoId++;
     return new Promise((resolver, rejeitar) => {
       const t = setTimeout(() => {
@@ -234,7 +237,9 @@ export class Cdp {
           rejeitar(e);
         },
       });
-      this.ws.send(JSON.stringify({ id, method, params }));
+      const msg = { id, method, params };
+      if (sessionId) msg.sessionId = sessionId;
+      this.ws.send(JSON.stringify(msg));
     });
   }
 
@@ -251,12 +256,74 @@ export class Cdp {
 // Colher os cookies
 // ---------------------------------------------------------------------------
 
-// `Storage.getCookies` no alvo do NAVEGADOR devolve o POTE inteiro — e é essa a
-// vantagem sobre o "Copy as cURL": o cURL mostra o que uma requisição MANDOU, e
-// numa requisição cross-site o navegador retém por `SameSite` justamente o
-// sticky do balanceador e o cookie do Keycloak. Aqui eles vêm.
+// DUAS ROTAS PARA O POTE DE COOKIES, e a segunda não é zelo.
+//
+// A primeira é `Storage.getCookies` no alvo do NAVEGADOR, que devolve o pote
+// inteiro — a vantagem sobre o "Copy as cURL", que só mostra o que UMA
+// requisição mandou (numa requisição cross-site o navegador retém por
+// `SameSite` justamente o sticky do balanceador e o cookie do Keycloak).
+//
+// MEDIDO EM 20/08/2026, Ubuntu 24.04 sob WSLg: ela **PENDUROU** — não devolveu
+// erro, simplesmente não respondeu, enquanto `Target.getTargets` respondia na
+// mesma conexão. O mesmo Chrome no Windows responde na hora. Não interessa se a
+// causa é o cookie store ainda carregando ou uma mudança de protocolo: rota que
+// pendura precisa de alternativa, e esta e a regra que o `pje-http.mjs` ja
+// aplica as rotas do PJe.
+//
+// A segunda anexa a uma ABA e usa `Network.getAllCookies`, que apesar do nome
+// devolve o pote do navegador inteiro, não o da página. Vive noutro domínio do
+// protocolo e noutro alvo, então não compartilha o modo de falha da primeira.
+async function todosOsCookies(cdp) {
+  try {
+    const r = await cdp.enviar("Storage.getCookies", {}, 6000);
+    if (Array.isArray(r && r.cookies)) return r.cookies;
+  } catch {
+    /* pendurou ou o alvo do navegador nao aceita: cai para a aba */
+  }
+
+  const { targetInfos } = await cdp.enviar("Target.getTargets", {}, 6000);
+  const aba = (targetInfos || []).find((t) => t.type === "page");
+  if (!aba) throw new Error("nao ha aba aberta para ler os cookies");
+
+  // `flatten: true`: a sessao viaja como campo de topo da MESMA conexao. Sem
+  // ele o CDP exige um segundo WebSocket por alvo, e o modo antigo esta
+  // depreciado ha varias versoes.
+  const { sessionId } = await cdp.enviar(
+    "Target.attachToTarget",
+    { targetId: aba.targetId, flatten: true },
+    6000
+  );
+  try {
+    // `Network.enable` antes: em boa parte das versões o getter funciona sem
+    // ele, mas onde NÃO funciona o erro é obscuro, e o preço aqui é um
+    // roundtrip em localhost. Os eventos que ele passa a emitir são ignorados
+    // pelo cliente (mensagem sem `id` pendente é descartada), e o `disable`
+    // logo abaixo os corta.
+    try {
+      await cdp.enviar("Network.enable", {}, 5000, sessionId);
+    } catch {
+      /* segue: talvez esta versão dispense */
+    }
+    const r = await cdp.enviar("Network.getAllCookies", {}, 8000, sessionId);
+    return (r && r.cookies) || [];
+  } finally {
+    try {
+      await cdp.enviar("Network.disable", {}, 3000, sessionId);
+    } catch {
+      /* a aba pode ter fechado */
+    }
+    // Desanexar sempre: uma sessao esquecida por rodada do laco acumularia uma
+    // sessao a cada 1,5 s durante os dez minutos de espera.
+    try {
+      await cdp.enviar("Target.detachFromTarget", { sessionId }, 3000);
+    } catch {
+      /* a aba pode ter fechado; nao ha o que desfazer */
+    }
+  }
+}
+
 export async function colherCookies(cdp, host) {
-  const { cookies } = await cdp.enviar("Storage.getCookies");
+  const cookies = await todosOsCookies(cdp);
   const alvo = String(host || "").toLowerCase();
   const mapa = new Map();
   for (const c of cookies || []) {
@@ -282,8 +349,7 @@ export async function colherCookies(cdp, host) {
 // Sem esta checagem o `pje login` anunciava sucesso com a sessão pela metade, e
 // a falha só aparecia no comando seguinte, sem ligação aparente com o login.
 export async function estadoDoSso(cdp) {
-  const { cookies } = await cdp.enviar("Storage.getCookies");
-  const nomes = new Set((cookies || []).map((c) => c.name));
+  const nomes = new Set((await todosOsCookies(cdp)).map((c) => c.name));
   return {
     concluido: nomes.has("KEYCLOAK_IDENTITY") || nomes.has("KEYCLOAK_SESSION"),
     emCurso: nomes.has("OAuth_Token_Request_State") || nomes.has("KC_RESTART"),
