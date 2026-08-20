@@ -29,3 +29,29 @@ node_modules/
 
 # harness locais do lab (não versionados)
 *.local.html
+
+# ---------------------------------------------------------------------------
+# CLI de download em lote (cli/) — NADA disto pode ser versionado.
+#
+# A sessao (`sessao.json`) e uma CREDENCIAL AO PORTADOR: quem a tiver entra no
+# PJe como o usuario. Ela mora no perfil do usuario, FORA deste repositorio, de
+# proposito — estas linhas sao a rede para o caso de uma copia cair aqui por
+# acidente. `pje-sessao.json` e o nome ANTIGO, mantido porque apagar uma
+# protecao nunca compensa.
+sessao.json
+pje-sessao.json
+sessao.txt
+**/sessao.json
+**/sessao.txt
+**/pje-sessao.json
+perfil/
+.pje-cdp-porta
+
+# Saidas do CLI: carregam os autos inteiros.
+sonda-detalhe.json
+autos/
+autos-pje/
+**/processo-*/
+
+# saida dos testes do CLI (gerada, nao e fonte)
+_saida-teste/

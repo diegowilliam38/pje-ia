@@ -1,0 +1,30 @@
+# Fim de linha, e por que isto nao e detalhe.
+#
+# O repositorio e trabalhado no Windows com `core.autocrlf=true`, entao o
+# checkout converte para CRLF. Num `.sh` isso e FATAL fora do Windows: o shell
+# le o `\r` como parte do interpretador e responde `bad interpreter: /bin/sh^M`.
+#
+# O modo de falha e ASSIMETRICO, que e o pior tipo: quem instala por
+# `curl ... | sh` nao percebe (o GitHub serve o blob como armazenado, em LF);
+# quem CLONA no Windows e roda do WSL leva o erro. Isto e, quebra so para quem
+# desenvolve — e a mensagem nao aponta para o fim de linha.
+*.sh text eol=lf
+
+# PowerShell: CRLF. Nao e simetria — o `instalar.ps1` documenta que here-strings
+# quebram com LF, e ainda que ele proprio as evite, um `.ps1` futuro nao evitara.
+*.ps1 text eol=crlf
+
+# Fontes e docs: LF no repositorio, o checkout decide o resto.
+*.js   text
+*.mjs  text
+*.json text
+*.md   text
+*.css  text
+*.html text
+
+# Binarios: nunca normalizar (um `\n` trocado corrompe o arquivo em silencio).
+*.png  binary
+*.jpg  binary
+*.zip  binary
+*.pdf  binary
+*.docx binary
