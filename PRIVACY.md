@@ -275,7 +275,10 @@ ele serve; senão, o primeiro com chave, nessa ordem. A tela diz qual está em u
   quantidades; **números de processos** (os sigilosos inclusive, marcados) e, quando ele olha o que há
   numa fila ou etiqueta, os **dados que o painel do PJe já mostra** de cada um (assunto, classe,
   tarefa, etiquetas, prioridade, data de chegada e último movimento — **nunca as partes**); se uma
-  fila anda em lote e as **saídas** dela; e, quando você pergunta por um
+  fila anda em lote e as **saídas** dela; quando você pergunta pela **pauta de audiências** (desde a
+  versão 0.77.0), a **data, a hora e o tipo** de cada audiência marcada no período e o **nome e a
+  qualificação das partes** de cada uma — **nunca os documentos delas** (CPF, CNPJ, RG), que o PJe
+  manda junto e a extensão descarta ao ler, antes de qualquer outro uso; e, quando você pergunta por um
   processo, a **lista das peças** (tipo oficial e data), os **movimentos** e — quando você pede
   para ele ler ou analisar o processo — o **TEOR das peças que ele lê** (o texto de peças do
   editor, de PDFs e das folhas digitalizadas, reconhecidas por OCR no seu computador). Esse texto
