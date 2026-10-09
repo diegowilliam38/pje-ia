@@ -1,6 +1,6 @@
 # Política de Privacidade — TecJustiça PJe (Análise de Processos)
 
-**Última atualização: 2 de outubro de 2026**
+**Última atualização: 9 de outubro de 2026**
 
 A extensão **TecJustiça PJe — Análise de Processos** ("a extensão") adiciona um painel de chat
 com IA à tela de autos digitais do PJe (Processo Judicial Eletrônico). Esta política
@@ -314,6 +314,29 @@ ele serve; senão, o primeiro com chave, nessa ordem. A tela diz qual está em u
   os **nomes** das etiquetas que o Acervo e o leitor já viram (para a lista das configurações, no
   máximo 500). Nada disso é gravado no PJe nem sai do navegador.
 
+## 3-E. Painel do acervo (a aba Painel do Acervo Inteligente)
+
+- **O que lê**: as filas do seu perfil e, por processo, os dados que o painel do PJe já mostra
+  (número, classe, assunto, fila, etiquetas, prioridade, sigilo, órgão julgador, datas de chegada
+  e do último movimento). Para algumas conferências, lê também os movimentos, os ícones (como
+  "documento não lido") e a data de distribuição do processo. Tudo do **próprio tribunal**, com a
+  sua sessão; **os nomes das partes não são lidos nem guardados**. Nada é gravado no PJe.
+- **O que guarda**, no `chrome.storage.local` deste navegador, sem sincronizar:
+  - a **última leitura** (os dados acima, para a janela abrir sem esperar), trocada a cada nova
+    leitura, e os **totais de cada dia** (só números) por 180 dias, para o gráfico de tendência;
+  - a **Minha mesa**: os post-its (o texto que **você** escreve, com cor, situação, responsável e
+    "lembrar em"), as estrelas de favorito, as visões e a régua que você ajustou, e a data da sua
+    última visita. Fica até você apagar; **Exportar** gera um arquivo que você salva onde quiser.
+    Se você escrever dado pessoal num post-it, ele fica neste computador.
+- **O que vai à IA, e só no seu clique**: o **Resumo do dia** manda só os totais (quantos
+  urgentes, parados, conclusos…) e a data; **Agrupar as filas com IA** manda só os nomes das filas
+  e quantos processos há em cada uma. Os dois vão ao provedor do Agente (seção 3-C), com a sua
+  chave. Na aba Agente, a pergunta sobre o painel recebe os totais e, se você pedir uma lista, os
+  mesmos dados de cada processo que as outras consultas do Agente recebem. **Os post-its não vão
+  à IA.** Montar o painel, os gráficos e as exportações não usa IA.
+- **Exportar** uma lista gera uma planilha (.xlsx ou .csv) que você salva onde quiser, sem nome
+  de parte; a partir daí ela deixa de estar sob controle da extensão.
+
 ## 4. Responsabilidade sobre dados de processos (LGPD)
 
 Autos judiciais podem conter dados pessoais e dados sensíveis de partes, testemunhas e
@@ -346,6 +369,9 @@ própria licença e o próprio funcionamento — a política aqui descrita não 
 - **Registro das ações em lote** fica no `chrome.storage.local` por 30 dias (no máximo
   5.000 linhas): número do processo, ação, etiqueta ou saída, resultado e o perfil do PJe.
   Não guarda cookie nem conteúdo dos autos, e não sai deste computador.
+- **Painel do acervo**: a última leitura das filas (sem partes), os totais diários por 180 dias
+  e a Minha mesa (post-its, favoritos, régua) ficam no `chrome.storage.local`, sem sincronizar;
+  detalhes na seção 3-E.
 - **Modelos de peças** (biblioteca “Modelos”) também ficam no `chrome.storage.local`, sem
   poda automática e sem sincronizar. Se você cadastrar uma peça real como modelo, o texto
   pode conter dados de **outro** processo; ele fica só neste navegador e o botão **excluir**
