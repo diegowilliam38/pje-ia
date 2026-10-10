@@ -1,6 +1,6 @@
 # Política de Privacidade — TecJustiça PJe (Análise de Processos)
 
-**Última atualização: 9 de outubro de 2026**
+**Última atualização: 10 de outubro de 2026**
 
 A extensão **TecJustiça PJe — Análise de Processos** ("a extensão") adiciona um painel de chat
 com IA à tela de autos digitais do PJe (Processo Judicial Eletrônico). Esta política
@@ -324,16 +324,16 @@ ele serve; senão, o primeiro com chave, nessa ordem. A tela diz qual está em u
 - **O que guarda**, no `chrome.storage.local` deste navegador, sem sincronizar:
   - a **última leitura** (os dados acima, para a janela abrir sem esperar), trocada a cada nova
     leitura, e os **totais de cada dia** (só números) por 180 dias, para o gráfico de tendência;
-  - a **Minha mesa**: os post-its (o texto que **você** escreve, com cor, situação, responsável e
-    "lembrar em"), as estrelas de favorito, as visões e a régua que você ajustou, e a data da sua
-    última visita. Fica até você apagar; **Exportar** gera um arquivo que você salva onde quiser.
-    Se você escrever dado pessoal num post-it, ele fica neste computador.
-- **O que vai à IA, e só no seu clique**: o **Resumo do dia** manda só os totais (quantos
-  urgentes, parados, conclusos…) e a data; **Agrupar as filas com IA** manda só os nomes das filas
-  e quantos processos há em cada uma. Os dois vão ao provedor do Agente (seção 3-C), com a sua
-  chave. Na aba Agente, a pergunta sobre o painel recebe os totais e, se você pedir uma lista, os
-  mesmos dados de cada processo que as outras consultas do Agente recebem. **Os post-its não vão
-  à IA.** Montar o painel, os gráficos e as exportações não usa IA.
+  - o que **você** escolhe no painel: as estrelas de favorito, a régua que você ajustou, as filas
+    que você marcou como "fora da conta", as preferências da tela e a data da sua última visita.
+    Fica até você apagar. (Os post-its da versão 0.80, que saíram na 0.81, continuam guardados
+    neste navegador, sem tela.)
+- **O que vai à IA, e só no seu clique**: o painel não chama a IA sozinho. Quando você clica em
+  **Analisar com o Agente** ou numa **pergunta pronta**, a lista vai à aba Agente com os mesmos
+  dados de cada processo que as outras consultas do Agente recebem, ao provedor do Agente (seção
+  3-C), com a sua chave. Para mostrar o selo **«Analisado»**, o painel lê das análises que o Agente
+  já guardou neste navegador (seção 3-C) só o número do processo, a data, a situação curta e o
+  próximo ato. Montar o painel, o quadro e as exportações não usa IA.
 - **Exportar** uma lista gera uma planilha (.xlsx ou .csv) que você salva onde quiser, sem nome
   de parte; a partir daí ela deixa de estar sob controle da extensão.
 
@@ -370,8 +370,8 @@ própria licença e o próprio funcionamento — a política aqui descrita não 
   5.000 linhas): número do processo, ação, etiqueta ou saída, resultado e o perfil do PJe.
   Não guarda cookie nem conteúdo dos autos, e não sai deste computador.
 - **Painel do acervo**: a última leitura das filas (sem partes), os totais diários por 180 dias
-  e a Minha mesa (post-its, favoritos, régua) ficam no `chrome.storage.local`, sem sincronizar;
-  detalhes na seção 3-E.
+  e as suas escolhas (favoritos, régua, filas fora da conta) ficam no `chrome.storage.local`, sem
+  sincronizar; detalhes na seção 3-E.
 - **Modelos de peças** (biblioteca “Modelos”) também ficam no `chrome.storage.local`, sem
   poda automática e sem sincronizar. Se você cadastrar uma peça real como modelo, o texto
   pode conter dados de **outro** processo; ele fica só neste navegador e o botão **excluir**
