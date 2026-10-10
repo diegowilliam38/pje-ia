@@ -269,6 +269,13 @@ ele serve; senão, o primeiro com chave, nessa ordem. A tela diz qual está em u
   próprio tribunal** (uma consulta por pessoa proposta, só com dígito verificador válido), para não
   incluir em duplicata quem já está lá. O CPF e o CNPJ **nunca são guardados**: não vão à conversa
   salva nem ao registro das ações (que leva só o identificador interno da pessoa no PJe).
+- **Post-its nas peças** (desde a versão 0.82.0): ao analisar um processo, o agente escreve notas
+  curtas sobre as peças que leu (o que falta, um prazo, uma prova) e a extensão as **guarda neste
+  navegador** (`chrome.storage.local`, sem sincronizar), para mostrá-las ao lado de cada peça na tela
+  dos autos e no Leitor dos autos. As notas são escritas pelo modelo a partir do teor das peças e podem
+  conter **nomes e fatos das partes**. **Nada é gravado no PJe**, outra pessoa não as vê, e o texto
+  delas **não volta à IA** (nem numa conversa retomada). Ficam até você descolar, até 365 dias, e no
+  máximo 100 processos (os mais antigos saem primeiro).
 - **O que vai ao provedor**: o seu pedido; os **nomes** de **todas** as tarefas (com a quantidade de
   processos) e de **todas** as etiquetas da unidade, lidos ao abrir o assistente, para ele entender
   "a fila de analisar" sem o nome exato;
@@ -372,6 +379,8 @@ própria licença e o próprio funcionamento — a política aqui descrita não 
 - **Painel do acervo**: a última leitura das filas (sem partes), os totais diários por 180 dias
   e as suas escolhas (favoritos, régua, filas fora da conta) ficam no `chrome.storage.local`, sem
   sincronizar; detalhes na seção 3-E.
+- **Post-its do agente nas peças**: no `chrome.storage.local`, sem sincronizar, até 365 dias e 100
+  processos (os mais antigos saem primeiro); descolar apaga na hora. Detalhes na seção 3-C.
 - **Modelos de peças** (biblioteca “Modelos”) também ficam no `chrome.storage.local`, sem
   poda automática e sem sincronizar. Se você cadastrar uma peça real como modelo, o texto
   pode conter dados de **outro** processo; ele fica só neste navegador e o botão **excluir**
